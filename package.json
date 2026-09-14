@@ -1,39 +1,26 @@
 {
   "name": "vocare",
-  "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio",
-    "auth:generate": "npx @better-auth/cli generate --config src/lib/auth/server.ts --output src/lib/db/schema.ts",
-    "seed": "tsx --env-file=.env.local src/lib/db/seed.ts"
-  },
-  "dependencies": {
-    "better-auth": "^1.7.3",
-    "drizzle-orm": "^0.45.2",
-    "lucide-react": "^1.43.0",
-    "next": "16.3.4",
-    "pg": "^8.23.0",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "zod": "^4.6.1"
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:migrate": "npm run db:migrate -w apps/api",
+    "db:generate": "npm run db:generate -w apps/api",
+    "auth:generate": "npm run auth:generate -w apps/api",
+    "seed": "npm run seed -w apps/api --"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/pg": "^8.23.1",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "drizzle-kit": "^0.31.10",
-    "eslint": "^9",
-    "eslint-config-next": "16.3.4",
-    "tailwindcss": "^4",
-    "tsx": "^4.23.13",
+    "turbo": "^2",
     "typescript": "^5"
-  }
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "npm@11.12.1"
 }
