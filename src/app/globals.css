@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens do VOCare.
+ * A cor de marca vive SÓ aqui — se o hex do Figma for outro, troque --color-brand
+ * e as duas variações abaixo, e o app inteiro acompanha.
+ */
+@theme {
+  --color-brand: #00a651;
+  --color-brand-hover: #009449;
+  --color-brand-active: #00833f;
+
+  --color-ink: #16233f;
+  --color-ink-muted: #7b8494;
+
+  --color-field-border: #e2e5ea;
+  --color-field-border-focus: #00a651;
+
+  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-field: 0.5rem;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: #ffffff;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
