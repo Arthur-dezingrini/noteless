@@ -1,15 +1,11 @@
 import { defineConfig } from "drizzle-kit";
 
-// drizzle-kit não lê .env sozinho; Node 24 carrega direto.
-try {
-  process.loadEnvFile(".env");
-} catch {
-  // Em CI as variáveis já vêm do ambiente.
-}
+// Mesmo seletor de ambiente da api: APP_ENV=hom → .env.hom.
+import "./src/load-env";
 
 export default defineConfig({
   dialect: "postgresql",
-  schema: "./src/lib/db/schema.ts",
+  schema: "./src/db/schema.ts",
   out: "./drizzle",
   dbCredentials: { url: process.env.DATABASE_URL! },
 });

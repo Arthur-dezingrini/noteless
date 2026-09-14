@@ -7,15 +7,19 @@
   ],
   "scripts": {
     "dev": "turbo run dev",
+    "dev:hom": "cross-env APP_ENV=hom turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "db:migrate": "npm run db:migrate -w apps/api",
+    "db:migrate:hom": "npm run db:migrate:hom -w apps/api",
     "db:generate": "npm run db:generate -w apps/api",
     "auth:generate": "npm run auth:generate -w apps/api",
-    "seed": "npm run seed -w apps/api --"
+    "seed": "npm run seed -w apps/api --",
+    "seed:hom": "npm run seed:hom -w apps/api --"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "turbo": "^2",
     "typescript": "^5"
   },

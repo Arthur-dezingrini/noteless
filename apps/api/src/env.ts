@@ -1,11 +1,7 @@
 import { z } from "zod";
 
-// Carrega .env quando existe (dev). Em produção as variáveis vêm do ambiente.
-try {
-  process.loadEnvFile(".env");
-} catch {
-  /* sem .env: segue com o que o processo já tem */
-}
+// Efeito colateral proposital: precisa rodar antes da validação abaixo.
+import "./load-env";
 
 const schema = z.object({
   DATABASE_URL: z.string().url(),

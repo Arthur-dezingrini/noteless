@@ -5,15 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:hom": "cross-env APP_ENV=hom tsx watch src/index.ts",
     "build": "tsup",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:hom": "cross-env APP_ENV=hom drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
+    "db:studio:hom": "cross-env APP_ENV=hom drizzle-kit studio",
     "auth:generate": "npx @better-auth/cli generate --config src/auth.ts --output src/db/schema.ts",
-    "seed": "tsx src/db/seed.ts"
+    "seed": "tsx src/db/seed.ts",
+    "seed:hom": "cross-env APP_ENV=hom tsx src/db/seed.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1",
@@ -26,6 +30,7 @@
   },
   "devDependencies": {
     "@types/node": "^24",
+    "cross-env": "^10.1.0",
     "drizzle-kit": "^0.31.10",
     "tsup": "^8",
     "tsx": "^4",

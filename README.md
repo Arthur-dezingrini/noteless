@@ -59,8 +59,8 @@ num banco novo: `npm run seed -- "Fazenda Santa Rita" voce@exemplo.com "sua-senh
 - **Mudou o schema?** `npm run db:generate`, commite `apps/api/drizzle/` e
   avise o time. Os outros dão `git pull` + `npm run db:migrate`.
 - **Migração destrutiva** (remover coluna, renomear tabela) derruba quem
-  está com o código antigo. Teste num **branch do Neon** primeiro: crie no
-  painel, aponte seu `.env` pra ele, e só aplique no branch principal
+  está com o código antigo. Teste em homologação primeiro
+  (`npm run db:migrate:hom`, `npm run dev:hom`) e só aplique no principal
   quando o código já estiver na `main`.
 - Todo mundo usa o **mesmo** `BETTER_AUTH_SECRET`, senão a sessão criada
   pela api de um não é aceita pela api do outro.
@@ -96,18 +96,40 @@ do Next 16 recomenda:
 Cadastro público não existe de propósito: operadores e veterinários são criados
 por quem administra a organização (por enquanto, via `npm run seed`).
 
+## Ambientes
+
+Dois branches no Neon, dois arquivos em `apps/api/`:
+
+| Comando               | Arquivo    | Banco                                  |
+| --------------------- | ---------- | -------------------------------------- |
+| `npm run dev`         | `.env`     | branch principal — o que o time usa    |
+| `npm run dev:hom`     | `.env.hom` | branch de homologação — pra testar     |
+
+`.env.hom` é uma cópia do `.env` com a `DATABASE_URL` do branch de homologação
+(painel do Neon → selecione o branch → Connection Details). Os dois arquivos
+são ignorados pelo git.
+
+A escolha é feita por `APP_ENV` (definida pelo script via `cross-env`, funciona
+no Windows). A api imprime na subida qual arquivo carregou e o host do banco —
+**olhe essa linha antes de mexer em dados**. Se `.env.hom` não existir,
+`dev:hom` recusa subir; nunca cai no banco principal por engano.
+
+Migração e seed têm a variante `:hom`: `db:migrate:hom`, `seed:hom`,
+`db:studio:hom`.
+
 ## Comandos (raiz)
 
 | Comando                  | Faz                                              |
 | ------------------------ | ------------------------------------------------ |
-| `npm run dev`            | web + api em paralelo (Turborepo)                |
+| `npm run dev`            | web + api contra o banco principal (Turborepo)   |
+| `npm run dev:hom`        | idem, contra o branch de homologação             |
 | `npm run build`          | build dos dois                                   |
 | `npm run typecheck`      | `tsc` em todos os workspaces                     |
 | `npm run lint`           | eslint no web                                    |
-| `npm run db:migrate`     | aplica migrações                                 |
+| `npm run db:migrate`     | aplica migrações no principal (`:hom` p/ homolog.)|
 | `npm run db:generate`    | gera migração a partir do schema                 |
 | `npm run auth:generate`  | regenera `schema.ts` a partir da config do auth  |
-| `npm run seed -- …`      | cria organização + primeiro usuário              |
+| `npm run seed -- …`      | cria organização + primeiro usuário (`seed:hom`) |
 
 ## Convenções
 
