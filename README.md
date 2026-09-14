@@ -32,29 +32,49 @@ a api direto, repassando o cookie.
 | Web           | Next.js 16 (App Router) + React 19 + TS      |
 | Estilo        | Tailwind CSS v4 (tokens em `globals.css`)    |
 | API           | Hono 4 + @hono/node-server                   |
-| Banco         | Postgres + Drizzle ORM                       |
+| Banco         | Postgres no Neon + Drizzle ORM               |
 | Autenticação  | Better Auth (e-mail/senha + organizations)   |
 | Contrato      | Zod 4 em `packages/shared`                   |
 | Monorepo      | npm workspaces + Turborepo                   |
 
 ## Rodando
 
-Precisa de Node 24+ e um Postgres. Uma vez, crie o papel e o banco:
-
-```bash
-sudo -u postgres psql -c "CREATE ROLE vocare LOGIN PASSWORD 'vocare';" -c "CREATE DATABASE vocare OWNER vocare;"
-```
-
-Depois, na raiz:
+Precisa de Node 24+. O banco é um Postgres compartilhado no Neon — peça a
+`DATABASE_URL` e o `BETTER_AUTH_SECRET` a alguém do time **por mensagem
+privada** (nunca no git, nunca no grupo).
 
 ```bash
 npm install
-cp apps/api/.env.example apps/api/.env      # gere o segredo: openssl rand -base64 32
+cp apps/api/.env.example apps/api/.env      # cole DATABASE_URL e BETTER_AUTH_SECRET do time
 cp apps/web/.env.example apps/web/.env.local
-npm run db:migrate                          # aplica as tabelas
-npm run seed -- "Fazenda Santa Rita" voce@exemplo.com "sua-senha"
+npm run db:migrate                          # aplica migrações pendentes (idempotente)
 npm run dev                                 # sobe web e api juntos
 ```
+
+O `seed` já foi rodado no banco compartilhado; só rode de novo se estiver
+num banco novo: `npm run seed -- "Fazenda Santa Rita" voce@exemplo.com "sua-senha"`.
+
+### Trabalhando em grupo no mesmo banco
+
+- **Mudou o schema?** `npm run db:generate`, commite `apps/api/drizzle/` e
+  avise o time. Os outros dão `git pull` + `npm run db:migrate`.
+- **Migração destrutiva** (remover coluna, renomear tabela) derruba quem
+  está com o código antigo. Teste num **branch do Neon** primeiro: crie no
+  painel, aponte seu `.env` pra ele, e só aplique no branch principal
+  quando o código já estiver na `main`.
+- Todo mundo usa o **mesmo** `BETTER_AUTH_SECRET`, senão a sessão criada
+  pela api de um não é aceita pela api do outro.
+
+### Por que o driver do Neon e não `pg`
+
+A api usa `@neondatabase/serverless`, que fala com o banco por **WebSocket na
+porta 443**. A 5432 é bloqueada em muita rede de universidade e empresa — foi o
+caso aqui — e com este driver o projeto roda em qualquer lugar sem VPN. O
+Drizzle Kit também migra por esse caminho.
+
+O custo: só conecta em Neon (ou outro Postgres atrás de um proxy WebSocket).
+Se um dia precisar de Postgres local, troque as quatro linhas de
+`apps/api/src/db/index.ts` por `drizzle-orm/node-postgres` + `pg`.
 
 ## Autenticação
 

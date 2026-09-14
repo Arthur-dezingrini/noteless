@@ -17,16 +17,15 @@
   },
   "dependencies": {
     "@hono/node-server": "^1",
+    "@neondatabase/serverless": "^1.1.0",
     "@vocare/shared": "*",
     "better-auth": "^1.7.3",
     "drizzle-orm": "^0.45.2",
     "hono": "^4",
-    "pg": "^8.23.0",
     "zod": "^4"
   },
   "devDependencies": {
     "@types/node": "^24",
-    "@types/pg": "^8",
     "drizzle-kit": "^0.31.10",
     "tsup": "^8",
     "tsx": "^4",
