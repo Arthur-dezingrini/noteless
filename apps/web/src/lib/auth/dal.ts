@@ -1,6 +1,8 @@
 import {
+  memberRoleSchema,
   organizationListSchema,
   sessionSchema,
+  type MemberRole,
   type Organization,
   type Session,
 } from "@vocare/shared";
@@ -42,3 +44,33 @@ export const getOrganizations = cache(async (): Promise<Organization[]> => {
   const parsed = organizationListSchema.safeParse(await res.json());
   return parsed.success ? parsed.data : [];
 });
+
+/**
+ * Papel do usuário atual na organização informada (owner, admin, member).
+ * `get-active-member` exigiria organização ativa na sessão; este endpoint
+ * aceita o id explícito.
+ */
+export const getMemberRole = cache(
+  async (organizationId: string): Promise<MemberRole | null> => {
+    const res = await apiFetch(
+      `/api/auth/organization/get-active-member-role?organizationId=${encodeURIComponent(organizationId)}`,
+    );
+    if (!res.ok) return null;
+
+    const parsed = memberRoleSchema.safeParse(await res.json());
+    return parsed.success ? parsed.data : null;
+  },
+);
+
+/** Rótulo em português do papel; o Better Auth usa owner/admin/member. */
+export function rotuloPapel(role: string | undefined): string {
+  switch (role) {
+    case "owner":
+    case "admin":
+      return "Administrador";
+    case "member":
+      return "Membro";
+    default:
+      return "";
+  }
+}

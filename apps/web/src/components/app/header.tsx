@@ -5,7 +5,13 @@ import { LogoutButton } from "@/components/auth/logout-button";
 
 import { Avatar } from "./avatar";
 
-export function Header({ user }: { user: Session["user"] }) {
+export function Header({
+  user,
+  papel,
+}: {
+  user: Session["user"];
+  papel: string;
+}) {
   return (
     <header className="flex h-16 items-center justify-end gap-4 border-b border-line bg-white px-6">
       <button
@@ -26,7 +32,7 @@ export function Header({ user }: { user: Session["user"] }) {
         <Avatar name={user.name || user.email} />
         <div className="leading-tight">
           <p className="text-sm font-semibold text-ink">{user.name || user.email}</p>
-          <p className="text-xs text-ink-muted">{user.email}</p>
+          <p className="text-xs text-ink-muted">{papel || user.email}</p>
         </div>
       </div>
 

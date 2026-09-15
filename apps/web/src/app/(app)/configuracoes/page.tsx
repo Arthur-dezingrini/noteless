@@ -1,7 +1,19 @@
-import { EmBreve } from "@/components/app/em-breve";
+import { getOrganizations } from "@/lib/auth/dal";
+
+import { ClinicaForm } from "./clinica-form";
 
 export const metadata = { title: "Configurações" };
 
-export default function Page() {
-  return <EmBreve titulo="Configurações" />;
+export default async function ConfiguracoesClinicaPage() {
+  const [org] = await getOrganizations();
+
+  if (!org) {
+    return (
+      <p className="rounded-xl border border-line bg-white p-6 text-sm text-ink-muted">
+        Você ainda não faz parte de nenhuma organização.
+      </p>
+    );
+  }
+
+  return <ClinicaForm org={org} />;
 }

@@ -1,10 +1,10 @@
 import {
-  AudioLines,
   BookOpen,
   CalendarDays,
   LayoutDashboard,
   PawPrint,
   Settings,
+  TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
 
@@ -20,6 +20,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/animais", label: "Animais", icon: PawPrint },
   { href: "/prontuarios", label: "Prontuários", icon: BookOpen },
-  { href: "/ocorrencias", label: "Registros de Ocorrências", icon: AudioLines },
+  { href: "/ocorrencias", label: "Ocorrências", icon: TriangleAlert },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
