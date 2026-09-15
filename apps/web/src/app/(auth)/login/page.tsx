@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 
+import { redirect } from "next/navigation";
+
 import { BrandShowcase } from "@/components/auth/brand-showcase";
 import { LoginForm } from "@/components/auth/login-form";
 import { Logo } from "@/components/auth/logo";
+import { getSession } from "@/lib/auth/dal";
 import { BRAND_NAME } from "@/lib/brand";
 
 export const metadata: Metadata = {
@@ -12,6 +15,10 @@ export const metadata: Metadata = {
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const { next } = await searchParams;
+
+  // Checagem real (na api), não pelo cookie: um cookie velho não pode expulsar
+  // ninguém daqui — é justamente quem precisa logar de novo.
+  if (await getSession()) redirect("/dashboard");
 
   return (
     <main className="grid min-h-svh lg:grid-cols-2">
