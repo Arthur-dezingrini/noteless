@@ -4,6 +4,7 @@ import { logger } from "hono/logger";
 
 import { auth } from "./auth";
 import { env } from "./env";
+import { usuariosRoutes } from "./routes/usuarios";
 
 export const app = new Hono();
 
@@ -27,4 +28,5 @@ app.get("/health", (c) => c.json({ ok: true }));
 // é servido pelo Better Auth a partir daqui.
 app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
-// As rotas de negócio (rebanho, capturas de voz, sugestões) entram abaixo.
+// Rotas de negócio. Cada uma valida sessão e papel por conta própria.
+app.route("/api/org", usuariosRoutes);

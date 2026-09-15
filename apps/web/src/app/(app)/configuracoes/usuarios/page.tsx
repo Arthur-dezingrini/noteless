@@ -1,16 +1,30 @@
-import { Construction } from "lucide-react";
+import { getOrganizations, getUsuarios, requireSession } from "@/lib/auth/dal";
+
+import { UsuariosLista } from "./usuarios-lista";
 
 export const metadata = { title: "Usuários" };
 
-export default function UsuariosPage() {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-line bg-white px-6 py-20 text-center">
-      <Construction className="size-8 text-ink-muted/60" />
-      <p className="mt-4 text-sm font-medium text-ink">Usuários — em construção</p>
-      <p className="mt-1 max-w-sm text-sm text-ink-muted">
-        Aqui vai a lista de membros da organização com seus papéis, e o convite
-        de novos usuários.
+export default async function UsuariosPage() {
+  const [{ user }, [org]] = await Promise.all([requireSession(), getOrganizations()]);
+
+  if (!org) {
+    return (
+      <p className="rounded-xl border border-line bg-white p-6 text-sm text-ink-muted">
+        Você ainda não faz parte de nenhuma organização.
       </p>
-    </div>
+    );
+  }
+
+  const usuarios = await getUsuarios(org.id);
+  const eu = usuarios.find((u) => u.id === user.id);
+  const possoGerenciar = eu?.role === "owner" || eu?.role === "admin";
+
+  return (
+    <UsuariosLista
+      orgId={org.id}
+      usuarios={usuarios}
+      meuId={user.id}
+      possoGerenciar={possoGerenciar}
+    />
   );
 }

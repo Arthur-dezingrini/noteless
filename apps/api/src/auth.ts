@@ -18,8 +18,18 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
+    // Não existe cadastro público: usuários são criados por um administrador
+    // da organização (rota /api/org/:orgId/usuarios) ou pelo seed.
+    disableSignUp: true,
     // TODO(auth): ligar quando houver envio de e-mail (recuperação de senha).
     requireEmailVerification: false,
+  },
+
+  user: {
+    additionalFields: {
+      // Função da pessoa na clínica/fazenda: Veterinária, Recepcionista, Peão…
+      cargo: { type: "string", required: false, input: true },
+    },
   },
 
   session: {

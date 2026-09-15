@@ -93,8 +93,15 @@ do Next 16 recomenda:
   `GET /api/auth/get-session` na api e valida a resposta contra
   `sessionSchema` do pacote compartilhado.
 
-Cadastro público não existe de propósito: operadores e veterinários são criados
-por quem administra a organização (por enquanto, via `npm run seed`).
+Cadastro público **não existe** (`disableSignUp`): quem cria usuários é um
+administrador da organização, em Configurações → Usuários, com uma senha
+temporária. A api expõe isso em `/api/org/:orgId/usuarios` (listar, criar,
+editar, remover), sempre checando o papel de quem chama. Remover tira a pessoa
+da organização, não apaga a conta. O primeiro usuário vem do `npm run seed`.
+
+Papéis: `owner` (quem criou a organização; não pode ser alterado nem removido),
+`admin` (gerencia usuários e dados) e `member` (opera). O campo `cargo` do
+usuário (Veterinária, Recepcionista, Peão…) é livre.
 
 ## Ambientes
 
