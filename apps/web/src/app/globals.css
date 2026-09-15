@@ -16,6 +16,10 @@
   --color-field-border: #e2e5ea;
   --color-field-border-focus: #00a651;
 
+  --color-surface: #f7f8fa;
+  --color-line: #eceef2;
+  --color-brand-soft: #e8f7ee;
+
   --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
 
   --radius-field: 0.5rem;

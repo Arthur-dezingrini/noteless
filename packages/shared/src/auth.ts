@@ -30,3 +30,14 @@ export const sessionSchema = z.object({
 });
 
 export type Session = z.infer<typeof sessionSchema>;
+
+/** Forma mínima de uma organização como o web a consome de /organization/list. */
+export const organizationSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+});
+
+export const organizationListSchema = z.array(organizationSchema);
+
+export type Organization = z.infer<typeof organizationSchema>;

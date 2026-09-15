@@ -1,4 +1,9 @@
-import { sessionSchema, type Session } from "@vocare/shared";
+import {
+  organizationListSchema,
+  sessionSchema,
+  type Organization,
+  type Session,
+} from "@vocare/shared";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
@@ -28,3 +33,12 @@ export async function requireSession(): Promise<Session> {
   if (!session) redirect("/login");
   return session;
 }
+
+/** Organizações (fazendas/clínicas) das quais o usuário atual é membro. */
+export const getOrganizations = cache(async (): Promise<Organization[]> => {
+  const res = await apiFetch("/api/auth/organization/list");
+  if (!res.ok) return [];
+
+  const parsed = organizationListSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : [];
+});
