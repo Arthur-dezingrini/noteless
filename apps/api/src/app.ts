@@ -6,6 +6,7 @@ import { auth } from "./auth";
 import { env } from "./env";
 import { animaisRoutes } from "./routes/animais";
 import { consultasRoutes } from "./routes/consultas";
+import { perfilRoutes } from "./routes/perfil";
 import { usuariosRoutes } from "./routes/usuarios";
 
 export const app = new Hono();
@@ -34,3 +35,4 @@ app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 app.route("/api/org", usuariosRoutes);
 app.route("/api/org", animaisRoutes);
 app.route("/api/org", consultasRoutes);
+app.route("/api/perfil", perfilRoutes);

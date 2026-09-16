@@ -1,4 +1,5 @@
 import { Bell } from "lucide-react";
+import Link from "next/link";
 import type { Session } from "@vocare/shared";
 
 import { LogoutButton } from "@/components/auth/logout-button";
@@ -28,13 +29,17 @@ export function Header({
 
       <div className="h-6 w-px bg-line" />
 
-      <div className="flex items-center gap-3">
-        <Avatar name={user.name || user.email} />
+      <Link
+        href="/perfil"
+        className="flex items-center gap-3 rounded-lg px-1 py-1 transition hover:bg-surface"
+        aria-label="Abrir meu perfil"
+      >
+        <Avatar name={user.name || user.email} image={user.image} />
         <div className="leading-tight">
           <p className="text-sm font-semibold text-ink">{user.name || user.email}</p>
           <p className="text-xs text-ink-muted">{papel || user.email}</p>
         </div>
-      </div>
+      </Link>
 
       <LogoutButton />
     </header>

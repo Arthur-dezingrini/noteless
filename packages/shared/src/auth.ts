@@ -45,6 +45,7 @@ export const sessionSchema = z.object({
     id: z.string(),
     name: z.string(),
     email: z.string(),
+    image: z.string().nullable().optional(),
   }),
   session: z.object({
     id: z.string(),
