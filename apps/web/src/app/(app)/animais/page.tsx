@@ -1,4 +1,4 @@
-import { getAnimais, getMemberRole, getOrganizations, requireSession } from "@/lib/auth/dal";
+import { getAnimais, getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 
 import { AnimaisLista } from "./animais-lista";
 
@@ -6,7 +6,7 @@ export const metadata = { title: "Animais" };
 
 export default async function AnimaisPage() {
   await requireSession();
-  const [org] = await getOrganizations();
+  const org = await getOrgAtiva();
 
   if (!org) {
     return (

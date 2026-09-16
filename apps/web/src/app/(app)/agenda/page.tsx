@@ -1,7 +1,7 @@
 import {
   getAnimais,
   getConsultas,
-  getOrganizations,
+  getOrgAtiva,
   getUsuarios,
   requireSession,
 } from "@/lib/auth/dal";
@@ -12,7 +12,7 @@ import { AgendaView } from "./agenda-view";
 export const metadata = { title: "Agenda" };
 
 export default async function AgendaPage() {
-  const [, [org]] = await Promise.all([requireSession(), getOrganizations()]);
+  const [, org] = await Promise.all([requireSession(), getOrgAtiva()]);
 
   if (!org) {
     return (

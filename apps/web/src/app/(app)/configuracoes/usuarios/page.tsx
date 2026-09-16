@@ -1,11 +1,11 @@
-import { getOrganizations, getUsuarios, requireSession } from "@/lib/auth/dal";
+import { getOrgAtiva, getUsuarios, requireSession } from "@/lib/auth/dal";
 
 import { UsuariosLista } from "./usuarios-lista";
 
 export const metadata = { title: "Usuários" };
 
 export default async function UsuariosPage() {
-  const [{ user }, [org]] = await Promise.all([requireSession(), getOrganizations()]);
+  const [{ user }, org] = await Promise.all([requireSession(), getOrgAtiva()]);
 
   if (!org) {
     return (

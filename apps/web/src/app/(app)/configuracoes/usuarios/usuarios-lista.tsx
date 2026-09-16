@@ -14,6 +14,7 @@ import { z } from "zod";
 import { Avatar } from "@/components/app/avatar";
 import { Card, CardHeader } from "@/components/app/card";
 import { Modal } from "@/components/app/modal";
+import { chamarApi, chamarApiJson } from "@/lib/api-client";
 import { Select } from "@/components/app/select";
 
 const inputClasses =
@@ -25,17 +26,6 @@ type Props = {
   meuId: string;
   possoGerenciar: boolean;
 };
-
-/** Chamada à api pelo rewrite (/api/* → apps/api); o cookie vai junto. */
-async function chamarApi(path: string, init: RequestInit): Promise<string | null> {
-  const res = await fetch(path, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init.headers },
-  });
-  if (res.ok) return null;
-  const body = (await res.json().catch(() => null)) as { error?: string } | null;
-  return body?.error ?? "Não foi possível concluir. Tente de novo.";
-}
 
 function Campo({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -50,6 +40,7 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
   const router = useRouter();
   const [adicionando, setAdicionando] = useState(false);
   const [editando, setEditando] = useState<Usuario | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   return (
     <>
@@ -68,6 +59,11 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
             )
           }
         />
+        {aviso && (
+          <p role="status" className="mx-5 mb-3 rounded-lg bg-brand-soft px-3.5 py-2.5 text-sm text-brand">
+            {aviso}
+          </p>
+        )}
         <ul className="space-y-2 px-5 pb-5">
           {usuarios.map((u) => (
             <li
@@ -104,8 +100,13 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
         open={adicionando}
         orgId={orgId}
         onClose={() => setAdicionando(false)}
-        onDone={() => {
+        onDone={(vinculado, nome) => {
           setAdicionando(false);
+          setAviso(
+            vinculado
+              ? `${nome} já tinha conta em outra organização e foi vinculado a esta. A senha continua a que a pessoa já usa.`
+              : null,
+          );
           router.refresh();
         }}
       />
@@ -133,7 +134,7 @@ function AdicionarModal({
   open: boolean;
   orgId: string;
   onClose: () => void;
-  onDone: () => void;
+  onDone: (vinculado: boolean, nome: string) => void;
 }) {
   const [pending, start] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
@@ -155,13 +156,13 @@ function AdicionarModal({
     }
     const formEl = e.currentTarget;
     start(async () => {
-      const err = await chamarApi(`/api/org/${orgId}/usuarios`, {
+      const r = await chamarApiJson<{ id: string; vinculado: boolean }>(`/api/org/${orgId}/usuarios`, {
         method: "POST",
         body: JSON.stringify(parsed.data),
       });
-      if (err) return setErro(err);
+      if (!r.ok) return setErro(r.error);
       formEl.reset();
-      onDone();
+      onDone(r.data.vinculado, parsed.data.name);
     });
   }
 
@@ -188,7 +189,8 @@ function AdicionarModal({
         </Campo>
         <p className="text-xs text-ink-muted">
           Ainda não enviamos e-mail: repasse a senha à pessoa e peça para trocar
-          no primeiro acesso.
+          no primeiro acesso. Se o e-mail já tiver conta em outra organização, a
+          pessoa é só vinculada aqui e a senha dela não muda.
         </p>
         {erro && <p role="alert" className="text-sm text-red-600">{erro}</p>}
         <div className="flex justify-end gap-2 pt-2">

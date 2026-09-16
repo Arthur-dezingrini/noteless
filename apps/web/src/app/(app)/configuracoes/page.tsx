@@ -1,11 +1,11 @@
-import { getOrganizations } from "@/lib/auth/dal";
+import { getOrgAtiva } from "@/lib/auth/dal";
 
 import { ClinicaForm } from "./clinica-form";
 
 export const metadata = { title: "Configurações" };
 
 export default async function ConfiguracoesClinicaPage() {
-  const [org] = await getOrganizations();
+  const org = await getOrgAtiva();
 
   if (!org) {
     return (

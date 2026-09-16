@@ -119,3 +119,14 @@ export const getConsultas = cache(
     return parsed.success ? parsed.data : [];
   },
 );
+
+/**
+ * Organização ativa do usuário: a que está na sessão (trocada pelo seletor
+ * do menu lateral) ou, na falta dela, a primeira da lista. `null` só se o
+ * usuário não pertence a nenhuma — o que, por regra, não deveria existir.
+ */
+export const getOrgAtiva = cache(async (): Promise<Organization | null> => {
+  const [session, orgs] = await Promise.all([getSession(), getOrganizations()]);
+  const ativaId = session?.session.activeOrganizationId;
+  return orgs.find((o) => o.id === ativaId) ?? orgs[0] ?? null;
+});

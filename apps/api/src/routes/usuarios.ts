@@ -66,12 +66,32 @@ usuariosRoutes.post("/:orgId/usuarios", async (c) => {
   const body = criarUsuarioSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
 
+  // Um usuário pode pertencer a várias organizações. Se o e-mail já existe
+  // (criado por outra fazenda/clínica), só vinculamos — senha e nome ficam
+  // como estão; só o dono da conta muda isso.
+  const ctx = await auth.$context;
+  const existente = await ctx.internalAdapter.findUserByEmail(body.data.email.trim().toLowerCase());
+
+  if (existente) {
+    const [jaMembro] = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(and(eq(member.userId, existente.user.id), eq(member.organizationId, orgId)))
+      .limit(1);
+    if (jaMembro) return c.json({ error: "Essa pessoa já faz parte desta organização." }, 409);
+
+    await auth.api.addMember({
+      body: { userId: existente.user.id, organizationId: orgId, role: body.data.role },
+    });
+    return c.json({ id: existente.user.id, vinculado: true }, 201);
+  }
+
   try {
     const novo = await criarUsuario(body.data);
     await auth.api.addMember({
       body: { userId: novo.id, organizationId: orgId, role: body.data.role },
     });
-    return c.json({ id: novo.id }, 201);
+    return c.json({ id: novo.id, vinculado: false }, 201);
   } catch (e) {
     if (e instanceof UsuarioJaExiste) return c.json({ error: e.message }, 409);
     throw e;

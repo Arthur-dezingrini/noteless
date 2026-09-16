@@ -3,16 +3,24 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { Logo } from "@/components/auth/logo";
+import type { Organization } from "@vocare/shared";
+
+import { OrgSwitcher } from "./org-switcher";
 import { NAV_ITEMS } from "@/lib/navigation";
 
-export function Sidebar({ orgName }: { orgName: string }) {
+export function Sidebar({
+  organizacoes,
+  ativaId,
+}: {
+  organizacoes: Organization[];
+  ativaId: string | null;
+}) {
   const pathname = usePathname();
 
   return (
     <aside className="flex w-[17rem] shrink-0 flex-col border-r border-line bg-white">
       <div className="border-b border-line px-5 py-4">
-        <Logo tone="dark" subtitle={orgName} />
+        <OrgSwitcher organizacoes={organizacoes} ativaId={ativaId} />
       </div>
 
       <nav className="flex-1 space-y-1 p-3" aria-label="Principal">

@@ -9,7 +9,7 @@ import { StatCard } from "@/components/app/stat-card";
 import { requireSession } from "@/lib/auth/dal";
 import { ROTULO_ESPECIE, ROTULO_STATUS_CONSULTA, ROTULO_TIPO_CONSULTA, type StatusConsulta } from "@vocare/shared";
 
-import { getConsultas, getOrganizations } from "@/lib/auth/dal";
+import { getConsultas, getOrgAtiva } from "@/lib/auth/dal";
 import { dataExtenso, hojeISO, TZ } from "@/lib/datas";
 import { ALERTS, REVENUE, STATS } from "@/lib/mock/dashboard";
 
@@ -39,7 +39,7 @@ const ALERT_TONES = {
 };
 
 export default async function DashboardPage() {
-  const [{ user }, [org]] = await Promise.all([requireSession(), getOrganizations()]);
+  const [{ user }, org] = await Promise.all([requireSession(), getOrgAtiva()]);
   const agora = new Date();
   const hoje = hojeISO();
   const consultasHoje = org ? await getConsultas(org.id, hoje, hoje) : [];

@@ -14,3 +14,17 @@ export async function chamarApi(path: string, init: RequestInit = {}): Promise<s
   const body = (await res.json().catch(() => null)) as { error?: string } | null;
   return body?.error ?? "Não foi possível concluir. Tente de novo.";
 }
+
+/** Igual a `chamarApi`, mas devolve o corpo em caso de sucesso. */
+export async function chamarApiJson<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  const res = await fetch(path, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...init.headers },
+  });
+  const body = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
+  if (res.ok && body) return { ok: true, data: body };
+  return { ok: false, error: body?.error ?? "Não foi possível concluir. Tente de novo." };
+}

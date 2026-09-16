@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins";
+import { asc, eq } from "drizzle-orm";
 
 import { db } from "./db";
 import * as schema from "./db/schema";
@@ -36,6 +37,24 @@ export const auth = betterAuth({
     // Um veterinário passa o dia em campo; sessão curta obrigaria login constante.
     expiresIn: 60 * 60 * 24 * 30, // 30 dias
     updateAge: 60 * 60 * 24, // renova no máximo uma vez por dia
+  },
+
+  databaseHooks: {
+    session: {
+      create: {
+        // Toda sessão nasce com uma organização ativa: a mais antiga do
+        // usuário. O seletor no menu lateral troca depois (organization/set-active).
+        before: async (session) => {
+          const [m] = await db
+            .select({ organizationId: schema.member.organizationId })
+            .from(schema.member)
+            .where(eq(schema.member.userId, session.userId))
+            .orderBy(asc(schema.member.createdAt))
+            .limit(1);
+          return { data: { ...session, activeOrganizationId: m?.organizationId ?? null } };
+        },
+      },
+    },
   },
 
   plugins: [

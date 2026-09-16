@@ -9,31 +9,6 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Informe sua senha."),
 });
 
-export const signupSchema = z
-  .object({
-    name: z
-      .string()
-      .trim()
-      .min(2, "Informe seu nome completo.")
-      .max(100, "Nome muito longo."),
-    email: z
-      .string()
-      .trim()
-      .min(1, "Informe seu e-mail.")
-      .email("E-mail inválido."),
-    password: z
-      .string()
-      .min(8, "A senha deve ter pelo menos 8 caracteres.")
-      .max(128, "A senha deve ter no máximo 128 caracteres."),
-    confirmPassword: z.string().min(1, "Confirme sua senha."),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "As senhas devem ser iguais.",
-    path: ["confirmPassword"],
-  });
-
-export type LoginInput = z.infer<typeof loginSchema>;
-export type SignupInput = z.infer<typeof signupSchema>;
 
 /**
  * Forma da sessão que o web consome de GET /api/auth/get-session.
