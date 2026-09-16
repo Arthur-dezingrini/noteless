@@ -14,6 +14,7 @@ import { z } from "zod";
 import { Avatar } from "@/components/app/avatar";
 import { Card, CardHeader } from "@/components/app/card";
 import { Modal } from "@/components/app/modal";
+import { Select } from "@/components/app/select";
 
 const inputClasses =
   "w-full rounded-lg border border-field-border bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-muted/60 focus:border-brand focus:ring-2 focus:ring-brand/20";
@@ -177,10 +178,10 @@ function AdicionarModal({
           <input name="cargo" className={inputClasses} placeholder="Veterinária, Recepcionista, Peão…" />
         </Campo>
         <Campo label="Papel">
-          <select name="role" className={inputClasses} defaultValue="member">
+          <Select name="role" defaultValue="member">
             <option value="member">Membro — opera o sistema</option>
             <option value="admin">Administrador — gerencia usuários e dados</option>
-          </select>
+          </Select>
         </Campo>
         <Campo label="Senha temporária">
           <input name="password" type="text" className={inputClasses} required minLength={8} autoComplete="off" placeholder="Mínimo 8 caracteres" />
@@ -282,10 +283,10 @@ function EditarModal({
             {ehDono ? (
               <input className={`${inputClasses} bg-surface text-ink-muted`} value="Dono da organização" disabled />
             ) : (
-              <select name="role" className={inputClasses} defaultValue={usuario.role}>
+              <Select name="role" defaultValue={usuario.role}>
                 <option value="member">Membro — opera o sistema</option>
                 <option value="admin">Administrador — gerencia usuários e dados</option>
-              </select>
+              </Select>
             )}
           </Campo>
 

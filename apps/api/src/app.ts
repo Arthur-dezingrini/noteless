@@ -4,6 +4,7 @@ import { logger } from "hono/logger";
 
 import { auth } from "./auth";
 import { env } from "./env";
+import { animaisRoutes } from "./routes/animais";
 import { usuariosRoutes } from "./routes/usuarios";
 
 export const app = new Hono();
@@ -30,3 +31,4 @@ app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
 // Rotas de negócio. Cada uma valida sessão e papel por conta própria.
 app.route("/api/org", usuariosRoutes);
+app.route("/api/org", animaisRoutes);

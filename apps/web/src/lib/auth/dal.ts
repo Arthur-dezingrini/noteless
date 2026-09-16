@@ -1,8 +1,10 @@
 import {
+  animalListaSchema,
   memberRoleSchema,
   organizationListSchema,
   sessionSchema,
   usuarioListaSchema,
+  type Animal,
   type MemberRole,
   type Organization,
   type Session,
@@ -87,3 +89,12 @@ export const getUsuarios = cache(
     return parsed.success ? parsed.data : [];
   },
 );
+
+/** Animais cadastrados na organização, em ordem alfabética. */
+export const getAnimais = cache(async (organizationId: string): Promise<Animal[]> => {
+  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/animais`);
+  if (!res.ok) return [];
+
+  const parsed = animalListaSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : [];
+});

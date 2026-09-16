@@ -12,11 +12,14 @@ export function Modal({
   onClose,
   title,
   children,
+  wide = false,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /** Formulários em duas colunas precisam de mais largura. */
+  wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -35,7 +38,7 @@ export function Modal({
         // Clique no backdrop (fora do conteúdo) fecha.
         if (e.target === ref.current) onClose();
       }}
-      className="m-auto w-full max-w-md rounded-xl border border-line bg-white p-0 shadow-xl backdrop:bg-ink/40"
+      className={`m-auto w-full ${wide ? "max-w-2xl" : "max-w-md"} rounded-xl border border-line bg-white p-0 shadow-xl backdrop:bg-ink/40`}
     >
       <div className="flex items-center justify-between border-b border-line px-5 py-4">
         <h2 className="text-base font-semibold text-ink">{title}</h2>

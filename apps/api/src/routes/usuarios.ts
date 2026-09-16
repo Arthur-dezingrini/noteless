@@ -11,6 +11,7 @@ import { Hono } from "hono";
 import { auth } from "../auth";
 import { db } from "../db";
 import { member, user } from "../db/schema";
+import { membroAtual } from "../membros/membro-atual";
 import { criarUsuario, UsuarioJaExiste } from "../usuarios/criar-usuario";
 
 /**
@@ -24,22 +25,6 @@ import { criarUsuario, UsuarioJaExiste } from "../usuarios/criar-usuario";
 export const usuariosRoutes = new Hono();
 
 const PODE_GERENCIAR: Papel[] = ["owner", "admin"];
-
-/** Sessão + papel do chamador na organização da rota. */
-async function membroAtual(headers: Headers, organizationId: string) {
-  const session = await auth.api.getSession({ headers });
-  if (!session) return null;
-
-  const [m] = await db
-    .select({ id: member.id, role: member.role })
-    .from(member)
-    .where(and(eq(member.userId, session.user.id), eq(member.organizationId, organizationId)))
-    .limit(1);
-  if (!m) return null;
-
-  const role = papelSchema.safeParse(m.role);
-  return { userId: session.user.id, memberId: m.id, role: role.success ? role.data : ("member" as const) };
-}
 
 async function listar(organizationId: string): Promise<Usuario[]> {
   const rows = await db
