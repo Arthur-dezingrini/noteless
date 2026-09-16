@@ -1,4 +1,4 @@
-import { getOrganizations, getUsuarios, requireSession } from "@/lib/auth/dal";
+import { getMemberRole, getOrganizations, getUsuarios, requireSession } from "@/lib/auth/dal";
 
 import { UsuariosLista } from "./usuarios-lista";
 
@@ -15,9 +15,13 @@ export default async function UsuariosPage() {
     );
   }
 
-  const usuarios = await getUsuarios(org.id);
-  const eu = usuarios.find((u) => u.id === user.id);
-  const possoGerenciar = eu?.role === "owner" || eu?.role === "admin";
+  const [usuarios, papel] = await Promise.all([
+    getUsuarios(org.id),
+    getMemberRole(org.id),
+  ]);
+  const papelNaLista = usuarios.find((usuario) => usuario.id === user.id)?.role;
+  const papelAtual = papel?.role ?? papelNaLista;
+  const possoGerenciar = papelAtual === "owner" || papelAtual === "admin";
 
   return (
     <UsuariosLista

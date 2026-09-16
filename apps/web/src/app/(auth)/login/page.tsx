@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { BrandShowcase } from "@/components/auth/brand-showcase";
@@ -41,13 +40,6 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <div className="mt-8">
             <LoginForm next={typeof next === "string" ? next : undefined} />
           </div>
-
-          <p className="mt-6 text-center text-xs text-ink-muted">
-            Ainda não tem conta?{" "}
-            <Link href="/cadastro" className="font-medium text-brand hover:underline">
-              Criar conta
-            </Link>
-          </p>
 
           <p className="mt-10 text-center text-xs text-ink-muted">
             © {new Date().getFullYear()} {BRAND_NAME} · Todos os direitos
