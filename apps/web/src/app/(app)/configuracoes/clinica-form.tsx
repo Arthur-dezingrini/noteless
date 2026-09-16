@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 
 import { Card, CardHeader } from "@/components/app/card";
-import { Toggle } from "@/components/app/toggle";
 import { authClient } from "@/lib/auth/client";
 
 const inputClasses =
@@ -43,14 +42,6 @@ export function ClinicaForm({ org }: { org: Organization }) {
   const [telefone, setTelefone] = useState(meta.telefone ?? "");
   const [email, setEmail] = useState(meta.email ?? "");
   const [endereco, setEndereco] = useState(meta.endereco ?? "");
-  const [abertura, setAbertura] = useState(meta.horarioAbertura ?? "08:00");
-  const [fechamento, setFechamento] = useState(meta.horarioFechamento ?? "19:00");
-  const [confirmacao, setConfirmacao] = useState(
-    meta.preferencias?.confirmacaoAutomatica ?? true,
-  );
-  const [alertasEstoque, setAlertasEstoque] = useState(
-    meta.preferencias?.alertasEstoque ?? true,
-  );
 
   function salvar() {
     setFeedback(null);
@@ -59,9 +50,6 @@ export function ClinicaForm({ org }: { org: Organization }) {
       telefone,
       email,
       endereco,
-      horarioAbertura: abertura,
-      horarioFechamento: fechamento,
-      preferencias: { confirmacaoAutomatica: confirmacao, alertasEstoque },
     };
 
     startTransition(async () => {
@@ -125,47 +113,10 @@ export function ClinicaForm({ org }: { org: Organization }) {
               <input id={id} className={inputClasses} value={endereco} onChange={(e) => setEndereco(e.target.value)} placeholder="Rua, número, bairro, cidade - UF, CEP" />
             )}
           </Campo>
-          <fieldset className="md:col-span-2">
-            <legend className="mb-1.5 block text-sm font-medium text-ink">
-              Horário de funcionamento
-            </legend>
-            <div className="grid gap-4 md:grid-cols-2">
-              <input aria-label="Abertura" type="time" className={inputClasses} value={abertura} onChange={(e) => setAbertura(e.target.value)} />
-              <input aria-label="Fechamento" type="time" className={inputClasses} value={fechamento} onChange={(e) => setFechamento(e.target.value)} />
-            </div>
-          </fieldset>
         </div>
       </Card>
 
-      <Card>
-        <CardHeader title="Preferências do sistema" />
-        <ul className="divide-y divide-line px-5 pb-2">
-          <li className="flex items-center justify-between gap-4 py-4">
-            <div>
-              <p className="text-sm font-medium text-ink">Confirmação automática de consultas</p>
-              <p className="text-xs text-ink-muted">Enviar lembrete 24h antes via WhatsApp</p>
-            </div>
-            <Toggle checked={confirmacao} onChange={setConfirmacao} label="Confirmação automática de consultas" />
-          </li>
-          <li className="flex items-center justify-between gap-4 py-4">
-            <div>
-              <p className="text-sm font-medium text-ink">Alertas de estoque baixo</p>
-              <p className="text-xs text-ink-muted">Notificar quando produto atingir estoque mínimo</p>
-            </div>
-            <Toggle checked={alertasEstoque} onChange={setAlertasEstoque} label="Alertas de estoque baixo" />
-          </li>
-        </ul>
-      </Card>
-
-      <div className="flex items-center gap-4">
-        <button
-          type="submit"
-          disabled={pending}
-          className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-70"
-        >
-          {pending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-          {pending ? "Salvando..." : "Salvar alterações"}
-        </button>
+      <div className="flex items-center justify-end gap-4">
         {feedback && (
           <p
             role="status"
@@ -174,6 +125,14 @@ export function ClinicaForm({ org }: { org: Organization }) {
             {feedback.msg}
           </p>
         )}
+        <button
+          type="submit"
+          disabled={pending}
+          className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          {pending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+          {pending ? "Salvando..." : "Salvar alterações"}
+        </button>
       </div>
     </form>
   );
