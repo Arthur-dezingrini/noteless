@@ -6,3 +6,5 @@
  * ao chegar. Se o contrato mudar, os dois lados quebram em tempo de compilação.
  */
 export * from "./auth";
+export * from "./usuarios";
+export * from "./animais";

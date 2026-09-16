@@ -65,14 +65,6 @@ export const organizationMetadataSchema = z.object({
   telefone: z.string().optional(),
   email: z.string().optional(),
   endereco: z.string().optional(),
-  horarioAbertura: z.string().optional(),
-  horarioFechamento: z.string().optional(),
-  preferencias: z
-    .object({
-      confirmacaoAutomatica: z.boolean().optional(),
-      alertasEstoque: z.boolean().optional(),
-    })
-    .optional(),
 });
 
 export type OrganizationMetadata = z.infer<typeof organizationMetadataSchema>;

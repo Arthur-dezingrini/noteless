@@ -8,6 +8,7 @@
  *   npm run seed -- "Fazenda Santa Rita" arthur@vocare.com.br "senha-forte"
  */
 import { auth } from "../auth";
+import { criarUsuario } from "../usuarios/criar-usuario";
 
 async function main() {
   const [nomeOrg, email, senha] = process.argv.slice(2);
@@ -19,8 +20,10 @@ async function main() {
     process.exit(1);
   }
 
-  const { user } = await auth.api.signUpEmail({
-    body: { name: email.split("@")[0] ?? email, email, password: senha },
+  const user = await criarUsuario({
+    name: email.split("@")[0] ?? email,
+    email,
+    password: senha,
   });
 
   const org = await auth.api.createOrganization({

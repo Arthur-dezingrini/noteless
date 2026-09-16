@@ -8,6 +8,20 @@
       "when": 1788995925989,
       "tag": "0000_free_captain_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789512482583,
+      "tag": "0001_whole_switch",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789568949383,
+      "tag": "0002_boring_domino",
+      "breakpoints": true
     }
   ]
 }

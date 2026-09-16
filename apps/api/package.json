@@ -15,7 +15,7 @@
     "db:migrate:hom": "cross-env APP_ENV=hom drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:studio:hom": "cross-env APP_ENV=hom drizzle-kit studio",
-    "auth:generate": "npx @better-auth/cli generate --config src/auth.ts --output src/db/schema.ts",
+    "auth:generate": "npx --yes @better-auth/cli generate --config src/auth.ts --output src/db/schema.ts --yes",
     "seed": "tsx src/db/seed.ts",
     "seed:hom": "cross-env APP_ENV=hom tsx src/db/seed.ts"
   },
