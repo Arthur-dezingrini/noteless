@@ -3,8 +3,6 @@
  * domínio (fazendas, lotes, animais, manejos) não existe. Quando existir,
  * este arquivo some e o dashboard passa a ler da api.
  */
-import type { Tone } from "@/components/app/badge";
-
 export type Stat = {
   label: string;
   value: string;
@@ -18,22 +16,6 @@ export const STATS: Stat[] = [
   { label: "Animais cadastrados", value: "1.240", hint: "18 novos este mês", tone: "blue", icon: "heart" },
   { label: "Faturamento mensal", value: "R$ 28.450", hint: "+12% vs mês anterior", tone: "purple", icon: "dollar" },
   { label: "Taxa de retorno", value: "87%", hint: "Meta: 85%", tone: "orange", icon: "chart" },
-];
-
-export type Appointment = {
-  time: string;
-  animal: string;
-  details: string;
-  type: string;
-  status: { label: string; tone: Tone };
-};
-
-export const APPOINTMENTS: Appointment[] = [
-  { time: "09:00", animal: "Thor", details: "Cão · Golden Retriever · Carlos Mendes", type: "Vacinação", status: { label: "Confirmado", tone: "green" } },
-  { time: "10:30", animal: "Luna", details: "Gato · Siamês · Patricia Souza", type: "Consulta", status: { label: "Aguardando", tone: "yellow" } },
-  { time: "11:00", animal: "Mel", details: "Cão · Beagle · Roberto Lima", type: "Retorno", status: { label: "Confirmado", tone: "green" } },
-  { time: "14:00", animal: "Pipoca", details: "Coelho · Fernanda Costa", type: "Check-up", status: { label: "Confirmado", tone: "green" } },
-  { time: "15:30", animal: "Rex", details: "Cão · Pastor Alemão · André Oliveira", type: "Cirurgia", status: { label: "Urgente", tone: "red" } },
 ];
 
 export type Alert = { text: string; tone: "yellow" | "red" | "blue"; href?: string };

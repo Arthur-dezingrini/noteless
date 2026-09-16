@@ -7,11 +7,11 @@ import { Card, CardHeader } from "@/components/app/card";
 import { PageHeader } from "@/components/app/page-header";
 import { StatCard } from "@/components/app/stat-card";
 import { requireSession } from "@/lib/auth/dal";
-import { ALERTS, APPOINTMENTS, REVENUE, STATS } from "@/lib/mock/dashboard";
+import { dataExtenso, hojeISO, TZ } from "@/lib/datas";
+import { consultasDeExemplo, STATUS_CONSULTA } from "@/lib/mock/agenda";
+import { ALERTS, REVENUE, STATS } from "@/lib/mock/dashboard";
 
 export const metadata = { title: "Dashboard" };
-
-const TZ = "America/Sao_Paulo";
 
 function saudacao(date: Date): string {
   const hora = Number(
@@ -20,17 +20,6 @@ function saudacao(date: Date): string {
   if (hora < 12) return "Bom dia";
   if (hora < 18) return "Boa tarde";
   return "Boa noite";
-}
-
-function dataExtenso(date: Date): string {
-  const s = new Intl.DateTimeFormat("pt-BR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: TZ,
-  }).format(date);
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 const ALERT_TONES = {
@@ -42,6 +31,8 @@ const ALERT_TONES = {
 export default async function DashboardPage() {
   const { user } = await requireSession();
   const agora = new Date();
+  const hoje = hojeISO();
+  const consultasHoje = consultasDeExemplo(hoje).filter((c) => c.data === hoje);
   const primeiroNome = (user.name || user.email).split(/[\s@]/)[0];
 
   return (
@@ -53,7 +44,7 @@ export default async function DashboardPage() {
             <span aria-hidden="true">👋</span>
           </>
         }
-        subtitle={dataExtenso(agora)}
+        subtitle={dataExtenso(hoje)}
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -66,19 +57,19 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader
             title="Consultas de hoje"
-            aside={<Badge tone="gray">{`${APPOINTMENTS.length} agendadas`}</Badge>}
+            aside={<Badge tone="gray">{`${consultasHoje.length} agendadas`}</Badge>}
           />
           <ul className="divide-y divide-line">
-            {APPOINTMENTS.map((a) => (
-              <li key={a.time} className="flex items-center gap-4 px-5 py-3.5">
-                <span className="w-12 text-sm text-ink-muted tabular-nums">{a.time}</span>
-                <Avatar name={a.animal} />
+            {consultasHoje.map((c) => (
+              <li key={c.id} className="flex items-center gap-4 px-5 py-3.5">
+                <span className="w-12 text-sm text-ink-muted tabular-nums">{c.hora}</span>
+                <Avatar name={c.animal} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-ink">{a.animal}</p>
-                  <p className="truncate text-xs text-ink-muted">{a.details}</p>
+                  <p className="text-sm font-medium text-ink">{c.animal}</p>
+                  <p className="truncate text-xs text-ink-muted">{c.especie} · {c.tutor}</p>
                 </div>
-                <span className="hidden text-xs text-ink-muted sm:block">{a.type}</span>
-                <Badge tone={a.status.tone}>{a.status.label}</Badge>
+                <span className="hidden text-xs text-ink-muted sm:block">{c.tipo}</span>
+                <Badge tone={STATUS_CONSULTA[c.status].tone}>{STATUS_CONSULTA[c.status].label}</Badge>
               </li>
             ))}
           </ul>
