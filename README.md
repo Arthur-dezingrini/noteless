@@ -124,6 +124,24 @@ no Windows). A api imprime na subida qual arquivo carregou e o host do banco —
 Migração e seed têm a variante `:hom`: `db:migrate:hom`, `seed:hom`,
 `db:studio:hom`.
 
+## Domínio
+
+Tabelas de negócio ficam em `apps/api/src/db/*.ts` (uma por módulo), separadas
+do `schema.ts` gerado pelo Better Auth. Novo arquivo? Registre em
+`drizzle.config.ts` e em `db/index.ts`, rode `npm run db:generate` e commite a
+migração.
+
+- **Animais** — `animal`: cadastro por organização. Qualquer membro cria e
+  edita; remover é de administrador.
+- **Consultas** — `consulta`: agenda, ligada ao animal (FK) e opcionalmente a
+  um veterinário (usuário da organização; se ele sair, a consulta fica sem
+  responsável em vez de sumir). Data e hora separadas, "de parede", sem fuso.
+  Qualquer membro agenda, edita e exclui. Status: agendada, confirmada,
+  urgente, concluída, cancelada — prefira cancelar a excluir, o histórico fica.
+
+Cada módulo tem contrato em `packages/shared` (schemas Zod), rotas em
+`apps/api/src/routes` e leitura no web via `apps/web/src/lib/auth/dal.ts`.
+
 ## Comandos (raiz)
 
 | Comando                  | Faz                                              |

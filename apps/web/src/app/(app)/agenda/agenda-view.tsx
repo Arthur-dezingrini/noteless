@@ -1,19 +1,47 @@
 "use client";
 
-import { Info, MoreHorizontal, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+  atualizarConsultaSchema,
+  criarConsultaSchema,
+  ROTULO_ESPECIE,
+  ROTULO_STATUS_CONSULTA,
+  ROTULO_TIPO_CONSULTA,
+  STATUS_CONSULTA,
+  TIPOS_CONSULTA,
+  type Animal,
+  type Consulta,
+  type StatusConsulta,
+} from "@vocare/shared";
+import { Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState, useTransition, type FormEvent } from "react";
 
 import { Avatar } from "@/components/app/avatar";
-import { Badge } from "@/components/app/badge";
+import { Badge, type Tone } from "@/components/app/badge";
 import { Card, CardHeader } from "@/components/app/card";
 import { Modal } from "@/components/app/modal";
 import { PageHeader } from "@/components/app/page-header";
+import { Select } from "@/components/app/select";
+import { chamarApi } from "@/lib/api-client";
 import { adicionarDias, dataExtenso, formatar, inicioDaSemana } from "@/lib/datas";
-import { STATUS_CONSULTA, type Consulta } from "@/lib/mock/agenda";
 
 import { Calendario } from "./calendario";
 
 type Modo = "dia" | "semana";
+type Veterinario = { id: string; nome: string };
+type Dialogo =
+  | { tipo: "nova" }
+  | { tipo: "editar"; consulta: Consulta }
+  | { tipo: "excluir"; consulta: Consulta }
+  | null;
+
+const ESTILO_STATUS: Record<StatusConsulta, { tone: Tone; barra: string }> = {
+  agendada: { tone: "yellow", barra: "bg-amber-400" },
+  confirmada: { tone: "green", barra: "bg-brand" },
+  urgente: { tone: "red", barra: "bg-red-500" },
+  concluida: { tone: "gray", barra: "bg-line" },
+  cancelada: { tone: "gray", barra: "bg-line" },
+};
 
 const inputClasses =
   "w-full rounded-lg border border-field-border bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-muted/60 focus:border-brand focus:ring-2 focus:ring-brand/20";
@@ -22,16 +50,28 @@ function capitalizar(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export function AgendaView({ hoje, consultas }: { hoje: string; consultas: Consulta[] }) {
+type Props = {
+  orgId: string;
+  hoje: string;
+  consultas: Consulta[];
+  animais: Animal[];
+  veterinarios: Veterinario[];
+};
+
+export function AgendaView({ orgId, hoje, consultas, animais, veterinarios }: Props) {
+  const router = useRouter();
   const [selecionado, setSelecionado] = useState(hoje);
   const [modo, setModo] = useState<Modo>("dia");
-  const [novaAberta, setNovaAberta] = useState(false);
+  const [dialogo, setDialogo] = useState<Dialogo>(null);
   const [{ ano, mes }, setMesVisivel] = useState(() => ({
     ano: Number(hoje.slice(0, 4)),
     mes: Number(hoje.slice(5, 7)),
   }));
 
-  const diasComConsulta = useMemo(() => new Set(consultas.map((c) => c.data)), [consultas]);
+  const diasComConsulta = useMemo(
+    () => new Set(consultas.filter((c) => c.status !== "cancelada").map((c) => c.data)),
+    [consultas],
+  );
 
   function mudarMes(delta: number) {
     setMesVisivel(({ ano, mes }) => {
@@ -46,6 +86,11 @@ export function AgendaView({ hoje, consultas }: { hoje: string; consultas: Consu
     setSelecionado(iso);
     // Clicar num dia de outro mês (apagado) leva o calendário até ele.
     setMesVisivel({ ano: Number(iso.slice(0, 4)), mes: Number(iso.slice(5, 7)) });
+  }
+
+  function concluido() {
+    setDialogo(null);
+    router.refresh();
   }
 
   const dias =
@@ -82,7 +127,7 @@ export function AgendaView({ hoje, consultas }: { hoje: string; consultas: Consu
             </div>
             <button
               type="button"
-              onClick={() => setNovaAberta(true)}
+              onClick={() => setDialogo({ tipo: "nova" })}
               className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover"
             >
               <Plus className="size-4" /> Nova consulta
@@ -126,7 +171,12 @@ export function AgendaView({ hoje, consultas }: { hoje: string; consultas: Consu
               ) : (
                 <ul className="divide-y divide-line">
                   {doDia.map((c) => (
-                    <LinhaConsulta key={c.id} c={c} />
+                    <LinhaConsulta
+                      key={c.id}
+                      c={c}
+                      onEditar={() => setDialogo({ tipo: "editar", consulta: c })}
+                      onExcluir={() => setDialogo({ tipo: "excluir", consulta: c })}
+                    />
                   ))}
                 </ul>
               )}
@@ -135,119 +185,347 @@ export function AgendaView({ hoje, consultas }: { hoje: string; consultas: Consu
         })}
       </div>
 
-      <NovaConsultaModal
-        open={novaAberta}
-        onClose={() => setNovaAberta(false)}
+      <ConsultaModal
+        key={dialogo?.tipo === "editar" ? dialogo.consulta.id : dialogo?.tipo ?? "fechado"}
+        open={dialogo?.tipo === "nova" || dialogo?.tipo === "editar"}
+        consulta={dialogo?.tipo === "editar" ? dialogo.consulta : null}
         dataInicial={selecionado}
+        orgId={orgId}
+        animais={animais}
+        veterinarios={veterinarios}
+        onClose={() => setDialogo(null)}
+        onDone={concluido}
+      />
+
+      <ExcluirModal
+        consulta={dialogo?.tipo === "excluir" ? dialogo.consulta : null}
+        orgId={orgId}
+        onClose={() => setDialogo(null)}
+        onDone={concluido}
       />
     </>
   );
 }
 
-function LinhaConsulta({ c }: { c: Consulta }) {
-  const st = STATUS_CONSULTA[c.status];
+function LinhaConsulta({
+  c,
+  onEditar,
+  onExcluir,
+}: {
+  c: Consulta;
+  onEditar: () => void;
+  onExcluir: () => void;
+}) {
+  const st = ESTILO_STATUS[c.status];
+  const cancelada = c.status === "cancelada";
   return (
-    <li className="flex items-center gap-4 px-5 py-3.5">
+    <li className={`flex items-center gap-4 px-5 py-3.5 ${cancelada ? "opacity-60" : ""}`}>
       <span className="w-12 text-sm text-ink-muted tabular-nums">{c.hora}</span>
       <span aria-hidden="true" className={`h-8 w-0.5 shrink-0 rounded-full ${st.barra}`} />
-      <Avatar name={c.animal} />
+      <Avatar name={c.animalNome} />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-ink">
-          {c.animal} <span className="text-xs font-normal text-ink-muted">· {c.especie}</span>
+        <p className={`text-sm font-medium text-ink ${cancelada ? "line-through" : ""}`}>
+          {c.animalNome}{" "}
+          <span className="text-xs font-normal text-ink-muted">· {ROTULO_ESPECIE[c.animalEspecie]}</span>
         </p>
         <p className="truncate text-xs text-ink-muted">
-          {c.tipo} · {c.tutor}
+          {[ROTULO_TIPO_CONSULTA[c.tipo], c.animalTutor].filter(Boolean).join(" · ")}
         </p>
       </div>
-      <span className="hidden text-xs text-ink-muted md:block">{c.veterinario}</span>
+      <span className="hidden text-xs text-ink-muted md:block">{c.veterinarioNome ?? "—"}</span>
       <span className="hidden text-xs text-ink-muted tabular-nums sm:block">{c.duracaoMin} min</span>
-      <Badge tone={st.tone}>{st.label}</Badge>
-      <button
-        type="button"
-        aria-label="Mais ações"
-        className="rounded-lg p-1.5 text-ink-muted transition hover:bg-surface hover:text-ink"
-      >
-        <MoreHorizontal className="size-4" />
-      </button>
+      <Badge tone={st.tone}>{ROTULO_STATUS_CONSULTA[c.status]}</Badge>
+      <MenuAcoes onEditar={onEditar} onExcluir={onExcluir} />
     </li>
   );
 }
 
-function NovaConsultaModal({
-  open,
-  onClose,
-  dataInicial,
-}: {
-  open: boolean;
-  onClose: () => void;
-  dataInicial: string;
-}) {
+/** O "…" da linha: Editar / Excluir. Fecha ao perder foco ou com Esc. */
+function MenuAcoes({ onEditar, onExcluir }: { onEditar: () => void; onExcluir: () => void }) {
+  const [aberto, setAberto] = useState(false);
+
   return (
-    <Modal open={open} onClose={onClose} title="Nova consulta">
-      <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
-        <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-xs text-blue-900">
-          <Info className="mt-0.5 size-3.5 shrink-0" />
-          <p>A agenda ainda usa dados de exemplo. Salvar entra junto com o cadastro de consultas.</p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block space-y-1.5 sm:col-span-2">
-            <span className="text-sm font-medium text-ink">Animal</span>
-            <input className={inputClasses} placeholder="Nome ou brinco" />
-          </label>
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-ink">Data</span>
-            <input type="date" className={inputClasses} defaultValue={dataInicial} />
-          </label>
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-ink">Hora</span>
-            <input type="time" className={inputClasses} defaultValue="09:00" />
-          </label>
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-ink">Tipo</span>
-            <select className={inputClasses} defaultValue="consulta">
-              <option value="consulta">Consulta clínica</option>
-              <option value="vacinacao">Vacinação</option>
-              <option value="retorno">Retorno</option>
-              <option value="cirurgia">Cirurgia</option>
-              <option value="checkup">Check-up</option>
-            </select>
-          </label>
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium text-ink">Duração</span>
-            <select className={inputClasses} defaultValue="30">
-              <option value="30">30 min</option>
-              <option value="45">45 min</option>
-              <option value="60">60 min</option>
-              <option value="90">90 min</option>
-            </select>
-          </label>
-          <label className="block space-y-1.5 sm:col-span-2">
-            <span className="text-sm font-medium text-ink">Veterinário</span>
-            <input className={inputClasses} placeholder="Quem atende" />
-          </label>
-          <label className="block space-y-1.5 sm:col-span-2">
-            <span className="text-sm font-medium text-ink">Observações</span>
-            <textarea rows={2} className={inputClasses} />
-          </label>
-        </div>
-        <div className="flex justify-end gap-2 pt-2">
+    <div
+      className="relative"
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setAberto(false);
+      }}
+      onKeyDown={(e) => e.key === "Escape" && setAberto(false)}
+    >
+      <button
+        type="button"
+        aria-label="Mais ações"
+        aria-haspopup="menu"
+        aria-expanded={aberto}
+        onClick={() => setAberto((v) => !v)}
+        className="rounded-lg p-1.5 text-ink-muted transition hover:bg-surface hover:text-ink"
+      >
+        <MoreHorizontal className="size-4" />
+      </button>
+      {aberto && (
+        <div
+          role="menu"
+          className="absolute top-full right-0 z-10 mt-1 w-40 overflow-hidden rounded-lg border border-line bg-white py-1 shadow-lg"
+        >
           <button
             type="button"
-            onClick={onClose}
-            className="rounded-lg px-3.5 py-2 text-sm font-medium text-ink-muted hover:bg-surface"
+            role="menuitem"
+            onClick={() => {
+              setAberto(false);
+              onEditar();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-surface"
           >
-            Cancelar
+            <Pencil className="size-4 text-ink-muted" /> Editar
           </button>
           <button
-            type="submit"
-            disabled
-            title="Disponível quando existir cadastro de consultas"
-            className="rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setAberto(false);
+              onExcluir();
+            }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
           >
-            Salvar
+            <Trash2 className="size-4" /> Excluir
           </button>
         </div>
-      </form>
+      )}
+    </div>
+  );
+}
+
+function Campo({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <label className={`block space-y-1.5 ${className}`}>
+      <span className="block text-sm font-medium text-ink">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function ConsultaModal({
+  open,
+  consulta,
+  dataInicial,
+  orgId,
+  animais,
+  veterinarios,
+  onClose,
+  onDone,
+}: {
+  open: boolean;
+  consulta: Consulta | null;
+  dataInicial: string;
+  orgId: string;
+  animais: Animal[];
+  veterinarios: Veterinario[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [pending, start] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+  const editando = consulta !== null;
+
+  function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErro(null);
+    const f = new FormData(e.currentTarget);
+    const bruto = {
+      animalId: f.get("animalId"),
+      veterinarioId: f.get("veterinarioId") || null,
+      data: f.get("data"),
+      hora: f.get("hora"),
+      duracaoMin: f.get("duracaoMin"),
+      tipo: f.get("tipo"),
+      observacoes: f.get("observacoes") || null,
+      ...(editando && { status: f.get("status") }),
+    };
+    const parsed = editando
+      ? atualizarConsultaSchema.safeParse(bruto)
+      : criarConsultaSchema.safeParse(bruto);
+    if (!parsed.success) {
+      setErro(parsed.error.issues[0]?.message ?? "Dados inválidos.");
+      return;
+    }
+
+    start(async () => {
+      const err = editando
+        ? await chamarApi(`/api/org/${orgId}/consultas/${consulta.id}`, {
+            method: "PATCH",
+            body: JSON.stringify(parsed.data),
+          })
+        : await chamarApi(`/api/org/${orgId}/consultas`, {
+            method: "POST",
+            body: JSON.stringify(parsed.data),
+          });
+      if (err) return setErro(err);
+      onDone();
+    });
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={editando ? "Editar consulta" : "Nova consulta"} wide>
+      {animais.length === 0 ? (
+        <p className="text-sm text-ink-muted">
+          Cadastre um animal antes de agendar — a consulta precisa estar ligada a um.
+        </p>
+      ) : (
+        <form onSubmit={submit} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo label="Animal" className="sm:col-span-2">
+              <Select name="animalId" required defaultValue={consulta?.animalId ?? ""}>
+                <option value="" disabled>
+                  Escolha o animal
+                </option>
+                {animais.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nome} · {ROTULO_ESPECIE[a.especie]}
+                    {a.tutor ? ` · ${a.tutor}` : ""}
+                  </option>
+                ))}
+              </Select>
+            </Campo>
+            <Campo label="Data">
+              <input name="data" type="date" required className={inputClasses} defaultValue={consulta?.data ?? dataInicial} />
+            </Campo>
+            <Campo label="Hora">
+              <input name="hora" type="time" required className={inputClasses} defaultValue={consulta?.hora ?? "09:00"} />
+            </Campo>
+            <Campo label="Tipo">
+              <Select name="tipo" defaultValue={consulta?.tipo ?? "consulta"}>
+                {TIPOS_CONSULTA.map((t) => (
+                  <option key={t} value={t}>
+                    {ROTULO_TIPO_CONSULTA[t]}
+                  </option>
+                ))}
+              </Select>
+            </Campo>
+            <Campo label="Duração">
+              <Select name="duracaoMin" defaultValue={String(consulta?.duracaoMin ?? 30)}>
+                {[15, 30, 45, 60, 90, 120].map((m) => (
+                  <option key={m} value={m}>
+                    {m} min
+                  </option>
+                ))}
+              </Select>
+            </Campo>
+            <Campo label="Veterinário" className={editando ? "" : "sm:col-span-2"}>
+              <Select name="veterinarioId" defaultValue={consulta?.veterinarioId ?? ""}>
+                <option value="">Sem responsável definido</option>
+                {veterinarios.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.nome}
+                  </option>
+                ))}
+              </Select>
+            </Campo>
+            {editando && (
+              <Campo label="Status">
+                <Select name="status" defaultValue={consulta.status}>
+                  {STATUS_CONSULTA.map((s) => (
+                    <option key={s} value={s}>
+                      {ROTULO_STATUS_CONSULTA[s]}
+                    </option>
+                  ))}
+                </Select>
+              </Campo>
+            )}
+            <Campo label="Observações" className="sm:col-span-2">
+              <textarea name="observacoes" rows={2} className={inputClasses} defaultValue={consulta?.observacoes ?? ""} />
+            </Campo>
+          </div>
+
+          {erro && (
+            <p role="alert" className="text-sm text-red-600">
+              {erro}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-ink-muted hover:bg-surface">
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={pending}
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-70"
+            >
+              {pending && <Loader2 className="size-4 animate-spin" />}
+              {editando ? "Salvar" : "Agendar"}
+            </button>
+          </div>
+        </form>
+      )}
+    </Modal>
+  );
+}
+
+function ExcluirModal({
+  consulta,
+  orgId,
+  onClose,
+  onDone,
+}: {
+  consulta: Consulta | null;
+  orgId: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [pending, start] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+
+  function excluir() {
+    if (!consulta) return;
+    setErro(null);
+    start(async () => {
+      const err = await chamarApi(`/api/org/${orgId}/consultas/${consulta.id}`, { method: "DELETE" });
+      if (err) return setErro(err);
+      onDone();
+    });
+  }
+
+  return (
+    <Modal open={consulta !== null} onClose={onClose} title="Excluir consulta">
+      {consulta && (
+        <div className="space-y-4">
+          <p className="text-sm text-ink">
+            Excluir a consulta de <strong>{consulta.animalNome}</strong> em{" "}
+            {formatar(consulta.data, { day: "numeric", month: "long" })} às {consulta.hora}?
+          </p>
+          <p className="text-xs text-ink-muted">
+            Isso apaga o registro. Se a consulta só não vai acontecer, prefira editar e marcar como
+            cancelada — o histórico fica.
+          </p>
+          {erro && (
+            <p role="alert" className="text-sm text-red-600">
+              {erro}
+            </p>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-ink-muted hover:bg-surface">
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={excluir}
+              disabled={pending}
+              className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-70"
+            >
+              {pending && <Loader2 className="size-4 animate-spin" />}
+              Excluir
+            </button>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }

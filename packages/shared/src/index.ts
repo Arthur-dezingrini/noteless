@@ -8,3 +8,4 @@
 export * from "./auth";
 export * from "./usuarios";
 export * from "./animais";
+export * from "./consultas";

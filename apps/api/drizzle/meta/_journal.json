@@ -22,6 +22,13 @@
       "when": 1789568949383,
       "tag": "0002_boring_domino",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789599921972,
+      "tag": "0003_keen_genesis",
+      "breakpoints": true
     }
   ]
 }

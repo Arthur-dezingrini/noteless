@@ -2,13 +2,15 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 import { Avatar } from "@/components/app/avatar";
-import { Badge } from "@/components/app/badge";
+import { Badge, type Tone } from "@/components/app/badge";
 import { Card, CardHeader } from "@/components/app/card";
 import { PageHeader } from "@/components/app/page-header";
 import { StatCard } from "@/components/app/stat-card";
 import { requireSession } from "@/lib/auth/dal";
+import { ROTULO_ESPECIE, ROTULO_STATUS_CONSULTA, ROTULO_TIPO_CONSULTA, type StatusConsulta } from "@vocare/shared";
+
+import { getConsultas, getOrganizations } from "@/lib/auth/dal";
 import { dataExtenso, hojeISO, TZ } from "@/lib/datas";
-import { consultasDeExemplo, STATUS_CONSULTA } from "@/lib/mock/agenda";
 import { ALERTS, REVENUE, STATS } from "@/lib/mock/dashboard";
 
 export const metadata = { title: "Dashboard" };
@@ -22,6 +24,14 @@ function saudacao(date: Date): string {
   return "Boa noite";
 }
 
+const TONE_STATUS: Record<StatusConsulta, Tone> = {
+  agendada: "yellow",
+  confirmada: "green",
+  urgente: "red",
+  concluida: "gray",
+  cancelada: "gray",
+};
+
 const ALERT_TONES = {
   yellow: "border-amber-400 bg-amber-50 text-amber-900",
   red: "border-red-400 bg-red-50 text-red-900",
@@ -29,10 +39,10 @@ const ALERT_TONES = {
 };
 
 export default async function DashboardPage() {
-  const { user } = await requireSession();
+  const [{ user }, [org]] = await Promise.all([requireSession(), getOrganizations()]);
   const agora = new Date();
   const hoje = hojeISO();
-  const consultasHoje = consultasDeExemplo(hoje).filter((c) => c.data === hoje);
+  const consultasHoje = org ? await getConsultas(org.id, hoje, hoje) : [];
   const primeiroNome = (user.name || user.email).split(/[\s@]/)[0];
 
   return (
@@ -59,20 +69,26 @@ export default async function DashboardPage() {
             title="Consultas de hoje"
             aside={<Badge tone="gray">{`${consultasHoje.length} agendadas`}</Badge>}
           />
-          <ul className="divide-y divide-line">
-            {consultasHoje.map((c) => (
-              <li key={c.id} className="flex items-center gap-4 px-5 py-3.5">
-                <span className="w-12 text-sm text-ink-muted tabular-nums">{c.hora}</span>
-                <Avatar name={c.animal} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-ink">{c.animal}</p>
-                  <p className="truncate text-xs text-ink-muted">{c.especie} · {c.tutor}</p>
-                </div>
-                <span className="hidden text-xs text-ink-muted sm:block">{c.tipo}</span>
-                <Badge tone={STATUS_CONSULTA[c.status].tone}>{STATUS_CONSULTA[c.status].label}</Badge>
-              </li>
-            ))}
-          </ul>
+          {consultasHoje.length === 0 ? (
+            <p className="px-5 pb-2 text-sm text-ink-muted">Nenhuma consulta hoje.</p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {consultasHoje.map((c) => (
+                <li key={c.id} className="flex items-center gap-4 px-5 py-3.5">
+                  <span className="w-12 text-sm text-ink-muted tabular-nums">{c.hora}</span>
+                  <Avatar name={c.animalNome} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-ink">{c.animalNome}</p>
+                    <p className="truncate text-xs text-ink-muted">
+                      {[ROTULO_ESPECIE[c.animalEspecie], c.animalTutor].filter(Boolean).join(" · ")}
+                    </p>
+                  </div>
+                  <span className="hidden text-xs text-ink-muted sm:block">{ROTULO_TIPO_CONSULTA[c.tipo]}</span>
+                  <Badge tone={TONE_STATUS[c.status]}>{ROTULO_STATUS_CONSULTA[c.status]}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="px-5 py-4">
             <Link
               href="/agenda"

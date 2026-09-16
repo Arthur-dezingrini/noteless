@@ -1,10 +1,12 @@
 import {
   animalListaSchema,
+  consultaListaSchema,
   memberRoleSchema,
   organizationListSchema,
   sessionSchema,
   usuarioListaSchema,
   type Animal,
+  type Consulta,
   type MemberRole,
   type Organization,
   type Session,
@@ -98,3 +100,22 @@ export const getAnimais = cache(async (organizationId: string): Promise<Animal[]
   const parsed = animalListaSchema.safeParse(await res.json());
   return parsed.success ? parsed.data : [];
 });
+
+/**
+ * Consultas da organização, opcionalmente num intervalo de dias
+ * ("AAAA-MM-DD"). Sem intervalo vem tudo — pequeno por muito tempo.
+ */
+export const getConsultas = cache(
+  async (organizationId: string, de?: string, ate?: string): Promise<Consulta[]> => {
+    const q = new URLSearchParams();
+    if (de) q.set("de", de);
+    if (ate) q.set("ate", ate);
+    const sufixo = q.size ? `?${q}` : "";
+
+    const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/consultas${sufixo}`);
+    if (!res.ok) return [];
+
+    const parsed = consultaListaSchema.safeParse(await res.json());
+    return parsed.success ? parsed.data : [];
+  },
+);
