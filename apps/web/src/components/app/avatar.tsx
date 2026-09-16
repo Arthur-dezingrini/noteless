@@ -25,17 +25,25 @@ function toneFor(name: string): string {
 
 export function Avatar({
   name,
+  image,
   className = "",
 }: {
   name: string;
+  image?: string | null;
   className?: string;
 }) {
   return (
     <span
       aria-hidden="true"
-      className={`flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${toneFor(name)} ${className}`}
+      className={`flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold ${toneFor(name)} ${className}`}
     >
-      {initials(name)}
+      {image ? (
+        // Imagens de perfil são data URLs enviadas pelo usuário, não um recurso remoto otimizável.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={image} alt="" className="size-full object-cover" />
+      ) : (
+        initials(name)
+      )}
     </span>
   );
 }
