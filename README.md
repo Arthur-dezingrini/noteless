@@ -101,18 +101,19 @@ do Next 16 recomenda:
   vem do `npm run seed`.
 - **Ninguém fica sem organização.** Remover um usuário tira o vínculo com a
   organização, não apaga a conta.
-- **Um usuário pode pertencer a várias organizações.** Ao adicionar um e-mail
-  que já tem conta (criada por outra organização), a pessoa é só vinculada; a
-  senha dela não muda. A troca entre organizações fica no canto superior
-  esquerdo; a escolha vai para a sessão (`activeOrganizationId`, definida no
+- **Um usuário pode pertencer a várias organizações.** Em Configurações →
+  Usuários há dois botões: **Cadastrar usuário** cria uma conta nova (e recusa
+  e-mail que já existe); **Vincular usuário** traz para a organização ativa
+  alguém que já tem conta por outra clínica/fazenda — só e-mail e papel; nome e
+  senha não mudam. A troca entre organizações fica no canto superior esquerdo; a escolha vai para a sessão (`activeOrganizationId`, definida no
   login como a organização mais antiga do usuário) e vale em todas as telas —
   todas leem `getOrgAtiva()` da DAL, nunca "a primeira da lista".
 - Papéis por organização: `owner` (quem criou; não muda nem sai), `admin`
   (gerencia usuários e dados) e `member` (opera). O campo `cargo` do usuário
   (Veterinária, Recepcionista, Peão…) é livre.
 
-A api expõe isso em `/api/org/:orgId/usuarios` (listar, criar/vincular, editar,
-remover), sempre checando o papel de quem chama.
+A api expõe isso em `/api/org/:orgId/usuarios` (listar, criar, editar, remover)
+e `/api/org/:orgId/usuarios/vincular`, sempre checando o papel de quem chama.
 
 ## Estrutura
 

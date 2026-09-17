@@ -72,3 +72,10 @@ export const atualizarUsuarioSchema = z.object({
   }
 });
 export type AtualizarUsuarioInput = z.infer<typeof atualizarUsuarioSchema>;
+
+/** Vincular à organização alguém que JÁ tem conta (criada por outra organização). */
+export const vincularUsuarioSchema = z.object({
+  email: z.string().trim().email("E-mail inválido."),
+  role: z.enum(["admin", "member"]),
+});
+export type VincularUsuarioInput = z.infer<typeof vincularUsuarioSchema>;

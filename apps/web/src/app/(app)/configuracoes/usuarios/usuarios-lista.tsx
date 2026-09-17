@@ -4,9 +4,10 @@ import {
   atualizarUsuarioSchema,
   criarUsuarioSchema,
   ROTULO_PAPEL,
+  vincularUsuarioSchema,
   type Usuario,
 } from "@vocare/shared";
-import { Loader2, Plus, UsersRound } from "lucide-react";
+import { Link2, Loader2, Plus, UsersRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import { z } from "zod";
@@ -41,6 +42,7 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
   const [adicionando, setAdicionando] = useState(false);
   const [editando, setEditando] = useState<Usuario | null>(null);
   const [removendo, setRemovendo] = useState<Usuario | null>(null);
+  const [vinculando, setVinculando] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   return (
@@ -50,13 +52,22 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
           title="Usuários do sistema"
           aside={
             possoGerenciar && (
-              <button
-                type="button"
-                onClick={() => setAdicionando(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover"
-              >
-                <Plus className="size-4" /> Cadastrar usuário
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVinculando(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3.5 py-2 text-sm font-medium text-ink transition hover:bg-surface"
+                >
+                  <Link2 className="size-4" /> Vincular usuário
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdicionando(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover"
+                >
+                  <Plus className="size-4" /> Cadastrar usuário
+                </button>
+              </div>
             )
           }
         />
@@ -131,13 +142,20 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
         open={adicionando}
         orgId={orgId}
         onClose={() => setAdicionando(false)}
-        onDone={(vinculado, nome) => {
+        onDone={() => {
           setAdicionando(false);
-          setFeedback(
-            vinculado
-              ? `${nome} já tinha conta em outra organização e foi vinculado a esta. A senha continua a que a pessoa já usa.`
-              : "Usuário cadastrado com sucesso.",
-          );
+          setFeedback("Usuário cadastrado com sucesso.");
+          router.refresh();
+        }}
+      />
+
+      <VincularModal
+        open={vinculando}
+        orgId={orgId}
+        onClose={() => setVinculando(false)}
+        onDone={(nome) => {
+          setVinculando(false);
+          setFeedback(`${nome} agora faz parte desta organização. A senha continua a que a pessoa já usa.`);
           router.refresh();
         }}
       />
@@ -176,7 +194,7 @@ function AdicionarModal({
   open: boolean;
   orgId: string;
   onClose: () => void;
-  onDone: (vinculado: boolean, nome: string) => void;
+  onDone: () => void;
 }) {
   const [pending, start] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
@@ -199,13 +217,13 @@ function AdicionarModal({
     }
     const formEl = e.currentTarget;
     start(async () => {
-      const r = await chamarApiJson<{ id: string; vinculado: boolean }>(`/api/org/${orgId}/usuarios`, {
+      const err = await chamarApi(`/api/org/${orgId}/usuarios`, {
         method: "POST",
         body: JSON.stringify(parsed.data),
       });
-      if (!r.ok) return setErro(r.error);
+      if (err) return setErro(err);
       formEl.reset();
-      onDone(r.data.vinculado, parsed.data.name);
+      onDone();
     });
   }
 
@@ -240,8 +258,8 @@ function AdicionarModal({
         </Campo>
         <p className="text-xs text-ink-muted">
           Ainda não enviamos e-mail: repasse a senha à pessoa e peça para trocar
-          no primeiro acesso. Se o e-mail já tiver conta em outra organização, a
-          pessoa é só vinculada aqui e a senha dela não muda.
+          no primeiro acesso. Se a pessoa já tem conta em outra organização, use
+          &ldquo;Vincular usuário&rdquo;.
         </p>
         {erro && <p role="alert" className="text-sm text-red-600">{erro}</p>}
         <div className="flex justify-end gap-2 pt-2">
@@ -251,6 +269,75 @@ function AdicionarModal({
           <button type="submit" disabled={pending} className="inline-flex items-center gap-2 rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-70">
             {pending && <Loader2 className="size-4 animate-spin" />}
             Cadastrar
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function VincularModal({
+  open,
+  orgId,
+  onClose,
+  onDone,
+}: {
+  open: boolean;
+  orgId: string;
+  onClose: () => void;
+  onDone: (nome: string) => void;
+}) {
+  const [pending, start] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+
+  function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErro(null);
+    const form = new FormData(e.currentTarget);
+    const parsed = vincularUsuarioSchema.safeParse({
+      email: form.get("email"),
+      role: form.get("role"),
+    });
+    if (!parsed.success) {
+      setErro(parsed.error.issues[0]?.message ?? "Dados inválidos.");
+      return;
+    }
+    const formEl = e.currentTarget;
+    start(async () => {
+      const r = await chamarApiJson<{ id: string; name: string }>(`/api/org/${orgId}/usuarios/vincular`, {
+        method: "POST",
+        body: JSON.stringify(parsed.data),
+      });
+      if (!r.ok) return setErro(r.error);
+      formEl.reset();
+      onDone(r.data.name);
+    });
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Vincular usuário">
+      <form onSubmit={submit} className="space-y-4">
+        <p className="text-sm text-ink-muted">
+          Para quem já tem conta no VOCare por outra clínica ou fazenda. A pessoa
+          passa a ver esta organização no seletor; nome e senha não mudam.
+        </p>
+        <Campo label="E-mail da conta">
+          <input name="email" type="email" className={inputClasses} required autoComplete="off" placeholder="pessoa@exemplo.com" />
+        </Campo>
+        <Campo label="Papel nesta organização">
+          <Select name="role" defaultValue="member">
+            <option value="member">Membro — opera o sistema</option>
+            <option value="admin">Administrador — gerencia usuários e dados</option>
+          </Select>
+        </Campo>
+        {erro && <p role="alert" className="text-sm text-red-600">{erro}</p>}
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-ink-muted hover:bg-surface">
+            Cancelar
+          </button>
+          <button type="submit" disabled={pending} className="inline-flex items-center gap-2 rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-70">
+            {pending && <Loader2 className="size-4 animate-spin" />}
+            Vincular
           </button>
         </div>
       </form>
