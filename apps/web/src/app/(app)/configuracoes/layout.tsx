@@ -9,7 +9,7 @@ export default function ConfiguracoesLayout({ children }: LayoutProps<"/configur
         title="Configurações"
         subtitle="Gerencie as preferências do sistema"
       />
-      <div className="grid gap-6 lg:grid-cols-[13rem_1fr]">
+      <div className="space-y-6">
         <ConfigNav />
         <div className="min-w-0 space-y-6">{children}</div>
       </div>

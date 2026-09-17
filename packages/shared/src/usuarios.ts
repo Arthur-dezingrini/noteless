@@ -33,14 +33,42 @@ export const criarUsuarioSchema = z.object({
   email: z.string().trim().email("E-mail inválido."),
   cargo: z.string().trim().max(60).optional(),
   role: z.enum(["admin", "member"]),
-  // Senha temporária, definida pelo administrador e repassada à pessoa.
-  password: z.string().min(8, "A senha precisa ter pelo menos 8 caracteres."),
+  password: z
+    .string()
+    .min(8, "A senha precisa ter pelo menos 8 caracteres.")
+    .max(128, "A senha precisa ter no máximo 128 caracteres."),
+  confirmPassword: z.string().min(1, "Confirme a senha."),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "As senhas devem ser iguais.",
+  path: ["confirmPassword"],
 });
 export type CriarUsuarioInput = z.infer<typeof criarUsuarioSchema>;
 
 export const atualizarUsuarioSchema = z.object({
   name: z.string().trim().min(2, "Informe o nome.").optional(),
+  email: z.string().trim().email("E-mail inválido.").optional(),
   cargo: z.string().trim().max(60).optional(),
   role: z.enum(["admin", "member"]).optional(),
+  password: z
+    .string()
+    .min(8, "A senha precisa ter pelo menos 8 caracteres.")
+    .max(128, "A senha precisa ter no máximo 128 caracteres.")
+    .optional(),
+  confirmPassword: z.string().optional(),
+}).superRefine((data, context) => {
+  if (data.password && data.password !== data.confirmPassword) {
+    context.addIssue({
+      code: "custom",
+      message: "As senhas devem ser iguais.",
+      path: ["confirmPassword"],
+    });
+  }
+  if (!data.password && data.confirmPassword) {
+    context.addIssue({
+      code: "custom",
+      message: "Informe uma nova senha.",
+      path: ["password"],
+    });
+  }
 });
 export type AtualizarUsuarioInput = z.infer<typeof atualizarUsuarioSchema>;

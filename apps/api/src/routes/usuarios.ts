@@ -110,8 +110,9 @@ usuariosRoutes.patch("/:orgId/usuarios/:userId", async (c) => {
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
 
   const [alvo] = await db
-    .select({ memberId: member.id, role: member.role })
+    .select({ memberId: member.id, role: member.role, email: user.email })
     .from(member)
+    .innerJoin(user, eq(user.id, member.userId))
     .where(and(eq(member.userId, alvoId), eq(member.organizationId, orgId)))
     .limit(1);
   if (!alvo) return c.json({ error: "Usuário não encontrado nesta organização." }, 404);
@@ -122,10 +123,27 @@ usuariosRoutes.patch("/:orgId/usuarios/:userId", async (c) => {
   }
 
   const ctx = await auth.$context;
-  if (body.data.name !== undefined || body.data.cargo !== undefined) {
+  const email = body.data.email?.trim().toLowerCase();
+  if (email && email !== alvo.email) {
+    const existente = await ctx.internalAdapter.findUserByEmail(email);
+    if (existente && existente.user.id !== alvoId) {
+      return c.json({ error: `Já existe um usuário com o e-mail ${email}.` }, 409);
+    }
+  }
+
+  if (body.data.name !== undefined || body.data.cargo !== undefined || email) {
     await ctx.internalAdapter.updateUser(alvoId, {
       ...(body.data.name !== undefined && { name: body.data.name }),
       ...(body.data.cargo !== undefined && { cargo: body.data.cargo }),
+      ...(email && email !== alvo.email && { email, emailVerified: false }),
+    });
+  }
+
+  if (body.data.password) {
+    const conta = await ctx.internalAdapter.findCredentialAccount(alvoId);
+    if (!conta) return c.json({ error: "Conta de acesso não encontrada." }, 404);
+    await ctx.internalAdapter.updateAccount(conta.id, {
+      password: await ctx.password.hash(body.data.password),
     });
   }
 
