@@ -245,6 +245,24 @@ migração.
   responsável em vez de sumir). Data e hora separadas, "de parede", sem fuso.
   Qualquer membro agenda, edita e exclui. Status: agendada, confirmada,
   urgente, concluída, cancelada — prefira cancelar a excluir, o histórico fica.
+- **Ocorrências** — `ocorrencia`: o coração do produto. Um áudio do campo
+  entra, é transcrito e interpretado pela IA, e vira um registro *pendente*
+  com as operações propostas (JSON). Nada é gravado nas outras tabelas até um
+  humano confirmar: a confirmação aplica só as operações marcadas (agendar
+  consulta, anotação no animal em `anotacao_animal`, atualizar peso), tudo
+  numa transação. Operação sem animal do cadastro não é aplicável — a tela
+  avisa. O áudio não fica guardado (provisório); sobram transcrição e duração.
+
+  Hoje o áudio entra pelo botão **Gravar ocorrência** na própria tela (grava
+  no navegador). WhatsApp e o gravador de campo vão desaguar na mesma rota,
+  `POST /api/org/:orgId/ocorrencias` (multipart, campo `audio`).
+
+  A IA precisa de duas chaves no `.env` da api (veja `.env.example`):
+  `TRANSCRICAO_API_KEY` (Whisper, por qualquer serviço compatível com a API da
+  OpenAI — Groq tem plano grátis) e `ANTHROPIC_API_KEY` (Claude interpreta a
+  transcrição e devolve as operações em formato fixo, validado pelo contrato).
+  Sem as chaves a api sobe normalmente e a gravação responde 503 dizendo o
+  que falta.
 
 Cada módulo tem contrato em `packages/shared` (schemas Zod), rotas em
 `apps/api/src/routes` e leitura no web via `apps/web/src/lib/auth/dal.ts`.

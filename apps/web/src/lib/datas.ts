@@ -46,3 +46,22 @@ export function mesAno(ano: number, mes: number): string {
 }
 
 export const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+/** "há 12 min", "há 2 h", "ontem", ou a data — para listas de "recebido". */
+export function haQuantoTempo(d: Date, agora = new Date()): string {
+  const min = Math.round((agora.getTime() - d.getTime()) / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `há ${h} h`;
+  const dias = Math.round(h / 24);
+  if (dias === 1) return "ontem";
+  if (dias < 7) return `há ${dias} dias`;
+  return new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "short", timeZone: TZ }).format(d);
+}
+
+/** 74 → "1:14" */
+export function duracaoCurta(seg: number): string {
+  const s = Math.max(0, Math.round(seg));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}

@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/neon-serverless";
 import { env } from "../env";
 import * as animais from "./animais";
 import * as consultas from "./consultas";
+import * as ocorrencias from "./ocorrencias";
 import * as schema from "./schema";
 
 /**
@@ -18,4 +19,4 @@ import * as schema from "./schema";
  */
 const pool = new Pool({ connectionString: env.DATABASE_URL });
 
-export const db = drizzle(pool, { schema: { ...schema, ...animais, ...consultas } });
+export const db = drizzle(pool, { schema: { ...schema, ...animais, ...consultas, ...ocorrencias } });

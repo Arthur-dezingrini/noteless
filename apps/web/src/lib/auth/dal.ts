@@ -2,12 +2,14 @@ import {
   animalListaSchema,
   consultaListaSchema,
   memberRoleSchema,
+  ocorrenciaListaSchema,
   organizationListSchema,
   sessionSchema,
   usuarioListaSchema,
   type Animal,
   type Consulta,
   type MemberRole,
+  type Ocorrencia,
   type Organization,
   type Session,
   type Usuario,
@@ -119,6 +121,15 @@ export const getConsultas = cache(
     return parsed.success ? parsed.data : [];
   },
 );
+
+/** Registros de ocorrência da organização, mais recentes primeiro. */
+export const getOcorrencias = cache(async (organizationId: string): Promise<Ocorrencia[]> => {
+  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/ocorrencias`);
+  if (!res.ok) return [];
+
+  const parsed = ocorrenciaListaSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : [];
+});
 
 /**
  * Organização ativa do usuário: a que está na sessão (trocada pelo seletor
