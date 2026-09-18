@@ -7,7 +7,7 @@ import {
 } from "@vocare/shared";
 import { z } from "zod";
 
-import { env } from "../env";
+import { interpretacao, type Interpretacao } from "./provedor";
 import { IaNaoConfigurada } from "./transcrever";
 
 export type AnimalParaIa = {
@@ -149,35 +149,86 @@ function normalizar(bruta: Record<string, unknown>, idsValidos: Set<string>): Op
   return parsed.success ? parsed.data : null;
 }
 
-/** Transcrição + contexto da organização → resumo e operações propostas. */
-export async function analisar(transcricao: string, hoje: string, animais: AnimalParaIa[]): Promise<Analise> {
-  if (!env.ANTHROPIC_API_KEY) throw new IaNaoConfigurada("A interpretação por IA (ANTHROPIC_API_KEY)");
+function mensagemUsuario(transcricao: string) {
+  return `Transcrição do áudio:\n"""${transcricao}"""`;
+}
 
+async function lerErro(res: Response) {
+  const corpo = await res.text().catch(() => "");
+  return new Error(`IA falhou (${res.status}): ${corpo.slice(0, 300)}`);
+}
+
+/** Claude: a ferramenta vai como `tool` e a resposta vem num bloco `tool_use`. */
+async function chamarAnthropic(cfg: Extract<Interpretacao, { tipo: "anthropic" }>, sistema: string, transcricao: string) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: {
-      "x-api-key": env.ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
+    headers: { "x-api-key": cfg.apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({
-      model: env.IA_MODELO,
+      model: cfg.modelo,
       max_tokens: 2048,
-      system: instrucoes(hoje, animais),
+      system: sistema,
       tools: [FERRAMENTA],
       tool_choice: { type: "tool", name: FERRAMENTA.name },
-      messages: [{ role: "user", content: `Transcrição do áudio:\n"""${transcricao}"""` }],
+      messages: [{ role: "user", content: mensagemUsuario(transcricao) }],
     }),
   });
-
-  if (!res.ok) {
-    const corpo = await res.text().catch(() => "");
-    throw new Error(`IA falhou (${res.status}): ${corpo.slice(0, 300)}`);
-  }
+  if (!res.ok) throw await lerErro(res);
 
   const msg = (await res.json()) as { content: Array<{ type: string; name?: string; input?: unknown }> };
-  const uso = msg.content.find((b) => b.type === "tool_use" && b.name === FERRAMENTA.name);
-  const saida = saidaSchema.safeParse(uso?.input);
+  return msg.content.find((b) => b.type === "tool_use" && b.name === FERRAMENTA.name)?.input;
+}
+
+/**
+ * API compatível com a OpenAI (Groq e afins): a mesma ferramenta vira uma
+ * `function`, e os argumentos voltam como string JSON em `tool_calls`.
+ */
+async function chamarOpenAi(cfg: Extract<Interpretacao, { tipo: "openai" }>, sistema: string, transcricao: string) {
+  const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cfg.apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: cfg.modelo,
+      max_tokens: 2048,
+      temperature: 0.2,
+      messages: [
+        { role: "system", content: sistema },
+        { role: "user", content: mensagemUsuario(transcricao) },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: { name: FERRAMENTA.name, description: FERRAMENTA.description, parameters: FERRAMENTA.input_schema },
+        },
+      ],
+      tool_choice: { type: "function", function: { name: FERRAMENTA.name } },
+    }),
+  });
+  if (!res.ok) throw await lerErro(res);
+
+  const msg = (await res.json()) as {
+    choices?: Array<{ message?: { tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }>;
+  };
+  const chamada = msg.choices?.[0]?.message?.tool_calls?.find((t) => t.function?.name === FERRAMENTA.name);
+  if (!chamada?.function?.arguments) return undefined;
+  try {
+    return JSON.parse(chamada.function.arguments) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Transcrição + contexto da organização → resumo e operações propostas. */
+export async function analisar(transcricao: string, hoje: string, animais: AnimalParaIa[]): Promise<Analise> {
+  const cfg = interpretacao();
+  if (!cfg) throw new IaNaoConfigurada("A interpretação por IA (GROQ_API_KEY)");
+
+  const sistema = instrucoes(hoje, animais);
+  const bruto =
+    cfg.tipo === "anthropic"
+      ? await chamarAnthropic(cfg, sistema, transcricao)
+      : await chamarOpenAi(cfg, sistema, transcricao);
+
+  const saida = saidaSchema.safeParse(bruto);
   if (!saida.success) throw new Error("A IA respondeu fora do formato esperado.");
 
   const idsValidos = new Set(animais.map((a) => a.id));

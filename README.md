@@ -257,12 +257,13 @@ migração.
   no navegador). WhatsApp e o gravador de campo vão desaguar na mesma rota,
   `POST /api/org/:orgId/ocorrencias` (multipart, campo `audio`).
 
-  A IA precisa de duas chaves no `.env` da api (veja `.env.example`):
-  `TRANSCRICAO_API_KEY` (Whisper, por qualquer serviço compatível com a API da
-  OpenAI — Groq tem plano grátis) e `ANTHROPIC_API_KEY` (Claude interpreta a
-  transcrição e devolve as operações em formato fixo, validado pelo contrato).
-  Sem as chaves a api sobe normalmente e a gravação responde 503 dizendo o
-  que falta.
+  A IA precisa de uma chave no `.env` da api (veja `.env.example`). Com só
+  `GROQ_API_KEY` (plano grátis em console.groq.com) a transcrição (Whisper)
+  e a interpretação (`openai/gpt-oss-120b`, com tool calling) rodam na Groq.
+  Se houver `ANTHROPIC_API_KEY`, a interpretação passa para o Claude; a
+  resolução está em `apps/api/src/ia/provedor.ts`. A saída do modelo é sempre
+  validada pelo contrato antes de virar ocorrência. Sem chave nenhuma a api
+  sobe normalmente e a gravação responde 503 dizendo o que falta.
 
 Cada módulo tem contrato em `packages/shared` (schemas Zod), rotas em
 `apps/api/src/routes` e leitura no web via `apps/web/src/lib/auth/dal.ts`.

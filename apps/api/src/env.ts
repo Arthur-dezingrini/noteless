@@ -11,15 +11,16 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 
-  // IA das ocorrências. Opcionais: sem elas a api sobe, e a rota de áudio
-  // responde 503 explicando o que falta.
-  ANTHROPIC_API_KEY: z.string().optional(),
-  IA_MODELO: z.string().default("claude-sonnet-5"),
-  // Transcrição por qualquer serviço compatível com a API da OpenAI
-  // (OpenAI, Groq…): base + chave + modelo.
+  // IA das ocorrências. Tudo opcional: sem chave nenhuma a api sobe e a rota
+  // de áudio responde 503 explicando. A resolução de qual serviço usar fica
+  // em src/ia/provedor.ts.
+  GROQ_API_KEY: z.string().optional(), // grátis: transcrição + interpretação
+  ANTHROPIC_API_KEY: z.string().optional(), // se presente, interpreta com Claude
+  IA_MODELO: z.string().optional(), // sobrescreve o modelo padrão do provedor
+  // Transcrição por outro serviço compatível com a API da OpenAI.
   TRANSCRICAO_API_KEY: z.string().optional(),
-  TRANSCRICAO_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
-  TRANSCRICAO_MODELO: z.string().default("whisper-1"),
+  TRANSCRICAO_BASE_URL: z.string().url().optional(),
+  TRANSCRICAO_MODELO: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);

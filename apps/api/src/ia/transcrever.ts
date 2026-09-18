@@ -1,4 +1,4 @@
-import { env } from "../env";
+import { transcricao } from "./provedor";
 
 export class IaNaoConfigurada extends Error {
   constructor(oQue: string) {
@@ -8,22 +8,23 @@ export class IaNaoConfigurada extends Error {
 
 /**
  * Áudio → texto, pela API de transcrição compatível com a OpenAI
- * (`/audio/transcriptions`). Serve OpenAI, Groq e afins — muda só a base e o
+ * (`/audio/transcriptions`). Serve Groq, OpenAI e afins — muda só a base e o
  * modelo no .env. Português forçado: o Whisper acerta mais quando sabe a
  * língua, e sotaque de campo já é desafio suficiente.
  */
 export async function transcrever(audio: File): Promise<string> {
-  if (!env.TRANSCRICAO_API_KEY) throw new IaNaoConfigurada("A transcrição de áudio");
+  const cfg = transcricao();
+  if (!cfg) throw new IaNaoConfigurada("A transcrição de áudio (GROQ_API_KEY)");
 
   const form = new FormData();
   form.set("file", audio, audio.name || "audio.webm");
-  form.set("model", env.TRANSCRICAO_MODELO);
+  form.set("model", cfg.modelo);
   form.set("language", "pt");
   form.set("response_format", "json");
 
-  const res = await fetch(`${env.TRANSCRICAO_BASE_URL}/audio/transcriptions`, {
+  const res = await fetch(`${cfg.baseUrl}/audio/transcriptions`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${env.TRANSCRICAO_API_KEY}` },
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
     body: form,
   });
 
