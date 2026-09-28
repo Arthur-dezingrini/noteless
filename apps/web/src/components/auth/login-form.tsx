@@ -1,7 +1,7 @@
 "use client";
 
 import { loginSchema } from "@vocare/shared";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition, type FormEvent } from "react";
@@ -74,9 +74,9 @@ export function LoginForm({ next }: { next?: string }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-5">
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
       <div className="space-y-1.5">
-        <label htmlFor={emailId} className="block text-sm font-medium text-ink">
+        <label htmlFor={emailId} className="block text-sm font-semibold text-ink">
           E-mail
         </label>
         <input
@@ -84,15 +84,15 @@ export function LoginForm({ next }: { next?: string }) {
           name="email"
           type="email"
           autoComplete="email"
-          placeholder="voce@fazenda.com.br"
+          placeholder="voce@exemplo.com.br"
           aria-invalid={Boolean(fieldErrors.email)}
           aria-describedby={fieldErrors.email ? `${emailId}-error` : undefined}
           className={`${fieldClasses} ${
-            fieldErrors.email ? "border-red-400" : "border-field-border"
+            fieldErrors.email ? "border-danger" : "border-field-border"
           }`}
         />
         {fieldErrors.email && (
-          <p id={`${emailId}-error`} className="text-xs text-red-600">
+          <p id={`${emailId}-error`} className="text-sm text-danger">
             {fieldErrors.email}
           </p>
         )}
@@ -100,17 +100,11 @@ export function LoginForm({ next }: { next?: string }) {
 
       <div className="space-y-1.5">
         <div className="flex items-baseline justify-between gap-3">
-          <label
-            htmlFor={passwordId}
-            className="block text-sm font-medium text-ink"
-          >
+          <label htmlFor={passwordId} className="block text-sm font-semibold text-ink">
             Senha
           </label>
-          <Link
-            href="/recuperar-senha"
-            className="text-xs font-medium text-brand hover:underline"
-          >
-            Esqueceu a senha?
+          <Link href="/recuperar-senha" className="text-sm font-semibold text-brand-ink hover:underline">
+            Esqueci a senha
           </Link>
         </div>
         <div className="relative">
@@ -124,25 +118,21 @@ export function LoginForm({ next }: { next?: string }) {
             aria-describedby={
               fieldErrors.password ? `${passwordId}-error` : undefined
             }
-            className={`${fieldClasses} pr-11 ${
-              fieldErrors.password ? "border-red-400" : "border-field-border"
+            className={`${fieldClasses} pr-24 ${
+              fieldErrors.password ? "border-danger" : "border-field-border"
             }`}
           />
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
             aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-            className="absolute inset-y-0 right-0 flex w-11 cursor-pointer items-center justify-center text-ink-muted transition hover:text-ink"
+            className="absolute inset-y-1 right-1 cursor-pointer rounded-lg px-3 text-sm font-semibold text-ink-soft transition hover:bg-hover hover:text-ink"
           >
-            {showPassword ? (
-              <EyeOff className="size-4" />
-            ) : (
-              <Eye className="size-4" />
-            )}
+            {showPassword ? "Ocultar" : "Mostrar"}
           </button>
         </div>
         {fieldErrors.password && (
-          <p id={`${passwordId}-error`} className="text-xs text-red-600">
+          <p id={`${passwordId}-error`} className="text-sm text-danger">
             {fieldErrors.password}
           </p>
         )}
@@ -151,7 +141,7 @@ export function LoginForm({ next }: { next?: string }) {
       {formError && (
         <p
           role="alert"
-          className="rounded-field bg-red-50 px-3.5 py-2.5 text-xs text-red-700"
+          className="rounded-field bg-danger-bg px-3.5 py-2.5 text-sm text-danger"
         >
           {formError}
         </p>
