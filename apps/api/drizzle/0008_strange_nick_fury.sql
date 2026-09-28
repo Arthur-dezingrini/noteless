@@ -1,0 +1,1 @@
+ALTER TABLE "notificacao" ADD COLUMN "detalhe" text;

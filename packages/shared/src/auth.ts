@@ -21,6 +21,7 @@ export const sessionSchema = z.object({
     name: z.string(),
     email: z.string(),
     image: z.string().nullable().optional(),
+    cargo: z.string().nullish(),
   }),
   session: z.object({
     id: z.string(),
@@ -36,7 +37,11 @@ export type Session = z.infer<typeof sessionSchema>;
  * (JSON livre) da organização do Better Auth. O web escreve e lê por aqui,
  * então este schema é o contrato do formato.
  */
+export const TIPOS_CONTA = ["Sítio", "Fazenda", "Casa", "Clínica", "Canil ou gatil", "Haras", "Outro"] as const;
+
 export const organizationMetadataSchema = z.object({
+  /** Sítio, Fazenda, Casa, Clínica… — o sistema serve para todos. */
+  tipo: z.string().optional(),
   cnpj: z.string().optional(),
   telefone: z.string().optional(),
   email: z.string().optional(),

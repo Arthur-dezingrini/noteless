@@ -79,3 +79,9 @@ export function idade(nascimento: string | null | undefined, hoje = hojeISO()): 
   if (meses >= 1) return `${meses} ${meses === 1 ? "mês" : "meses"}`;
   return "menos de 1 mês";
 }
+
+/** "Quinta, 24 de setembro" — cabeçalho do Início. */
+export function diaCurto(iso: string): string {
+  const semana = formatar(iso, { weekday: "long" }).replace("-feira", "");
+  return `${semana.charAt(0).toUpperCase()}${semana.slice(1)}, ${formatar(iso, { day: "numeric", month: "long" })}`;
+}

@@ -28,6 +28,8 @@ async function listar(orgId: string, id?: string): Promise<Grupo[]> {
     id: g.id,
     nome: g.nome,
     descricao: g.descricao,
+    especie: g.especie,
+    local: g.local,
     animalIds: membros.filter((m) => m.grupoId === g.id).map((m) => m.animalId),
     createdAt: g.createdAt,
   }));
@@ -60,7 +62,13 @@ gruposRoutes.post("/:orgId/grupos", async (c) => {
   const id = await db.transaction(async (tx) => {
     const [novo] = await tx
       .insert(grupo)
-      .values({ organizationId: orgId, nome: body.data.nome, descricao: body.data.descricao ?? null })
+      .values({
+        organizationId: orgId,
+        nome: body.data.nome,
+        descricao: body.data.descricao ?? null,
+        especie: body.data.especie || null,
+        local: body.data.local || null,
+      })
       .returning({ id: grupo.id });
     if (ids.length) await tx.insert(grupoAnimal).values(ids.map((animalId) => ({ grupoId: novo!.id, animalId })));
     return novo!.id;
@@ -82,7 +90,12 @@ gruposRoutes.patch("/:orgId/grupos/:id", async (c) => {
   const achou = await db.transaction(async (tx) => {
     const [alvo] = await tx
       .update(grupo)
-      .set({ nome: body.data.nome, descricao: body.data.descricao ?? null })
+      .set({
+        nome: body.data.nome,
+        descricao: body.data.descricao ?? null,
+        especie: body.data.especie || null,
+        local: body.data.local || null,
+      })
       .where(and(eq(grupo.id, id), eq(grupo.organizationId, orgId)))
       .returning({ id: grupo.id });
     if (!alvo) return false;

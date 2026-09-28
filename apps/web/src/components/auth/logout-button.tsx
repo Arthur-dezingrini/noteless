@@ -1,17 +1,15 @@
 "use client";
 
-import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
 import { authClient } from "@/lib/auth/client";
 
-/** `compacto`: só o ícone (rodapé do menu), com o rótulo para leitor de tela. */
-export function LogoutButton({ compacto = false }: { compacto?: boolean }) {
+export function LogoutButton() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  function handleClick() {
+  function sair() {
     startTransition(async () => {
       await authClient.signOut();
       router.push("/login");
@@ -22,16 +20,11 @@ export function LogoutButton({ compacto = false }: { compacto?: boolean }) {
   return (
     <button
       type="button"
-      onClick={handleClick}
+      onClick={sair}
       disabled={pending}
-      aria-label={compacto ? (pending ? "Saindo" : "Sair") : undefined}
-      title={compacto ? "Sair" : undefined}
-      className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-field text-sm font-medium text-ink-muted transition hover:bg-hover hover:text-ink disabled:opacity-70 ${
-        compacto ? "size-9 justify-center" : "px-3 py-2"
-      }`}
+      className="shrink-0 cursor-pointer rounded-md p-1 text-sm font-semibold text-ink-muted transition hover:text-ink disabled:opacity-70"
     >
-      <LogOut className="size-4" />
-      {!compacto && (pending ? "Saindo..." : "Sair")}
+      {pending ? "Saindo…" : "Sair"}
     </button>
   );
 }

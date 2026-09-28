@@ -1,18 +1,22 @@
 import {
   animalListaSchema,
+  avisoListaSchema,
   consultaListaSchema,
   fichaAnimalSchema,
   grupoListaSchema,
   memberRoleSchema,
+  notificacaoListaSchema,
   ocorrenciaListaSchema,
   organizationListSchema,
   sessionSchema,
   usuarioListaSchema,
   type Animal,
+  type Aviso,
   type Consulta,
   type FichaAnimal,
   type Grupo,
   type MemberRole,
+  type Notificacao,
   type Ocorrencia,
   type Organization,
   type Session,
@@ -143,6 +147,24 @@ export const getGrupos = cache(async (organizationId: string): Promise<Grupo[]> 
   if (!res.ok) return [];
 
   const parsed = grupoListaSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : [];
+});
+
+/** "Fique de olho" do Início: vacinas vencidas, consultas sem confirmar… */
+export const getAvisos = cache(async (organizationId: string): Promise<Aviso[]> => {
+  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/inicio/avisos`);
+  if (!res.ok) return [];
+
+  const parsed = avisoListaSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : [];
+});
+
+/** Avisos do sino do usuário atual nesta organização (os 30 mais recentes). */
+export const getNotificacoes = cache(async (organizationId: string): Promise<Notificacao[]> => {
+  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/notificacoes`);
+  if (!res.ok) return [];
+
+  const parsed = notificacaoListaSchema.safeParse(await res.json());
   return parsed.success ? parsed.data : [];
 });
 

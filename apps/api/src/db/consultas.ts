@@ -1,6 +1,7 @@
 import { date, index, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import { animal } from "./animais";
+import { grupo } from "./historico";
 import { organization, user } from "./schema";
 
 /**
@@ -19,9 +20,9 @@ export const consulta = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
-    animalId: text("animal_id")
-      .notNull()
-      .references(() => animal.id, { onDelete: "cascade" }),
+    // Um animal OU um grupo (vacinar o lote, pesar o lote).
+    animalId: text("animal_id").references(() => animal.id, { onDelete: "cascade" }),
+    grupoId: text("grupo_id").references(() => grupo.id, { onDelete: "cascade" }),
     // Se o veterinário sair da organização, a consulta fica sem responsável
     // em vez de sumir.
     veterinarioId: text("veterinario_id").references(() => user.id, { onDelete: "set null" }),

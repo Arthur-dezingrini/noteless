@@ -88,6 +88,9 @@ export const grupo = pgTable(
       .references(() => organization.id, { onDelete: "cascade" }),
     nome: text("nome").notNull(),
     descricao: text("descricao"),
+    // Chave de espécie do contrato, ou "misturado".
+    especie: text("especie"),
+    local: text("local"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at")
       .notNull()
@@ -124,6 +127,7 @@ export const notificacao = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     texto: text("texto").notNull(),
+    detalhe: text("detalhe"),
     link: text("link"),
     lidaEm: timestamp("lida_em"),
     createdAt: timestamp("created_at").notNull().defaultNow(),

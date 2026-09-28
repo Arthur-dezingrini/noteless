@@ -17,6 +17,8 @@ export const animal = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
+    // Número do brinco, da coleira ou do registro — como o campo chama o animal.
+    numero: text("numero"),
     nome: text("nome").notNull(),
     // Chaves do contrato (@vocare/shared): "cao", "gato"… — texto, não enum
     // do Postgres, para incluir espécie nova sem migration.
@@ -27,6 +29,9 @@ export const animal = pgTable(
     pesoKg: numeric("peso_kg", { precision: 7, scale: 2 }),
     tutor: text("tutor"),
     tutorTelefone: text("tutor_telefone"),
+    microchip: text("microchip"),
+    // "Onde fica": Casa, Baia 1, Lote 2…
+    local: text("local"),
     // Preenchida à mão até existir o módulo de consultas.
     ultimaVisita: date("ultima_visita"),
     status: text("status").notNull().default("ativo"),

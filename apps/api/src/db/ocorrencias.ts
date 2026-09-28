@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { customType, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import { animal } from "./animais";
 import { organization, user } from "./schema";
@@ -8,7 +8,7 @@ import { organization, user } from "./schema";
  * interpretado. As operações propostas ficam em JSON porque são uma sugestão,
  * não dado do sistema — só na confirmação viram linhas nas tabelas de verdade.
  *
- * O áudio em si não é guardado (provisório): sobra a transcrição e a duração.
+ * O áudio fica em `ocorrencia_audio` para quem confere poder ouvir.
  * Transcrição vazia = áudio não entendido; quem confere escreve o que foi dito.
  */
 export const ocorrencia = pgTable(
@@ -60,3 +60,18 @@ export const anotacaoAnimal = pgTable(
   },
   (table) => [index("anotacao_animal_animal_id_idx").on(table.animalId)],
 );
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+
+/**
+ * O áudio original, para ouvir na conferência. Separado da ocorrência para a
+ * lista não carregar bytes à toa. Áudio de ocorrência é curto (segundos), cabe
+ * bem no banco; se crescer, vai para um storage de arquivos.
+ */
+export const ocorrenciaAudio = pgTable("ocorrencia_audio", {
+  ocorrenciaId: text("ocorrencia_id")
+    .primaryKey()
+    .references(() => ocorrencia.id, { onDelete: "cascade" }),
+  mime: text("mime").notNull(),
+  dados: bytea("dados").notNull(),
+});

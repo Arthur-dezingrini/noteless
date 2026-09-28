@@ -17,11 +17,12 @@ import { db } from "../db";
 import { animal } from "../db/animais";
 import { consulta } from "../db/consultas";
 import { grupo, grupoAnimal, parto, pesagem, tratamento, vacina } from "../db/historico";
-import { anotacaoAnimal, ocorrencia } from "../db/ocorrencias";
+import { anotacaoAnimal, ocorrencia, ocorrenciaAudio } from "../db/ocorrencias";
 import { user } from "../db/schema";
 import { analisar } from "../ia/analisar";
 import { IaNaoConfigurada, transcrever } from "../ia/transcrever";
 import { membroAtual } from "../membros/membro-atual";
+import { administradores, notificar } from "../notificacoes/notificar";
 
 /**
  * Registros de ocorrência: áudio entra, IA propõe, humano confirma. Qualquer
@@ -55,6 +56,8 @@ const colunas = {
   duracaoSeg: ocorrencia.duracaoSeg,
   operacoes: ocorrencia.operacoes,
   criadoPorNome: criador.name,
+  criadoPorCargo: criador.cargo,
+  audioId: ocorrenciaAudio.ocorrenciaId,
   createdAt: ocorrencia.createdAt,
   revisadoPorNome: revisor.name,
   revisadoEm: ocorrencia.revisadoEm,
@@ -75,6 +78,8 @@ function paraContrato(r: Linha): Ocorrencia {
     duracaoSeg: r.duracaoSeg,
     operacoes: ops.map((o) => operacaoSchema.safeParse(o)).flatMap((p) => (p.success ? [p.data] : [])),
     criadoPorNome: r.criadoPorNome ?? "—",
+    criadoPorCargo: r.criadoPorCargo,
+    temAudio: r.audioId !== null,
     createdAt: r.createdAt!,
     revisadoPorNome: r.revisadoPorNome,
     revisadoEm: r.revisadoEm,
@@ -92,6 +97,7 @@ async function buscar(orgId: string, id?: string) {
     .leftJoin(criador, eq(criador.id, ocorrencia.criadoPorId))
     .leftJoin(revisor, eq(revisor.id, ocorrencia.revisadoPorId))
     .leftJoin(encaminhador, eq(encaminhador.id, ocorrencia.encaminhadaPorId))
+    .leftJoin(ocorrenciaAudio, eq(ocorrenciaAudio.ocorrenciaId, ocorrencia.id))
     .where(and(...filtros))
     .orderBy(desc(ocorrencia.createdAt));
   return rows.map(paraContrato);
@@ -139,6 +145,19 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias", async (c) => {
         operacoes: analise?.operacoes ?? [],
       })
       .returning({ id: ocorrencia.id });
+
+    // Guarda o áudio para quem confere poder ouvir. Se falhar, a ocorrência
+    // continua valendo — só fica sem o player.
+    await db
+      .insert(ocorrenciaAudio)
+      .values({ ocorrenciaId: nova!.id, mime: audio.type || "audio/webm", dados: Buffer.from(await audio.arrayBuffer()) })
+      .catch((e: unknown) => console.error("[ocorrencias] falha ao guardar áudio:", e));
+
+    await notificar(orgId, await administradores(orgId, eu.userId), {
+      texto: `${eu.nome} gravou uma ocorrência`,
+      detalhe: transcricao ? transcricao.slice(0, 80) : "Áudio não entendido",
+      link: `/ocorrencias?id=${nova!.id}`,
+    });
 
     const [pronta] = await buscar(orgId, nova!.id);
     return c.json(pronta, 201);
@@ -202,6 +221,31 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/texto", async (c) => {
   return c.json(pronta);
 });
 
+/** Quem gravou a ocorrência — se não for quem está agindo agora. */
+async function donoSeOutro(id: string, eu: string) {
+  const [o] = await db.select({ dono: ocorrencia.criadoPorId }).from(ocorrencia).where(eq(ocorrencia.id, id)).limit(1);
+  return o?.dono && o.dono !== eu ? o.dono : null;
+}
+
+/** O áudio original, para o player da conferência. */
+ocorrenciasRoutes.get("/:orgId/ocorrencias/:id/audio", async (c) => {
+  const orgId = c.req.param("orgId");
+  if (!(await membroAtual(c.req.raw.headers, orgId))) return c.json({ error: "Sem acesso a esta organização." }, 403);
+
+  const [a] = await db
+    .select({ mime: ocorrenciaAudio.mime, dados: ocorrenciaAudio.dados })
+    .from(ocorrenciaAudio)
+    .innerJoin(ocorrencia, eq(ocorrencia.id, ocorrenciaAudio.ocorrenciaId))
+    .where(and(eq(ocorrenciaAudio.ocorrenciaId, c.req.param("id")), eq(ocorrencia.organizationId, orgId)))
+    .limit(1);
+  if (!a) return c.json({ error: "Áudio não encontrado." }, 404);
+
+  return c.body(new Uint8Array(a.dados), 200, {
+    "Content-Type": a.mime,
+    "Cache-Control": "private, max-age=3600",
+  });
+});
+
 /** Membro conferiu e passa para o administrador salvar. */
 ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/encaminhar", async (c) => {
   const orgId = c.req.param("orgId");
@@ -213,8 +257,14 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/encaminhar", async (c) => {
     .update(ocorrencia)
     .set({ encaminhadaPorId: eu.userId, encaminhadaEm: new Date() })
     .where(and(eq(ocorrencia.id, id), eq(ocorrencia.organizationId, orgId), eq(ocorrencia.status, "pendente")))
-    .returning({ id: ocorrencia.id });
+    .returning({ id: ocorrencia.id, resumo: ocorrencia.resumo });
   if (!alvo) return c.json({ error: "Ocorrência não encontrada ou já revisada." }, 404);
+
+  await notificar(orgId, await administradores(orgId, eu.userId), {
+    texto: `${eu.nome} mandou uma ocorrência para conferir`,
+    detalhe: alvo.resumo || null,
+    link: `/ocorrencias?id=${id}`,
+  });
 
   const [pronta] = await buscar(orgId, id);
   return c.json(pronta);
@@ -284,7 +334,9 @@ async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocor
     case "agendar_consulta":
       await tx.insert(consulta).values({
         organizationId: orgId,
-        animalId: um,
+        // Consulta de grupo fica no grupo ("vacinar o Lote 4"), não em cada animal.
+        animalId: op.grupoId ? null : um,
+        grupoId: op.grupoId ?? null,
         data: op.data ?? hoje,
         hora: op.hora ?? HORA_PADRAO,
         tipo: op.tipoConsulta,
@@ -378,6 +430,13 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/confirmar", async (c) => {
   });
   if (erro) return c.json({ error: erro }, 400);
 
+  const n = escolhidas.length;
+  await notificar(orgId, [await donoSeOutro(id, eu.userId)], {
+    texto: "Sua ocorrência foi salva",
+    detalhe: `${n} ${n === 1 ? "ação feita" : "ações feitas"} no sistema por ${eu.nome}`,
+    link: `/ocorrencias?id=${id}`,
+  });
+
   const [pronta] = await buscar(orgId, id);
   return c.json(pronta);
 });
@@ -395,6 +454,31 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/descartar", async (c) => {
     .where(and(eq(ocorrencia.id, id), eq(ocorrencia.organizationId, orgId), inArray(ocorrencia.status, ["pendente"])))
     .returning({ id: ocorrencia.id });
   if (!alvo) return c.json({ error: "Ocorrência não encontrada ou já revisada." }, 404);
+
+  await notificar(orgId, [await donoSeOutro(id, eu.userId)], {
+    texto: "Sua ocorrência foi descartada",
+    detalhe: `Por ${eu.nome}. Nada entrou no sistema.`,
+    link: `/ocorrencias?id=${id}`,
+  });
+
+  const [pronta] = await buscar(orgId, id);
+  return c.json(pronta);
+});
+
+/** "Voltar para conferir": desfaz um descarte. Nada foi aplicado, então é seguro. */
+ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/restaurar", async (c) => {
+  const orgId = c.req.param("orgId");
+  const id = c.req.param("id");
+  const eu = await membroAtual(c.req.raw.headers, orgId);
+  if (!eu) return c.json({ error: "Sem acesso a esta organização." }, 403);
+  if (!PODE_SALVAR.includes(eu.role)) return c.json({ error: SO_ADMIN }, 403);
+
+  const [alvo] = await db
+    .update(ocorrencia)
+    .set({ status: "pendente", revisadoPorId: null, revisadoEm: null })
+    .where(and(eq(ocorrencia.id, id), eq(ocorrencia.organizationId, orgId), eq(ocorrencia.status, "descartada")))
+    .returning({ id: ocorrencia.id });
+  if (!alvo) return c.json({ error: "Ocorrência não encontrada ou não está descartada." }, 404);
 
   const [pronta] = await buscar(orgId, id);
   return c.json(pronta);

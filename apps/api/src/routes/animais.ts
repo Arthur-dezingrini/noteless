@@ -5,13 +5,15 @@ import {
   sexoSchema,
   statusAnimalSchema,
   type Animal,
+  type CriarAnimalInput,
   type Papel,
 } from "@vocare/shared";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
 
 import { db } from "../db";
 import { animal } from "../db/animais";
+import { tratamento } from "../db/historico";
 import { membroAtual } from "../membros/membro-atual";
 
 /**
@@ -23,9 +25,10 @@ export const animaisRoutes = new Hono();
 const PODE_REMOVER: Papel[] = ["owner", "admin"];
 
 /** Linha do banco → contrato. Texto livre no banco vira enum validado aqui. */
-export function paraContrato(r: typeof animal.$inferSelect): Animal {
+export function paraContrato(r: typeof animal.$inferSelect, emTratamento?: boolean): Animal {
   return {
     id: r.id,
+    numero: r.numero,
     nome: r.nome,
     especie: especieSchema.catch("outro").parse(r.especie),
     raca: r.raca,
@@ -34,16 +37,21 @@ export function paraContrato(r: typeof animal.$inferSelect): Animal {
     pesoKg: r.pesoKg === null ? null : Number(r.pesoKg),
     tutor: r.tutor,
     tutorTelefone: r.tutorTelefone,
+    microchip: r.microchip,
+    local: r.local,
     ultimaVisita: r.ultimaVisita,
     status: statusAnimalSchema.catch("ativo").parse(r.status),
+    emTratamento,
     createdAt: r.createdAt,
   };
 }
 
 /** Contrato → colunas. `numeric` no drizzle é string; o resto bate 1:1. */
-function paraColunas(d: typeof criarAnimalSchema._output) {
+function paraColunas(d: CriarAnimalInput) {
   return {
-    nome: d.nome,
+    numero: d.numero || null,
+    // Animal só com número: nome fica vazio e a tela mostra "nº 47".
+    nome: d.nome ?? "",
     especie: d.especie,
     raca: d.raca ?? null,
     sexo: d.sexo ?? null,
@@ -51,6 +59,8 @@ function paraColunas(d: typeof criarAnimalSchema._output) {
     pesoKg: d.pesoKg == null ? null : String(d.pesoKg),
     tutor: d.tutor ?? null,
     tutorTelefone: d.tutorTelefone ?? null,
+    microchip: d.microchip || null,
+    local: d.local || null,
     ultimaVisita: d.ultimaVisita ?? null,
   };
 }
@@ -60,13 +70,18 @@ animaisRoutes.get("/:orgId/animais", async (c) => {
   const eu = await membroAtual(c.req.raw.headers, orgId);
   if (!eu) return c.json({ error: "Sem acesso a esta organização." }, 403);
 
-  const rows = await db
-    .select()
-    .from(animal)
-    .where(eq(animal.organizationId, orgId))
-    .orderBy(asc(animal.nome));
+  const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  const [rows, tratando] = await Promise.all([
+    db.select().from(animal).where(eq(animal.organizationId, orgId)).orderBy(asc(animal.numero), asc(animal.nome)),
+    // Em tratamento = tem remédio cujo fim ainda não passou (ou sem fim definido).
+    db
+      .selectDistinct({ id: tratamento.animalId })
+      .from(tratamento)
+      .where(and(eq(tratamento.organizationId, orgId), or(isNull(tratamento.fim), gte(tratamento.fim, hoje)))),
+  ]);
+  const emTratamento = new Set(tratando.map((t) => t.id));
 
-  return c.json(rows.map(paraContrato));
+  return c.json(rows.map((r) => paraContrato(r, emTratamento.has(r.id))));
 });
 
 animaisRoutes.post("/:orgId/animais", async (c) => {

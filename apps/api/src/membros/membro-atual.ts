@@ -21,5 +21,10 @@ export async function membroAtual(headers: Headers, organizationId: string) {
   if (!m) return null;
 
   const role = papelSchema.safeParse(m.role);
-  return { userId: session.user.id, memberId: m.id, role: role.success ? role.data : ("member" as const) };
+  return {
+    userId: session.user.id,
+    nome: session.user.name || session.user.email,
+    memberId: m.id,
+    role: role.success ? role.data : ("member" as const),
+  };
 }

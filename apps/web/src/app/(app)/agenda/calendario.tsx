@@ -2,7 +2,6 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { Card } from "@/components/app/card";
 import { DIAS_SEMANA, formatar, mesAno } from "@/lib/datas";
 
 type Props = {
@@ -54,69 +53,47 @@ export function Calendario({
   onMesAnterior,
   onMesSeguinte,
 }: Props) {
+  const titulo = mesAno(ano, mes).replace(" ", " de ");
   return (
-    <Card className="p-5">
+    <div className="flex w-[268px] shrink-0 flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-ink">{mesAno(ano, mes)}</h2>
-        <div className="flex gap-1">
-          <button
-            type="button"
-            onClick={onMesAnterior}
-            aria-label="Mês anterior"
-            className="rounded-lg p-1.5 text-ink-muted transition hover:bg-surface hover:text-ink"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={onMesSeguinte}
-            aria-label="Mês seguinte"
-            className="rounded-lg p-1.5 text-ink-muted transition hover:bg-surface hover:text-ink"
-          >
-            <ChevronRight className="size-4" />
-          </button>
-        </div>
+        <button type="button" onClick={onMesAnterior} aria-label="Mês anterior" className="grid size-8 cursor-pointer place-items-center rounded-lg text-ink-soft hover:bg-surface">
+          <ChevronLeft className="size-4" />
+        </button>
+        <h2 className="text-[15px] font-semibold text-ink">{titulo}</h2>
+        <button type="button" onClick={onMesSeguinte} aria-label="Próximo mês" className="grid size-8 cursor-pointer place-items-center rounded-lg text-ink-soft hover:bg-surface">
+          <ChevronRight className="size-4" />
+        </button>
       </div>
 
-      <div role="grid" aria-label={mesAno(ano, mes)} className="mt-4">
-        <div role="row" className="grid grid-cols-7 text-center text-xs text-ink-muted">
-          {DIAS_SEMANA.map((d) => (
-            <div key={d} role="columnheader" className="py-1">
-              {d}
-            </div>
-          ))}
-        </div>
-        <div className="mt-1 grid grid-cols-7 gap-y-1">
-          {celulas(ano, mes).map((c) => {
-            const ehHoje = c.iso === hoje;
-            const ativo = c.iso === selecionado;
-            const tem = diasComConsulta.has(c.iso);
-            return (
-              <button
-                key={c.iso}
-                type="button"
-                role="gridcell"
-                aria-selected={ativo}
-                aria-label={
-                  formatar(c.iso, { day: "numeric", month: "long" }) + (tem ? ", com consultas" : "")
-                }
-                onClick={() => onSelecionar(c.iso)}
-                className={`mx-auto flex h-8 w-full max-w-[6.5rem] items-center justify-center rounded-lg text-sm transition ${
-                  ativo
-                    ? "bg-brand font-semibold text-white"
-                    : tem
-                      ? "bg-brand-soft font-semibold text-brand hover:bg-brand/20"
-                      : c.doMes
-                        ? "text-ink hover:bg-surface"
-                        : "text-ink-muted/50 hover:bg-surface"
-                } ${ehHoje && !ativo ? "ring-1 ring-brand ring-inset" : ""}`}
-              >
-                {c.dia}
-              </button>
-            );
-          })}
-        </div>
+      <div role="grid" aria-label={titulo} className="grid grid-cols-7 gap-0.5 text-center">
+        {DIAS_SEMANA.map((d) => (
+          <span key={d} role="columnheader" aria-label={d} className="py-1 text-[13px] text-ink-muted">
+            {d.charAt(0)}
+          </span>
+        ))}
+        {celulas(ano, mes).map((c) => {
+          if (!c.doMes) return <span key={c.iso} aria-hidden="true" />;
+          const ativo = c.iso === selecionado;
+          const tem = diasComConsulta.has(c.iso);
+          return (
+            <button
+              key={c.iso}
+              type="button"
+              role="gridcell"
+              aria-selected={ativo}
+              aria-label={formatar(c.iso, { day: "numeric", month: "long" }) + (tem ? ", com consultas" : "") + (c.iso === hoje ? ", hoje" : "")}
+              onClick={() => onSelecionar(c.iso)}
+              className={`flex h-9 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg text-sm tabular-nums transition ${
+                ativo ? "bg-ink text-white" : c.iso === hoje ? "font-semibold text-brand-ink hover:bg-surface" : "text-ink hover:bg-surface"
+              }`}
+            >
+              {c.dia}
+              <span aria-hidden="true" className={`size-1 rounded-full ${tem ? (ativo ? "bg-white" : "bg-[#9a9f9b]") : ""}`} />
+            </button>
+          );
+        })}
       </div>
-    </Card>
+    </div>
   );
 }

@@ -1,53 +1,73 @@
 "use client";
 
 import {
-  atualizarConsultaSchema,
-  criarConsultaSchema,
-  ROTULO_ESPECIE,
   ROTULO_STATUS_CONSULTA,
   ROTULO_TIPO_CONSULTA,
-  STATUS_CONSULTA,
   TIPOS_CONSULTA,
+  atualizarConsultaSchema,
+  criarConsultaSchema,
+  rotuloAnimal,
   type Animal,
   type Consulta,
   type StatusConsulta,
 } from "@vocare/shared";
-import { Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type DragEvent, type FormEvent } from "react";
 
-import { Avatar } from "@/components/app/avatar";
-import { Badge, type Tone } from "@/components/app/badge";
-import { Card, CardHeader } from "@/components/app/card";
 import { Modal } from "@/components/app/modal";
-import { PageHeader } from "@/components/app/page-header";
 import { Select } from "@/components/app/select";
 import { btn, campo } from "@/components/app/ui";
 import { chamarApi } from "@/lib/api-client";
-import { adicionarDias, dataExtenso, formatar, inicioDaSemana } from "@/lib/datas";
+import { adicionarDias, formatar, inicioDaSemana, paraDate } from "@/lib/datas";
 
 import { Calendario } from "./calendario";
 
 type Modo = "dia" | "semana";
 type Veterinario = { id: string; nome: string };
-type Dialogo =
-  | { tipo: "nova" }
-  | { tipo: "editar"; consulta: Consulta }
-  | { tipo: "excluir"; consulta: Consulta }
-  | null;
+type Dialogo = { tipo: "nova"; data: string } | { tipo: "remarcar"; consulta: Consulta } | null;
 
-const ESTILO_STATUS: Record<StatusConsulta, { tone: Tone; barra: string }> = {
-  agendada: { tone: "yellow", barra: "bg-amber-400" },
-  confirmada: { tone: "green", barra: "bg-brand" },
-  urgente: { tone: "red", barra: "bg-red-500" },
-  concluida: { tone: "gray", barra: "bg-line" },
-  cancelada: { tone: "gray", barra: "bg-line" },
+const COR_STATUS: Record<StatusConsulta, string> = {
+  agendada: "text-warn",
+  confirmada: "text-brand-ink",
+  urgente: "text-danger",
+  concluida: "text-ink-muted",
+  cancelada: "text-ink-muted",
 };
 
-const inputClasses = campo;
+const DURACOES = [15, 30, 45, 60, 120];
 
-function capitalizar(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function duracao(min: number) {
+  if (min < 60) return `${min} min`;
+  const h = min / 60;
+  return Number.isInteger(h) ? `${h} h` : `${Math.floor(h)} h ${min % 60} min`;
+}
+
+function nomeAlvo(c: Consulta) {
+  return c.animalId ? rotuloAnimal({ numero: c.animalNumero, nome: c.animalNome }) : c.animalNome;
+}
+
+/** "Quinta, 24 de setembro · hoje" */
+function tituloDia(iso: string, hoje: string) {
+  const semana = formatar(iso, { weekday: "long" }).replace("-feira", "");
+  const s = `${semana.charAt(0).toUpperCase()}${semana.slice(1)}, ${formatar(iso, { day: "numeric", month: "long" })}`;
+  return iso === hoje ? `${s} · hoje` : s;
+}
+
+/** A consulta inteira de volta, com o que mudou — o PATCH da api espera tudo. */
+function comMudanca(c: Consulta, m: Partial<Pick<Consulta, "data" | "hora" | "status">>) {
+  return {
+    animalId: c.animalId ?? null,
+    grupoId: c.grupoId ?? null,
+    veterinarioId: c.veterinarioId ?? null,
+    data: m.data ?? c.data,
+    hora: m.hora ?? c.hora,
+    duracaoMin: c.duracaoMin,
+    tipo: c.tipo,
+    status: m.status ?? c.status,
+    observacoes: c.observacoes ?? null,
+  };
 }
 
 type Props = {
@@ -58,15 +78,21 @@ type Props = {
   veterinarios: Veterinario[];
 };
 
-export function AgendaView({ orgId, hoje, consultas, animais, veterinarios }: Props) {
+export function AgendaView({ orgId, hoje, consultas: iniciais, animais, veterinarios }: Props) {
   const router = useRouter();
+  const [consultas, setConsultas] = useState(iniciais);
   const [selecionado, setSelecionado] = useState(hoje);
   const [modo, setModo] = useState<Modo>("dia");
   const [dialogo, setDialogo] = useState<Dialogo>(null);
-  const [{ ano, mes }, setMesVisivel] = useState(() => ({
-    ano: Number(hoje.slice(0, 4)),
-    mes: Number(hoje.slice(5, 7)),
-  }));
+  const [erro, setErro] = useState<string | null>(null);
+  const [{ ano, mes }, setMesVisivel] = useState(() => ({ ano: Number(hoje.slice(0, 4)), mes: Number(hoje.slice(5, 7)) }));
+
+  // Depois de salvar, o servidor manda a lista nova; a tela acompanha.
+  const [anteriores, setAnteriores] = useState(iniciais);
+  if (anteriores !== iniciais) {
+    setAnteriores(iniciais);
+    setConsultas(iniciais);
+  }
 
   const diasComConsulta = useMemo(
     () => new Set(consultas.filter((c) => c.status !== "cancelada").map((c) => c.data)),
@@ -84,321 +110,411 @@ export function AgendaView({ orgId, hoje, consultas, animais, veterinarios }: Pr
 
   function selecionar(iso: string) {
     setSelecionado(iso);
-    // Clicar num dia de outro mês (apagado) leva o calendário até ele.
     setMesVisivel({ ano: Number(iso.slice(0, 4)), mes: Number(iso.slice(5, 7)) });
   }
 
-  function concluido() {
-    setDialogo(null);
+  /** Atualiza na hora (otimista) e confirma com a api; se falhar, volta. */
+  async function atualizar(c: Consulta, m: Partial<Pick<Consulta, "data" | "hora" | "status">>) {
+    setErro(null);
+    const antes = consultas;
+    setConsultas((l) => l.map((x) => (x.id === c.id ? { ...x, ...m } : x)));
+    const err = await chamarApi(`/api/org/${orgId}/consultas/${c.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(comMudanca(c, m)),
+    });
+    if (err) {
+      setConsultas(antes);
+      setErro(err);
+      return;
+    }
     router.refresh();
   }
 
-  const dias =
-    modo === "dia"
-      ? [selecionado]
-      : Array.from({ length: 7 }, (_, i) => adicionarDias(inicioDaSemana(selecionado), i));
+  const doDia = consultas.filter((c) => c.data === selecionado).sort((a, b) => a.hora.localeCompare(b.hora));
 
   return (
-    <>
-      <PageHeader
-        title="Agenda"
-        subtitle={dataExtenso(selecionado)}
-        aside={
-          <div className="flex items-center gap-3">
-            <div
-              role="radiogroup"
-              aria-label="Modo de visualização"
-              className="flex rounded-lg bg-surface p-1"
-            >
-              {(["dia", "semana"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  role="radio"
-                  aria-checked={modo === m}
-                  onClick={() => setModo(m)}
-                  className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition ${
-                    modo === m ? "bg-white text-ink shadow-sm" : "text-ink-muted hover:text-ink"
-                  }`}
-                >
-                  {m === "dia" ? "Dia" : "Semana"}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => setDialogo({ tipo: "nova" })}
-              className={btn.primario}
-            >
-              <Plus className="size-4" /> Nova consulta
-            </button>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-[28px] leading-tight font-semibold tracking-tight text-ink">Agenda</h1>
+          <p className="text-base text-ink-muted">
+            {modo === "dia" ? "Consultas, retornos e vacinas marcados." : "Arraste para remarcar."}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-field bg-surface p-[3px]" role="group" aria-label="Ver por">
+            {(["dia", "semana"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                aria-pressed={modo === m}
+                onClick={() => setModo(m)}
+                className={`cursor-pointer rounded-lg px-3.5 py-[7px] text-sm font-semibold transition ${
+                  modo === m ? "bg-white text-ink" : "text-ink-muted hover:text-ink"
+                }`}
+              >
+                {m === "dia" ? "Dia" : "Semana"}
+              </button>
+            ))}
           </div>
-        }
-      />
-
-      <div className="space-y-6">
-        <Calendario
-          ano={ano}
-          mes={mes}
-          hoje={hoje}
-          selecionado={selecionado}
-          diasComConsulta={diasComConsulta}
-          onSelecionar={selecionar}
-          onMesAnterior={() => mudarMes(-1)}
-          onMesSeguinte={() => mudarMes(1)}
-        />
-
-        {dias.map((dia) => {
-          const doDia = consultas.filter((c) => c.data === dia);
-          const rotulo =
-            dia === hoje
-              ? "Hoje"
-              : modo === "semana"
-                ? formatar(dia, { weekday: "long", day: "numeric" })
-                : formatar(dia, { day: "numeric", month: "long" });
-          return (
-            <Card key={dia}>
-              <CardHeader
-                title={`Consultas · ${capitalizar(rotulo)}`}
-                aside={
-                  doDia.length > 0 && (
-                    <Badge tone="gray">{`${doDia.length} agendada${doDia.length > 1 ? "s" : ""}`}</Badge>
-                  )
-                }
-              />
-              {doDia.length === 0 ? (
-                <p className="px-5 pb-5 text-sm text-ink-muted">Nenhuma consulta neste dia.</p>
-              ) : (
-                <ul className="divide-y divide-line">
-                  {doDia.map((c) => (
-                    <LinhaConsulta
-                      key={c.id}
-                      c={c}
-                      onEditar={() => setDialogo({ tipo: "editar", consulta: c })}
-                      onExcluir={() => setDialogo({ tipo: "excluir", consulta: c })}
-                    />
-                  ))}
-                </ul>
-              )}
-            </Card>
-          );
-        })}
-      </div>
-
-      <ConsultaModal
-        key={dialogo?.tipo === "editar" ? dialogo.consulta.id : dialogo?.tipo ?? "fechado"}
-        open={dialogo?.tipo === "nova" || dialogo?.tipo === "editar"}
-        consulta={dialogo?.tipo === "editar" ? dialogo.consulta : null}
-        dataInicial={selecionado}
-        orgId={orgId}
-        animais={animais}
-        veterinarios={veterinarios}
-        onClose={() => setDialogo(null)}
-        onDone={concluido}
-      />
-
-      <ExcluirModal
-        consulta={dialogo?.tipo === "excluir" ? dialogo.consulta : null}
-        orgId={orgId}
-        onClose={() => setDialogo(null)}
-        onDone={concluido}
-      />
-    </>
-  );
-}
-
-function LinhaConsulta({
-  c,
-  onEditar,
-  onExcluir,
-}: {
-  c: Consulta;
-  onEditar: () => void;
-  onExcluir: () => void;
-}) {
-  const st = ESTILO_STATUS[c.status];
-  const cancelada = c.status === "cancelada";
-  return (
-    <li className={`flex items-center gap-4 px-5 py-3.5 ${cancelada ? "opacity-60" : ""}`}>
-      <span className="w-12 text-sm text-ink-muted tabular-nums">{c.hora}</span>
-      <span aria-hidden="true" className={`h-8 w-0.5 shrink-0 rounded-full ${st.barra}`} />
-      <Avatar name={c.animalNome} />
-      <div className="min-w-0 flex-1">
-        <p className={`text-sm font-medium text-ink ${cancelada ? "line-through" : ""}`}>
-          {c.animalNome}{" "}
-          <span className="text-xs font-normal text-ink-muted">· {ROTULO_ESPECIE[c.animalEspecie]}</span>
-        </p>
-        <p className="truncate text-xs text-ink-muted">
-          {[ROTULO_TIPO_CONSULTA[c.tipo], c.animalTutor].filter(Boolean).join(" · ")}
-        </p>
-      </div>
-      <span className="hidden text-xs text-ink-muted md:block">{c.veterinarioNome ?? "—"}</span>
-      <span className="hidden text-xs text-ink-muted tabular-nums sm:block">{c.duracaoMin} min</span>
-      <Badge tone={st.tone}>{ROTULO_STATUS_CONSULTA[c.status]}</Badge>
-      <MenuAcoes onEditar={onEditar} onExcluir={onExcluir} />
-    </li>
-  );
-}
-
-/** O "…" da linha: Editar / Excluir. Fecha ao perder foco ou com Esc. */
-function MenuAcoes({ onEditar, onExcluir }: { onEditar: () => void; onExcluir: () => void }) {
-  const [aberto, setAberto] = useState(false);
-
-  return (
-    <div
-      className="relative"
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setAberto(false);
-      }}
-      onKeyDown={(e) => e.key === "Escape" && setAberto(false)}
-    >
-      <button
-        type="button"
-        aria-label="Mais ações"
-        aria-haspopup="menu"
-        aria-expanded={aberto}
-        onClick={() => setAberto((v) => !v)}
-        className="rounded-lg p-1.5 text-ink-muted transition hover:bg-surface hover:text-ink"
-      >
-        <MoreHorizontal className="size-4" />
-      </button>
-      {aberto && (
-        <div
-          role="menu"
-          className="absolute top-full right-0 z-10 mt-1 w-40 overflow-hidden rounded-lg border border-line bg-white py-1 shadow-lg"
-        >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setAberto(false);
-              onEditar();
-            }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-surface"
-          >
-            <Pencil className="size-4 text-ink-muted" /> Editar
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setAberto(false);
-              onExcluir();
-            }}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-          >
-            <Trash2 className="size-4" /> Excluir
+          <button type="button" onClick={() => setDialogo({ tipo: "nova", data: selecionado })} className={btn.secundario}>
+            Nova consulta
           </button>
         </div>
+      </div>
+
+      {erro && (
+        <p role="alert" className="text-sm text-danger">
+          {erro}
+        </p>
+      )}
+
+      {modo === "dia" ? (
+        <div className="flex flex-wrap items-start gap-7">
+          <Calendario
+            ano={ano}
+            mes={mes}
+            hoje={hoje}
+            selecionado={selecionado}
+            diasComConsulta={diasComConsulta}
+            onSelecionar={selecionar}
+            onMesAnterior={() => mudarMes(-1)}
+            onMesSeguinte={() => mudarMes(1)}
+          />
+          <section className="flex min-w-0 flex-[1_1_27rem] flex-col gap-2.5">
+            <h2 className="text-lg font-semibold text-ink">{tituloDia(selecionado, hoje)}</h2>
+            {doDia.length === 0 ? (
+              <div className="flex flex-col items-center gap-2.5 rounded-card border border-dashed border-button-border p-8 text-center">
+                <p className="text-base text-ink-soft">Nada marcado neste dia.</p>
+                <button type="button" onClick={() => setDialogo({ tipo: "nova", data: selecionado })} className={btn.secundario}>
+                  Marcar consulta
+                </button>
+              </div>
+            ) : (
+              <ul className="rounded-card border border-line bg-white">
+                {doDia.map((c, i) => (
+                  <LinhaConsulta
+                    key={c.id}
+                    c={c}
+                    primeira={i === 0}
+                    onConcluir={() => atualizar(c, { status: "concluida" })}
+                    onCancelar={() => atualizar(c, { status: "cancelada" })}
+                    onReabrir={() => atualizar(c, { status: "agendada" })}
+                    onRemarcar={() => setDialogo({ tipo: "remarcar", consulta: c })}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      ) : (
+        <Semana
+          consultas={consultas}
+          hoje={hoje}
+          inicio={inicioDaSemana(selecionado)}
+          onMudarSemana={(dias) => selecionar(adicionarDias(selecionado, dias))}
+          onMover={(c, data) => c.data !== data && atualizar(c, { data })}
+        />
+      )}
+
+      {dialogo && (
+        <ConsultaModal
+          dialogo={dialogo}
+          orgId={orgId}
+          animais={animais}
+          veterinarios={veterinarios}
+          onClose={() => setDialogo(null)}
+          onDone={(data) => {
+            setDialogo(null);
+            if (data) selecionar(data);
+            router.refresh();
+          }}
+        />
       )}
     </div>
   );
 }
 
-function Campo({
-  label,
-  children,
-  className = "",
+function LinhaConsulta({
+  c,
+  primeira,
+  onConcluir,
+  onCancelar,
+  onReabrir,
+  onRemarcar,
 }: {
-  label: string;
-  children: React.ReactNode;
-  className?: string;
+  c: Consulta;
+  primeira: boolean;
+  onConcluir: () => void;
+  onCancelar: () => void;
+  onReabrir: () => void;
+  onRemarcar: () => void;
 }) {
+  const router = useRouter();
+  const [menu, setMenu] = useState(false);
+  const caixa = useRef<HTMLLIElement>(null);
+
+  useEffect(() => {
+    if (!menu) return;
+    const fora = (e: MouseEvent) => caixa.current && !caixa.current.contains(e.target as Node) && setMenu(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setMenu(false);
+    document.addEventListener("mousedown", fora);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", fora);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [menu]);
+
+  const fechada = c.status === "concluida" || c.status === "cancelada";
+  const acoes: { rotulo: string; fazer: () => void; perigo?: boolean }[] = [
+    ...(!fechada ? [{ rotulo: "Marcar como concluída", fazer: onConcluir }] : []),
+    { rotulo: "Remarcar", fazer: onRemarcar },
+    ...(c.animalId ? [{ rotulo: "Ver ficha do animal", fazer: () => router.push(`/animais/${c.animalId}`) }] : []),
+    ...(fechada
+      ? [{ rotulo: "Voltar para agendada", fazer: onReabrir }]
+      : [{ rotulo: "Cancelar consulta", fazer: onCancelar, perigo: true }]),
+  ];
+
   return (
-    <label className={`block space-y-1.5 ${className}`}>
-      <span className="block text-sm font-medium text-ink">{label}</span>
+    <li ref={caixa} className={`relative flex items-center gap-3.5 py-3.5 pr-3 pl-[18px] ${primeira ? "" : "border-t border-line"}`}>
+      <span className="flex w-[52px] shrink-0 flex-col">
+        <span className="text-[15px] font-semibold text-ink tabular-nums">{c.hora}</span>
+        <span className="text-[13px] text-ink-muted">{duracao(c.duracaoMin)}</span>
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        {c.animalId ? (
+          <Link href={`/animais/${c.animalId}`} className="truncate text-[15px] font-semibold text-ink no-underline hover:underline">
+            {nomeAlvo(c)}
+          </Link>
+        ) : (
+          <span className="truncate text-[15px] font-semibold text-ink">{nomeAlvo(c)}</span>
+        )}
+        <span className="truncate text-sm text-ink-muted">
+          {[ROTULO_TIPO_CONSULTA[c.tipo], c.local].filter(Boolean).join(" · ")}
+          {c.observacoes && <span className="hidden sm:inline"> · {c.observacoes}</span>}
+        </span>
+      </span>
+      <span className="hidden w-28 truncate text-sm text-ink-soft xl:block">{c.veterinarioNome ?? "—"}</span>
+      <span className={`w-24 text-sm font-semibold ${COR_STATUS[c.status]}`}>{ROTULO_STATUS_CONSULTA[c.status]}</span>
+      <button
+        type="button"
+        onClick={() => setMenu((v) => !v)}
+        aria-label={`Mais ações: ${nomeAlvo(c)} às ${c.hora}`}
+        aria-expanded={menu}
+        className={`grid size-8 cursor-pointer place-items-center rounded-lg text-lg leading-none text-ink-muted hover:bg-surface ${menu ? "bg-surface" : ""}`}
+      >
+        …
+      </button>
+      {menu && (
+        <div role="menu" className="absolute top-[50px] right-3 z-10 flex w-[210px] flex-col rounded-xl border border-line bg-white p-1.5 shadow-[0_16px_32px_-16px_rgba(0,0,0,.25)]">
+          {acoes.map((a) => (
+            <button
+              key={a.rotulo}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenu(false);
+                a.fazer();
+              }}
+              className={`cursor-pointer rounded-lg px-2.5 py-[9px] text-left text-[15px] hover:bg-hover ${a.perigo ? "text-danger" : "text-ink"}`}
+            >
+              {a.rotulo}
+            </button>
+          ))}
+        </div>
+      )}
+    </li>
+  );
+}
+
+/** Semana de segunda a sexta (sábado e domingo aparecem se tiverem algo). Arrastar remarca. */
+function Semana({
+  consultas,
+  hoje,
+  inicio,
+  onMudarSemana,
+  onMover,
+}: {
+  consultas: Consulta[];
+  hoje: string;
+  /** Domingo da semana. */
+  inicio: string;
+  onMudarSemana: (dias: number) => void;
+  onMover: (c: Consulta, data: string) => void;
+}) {
+  const [alvo, setAlvo] = useState<string | null>(null);
+  const todos = Array.from({ length: 7 }, (_, i) => adicionarDias(inicio, i));
+  const temAlgo = (d: string) => consultas.some((c) => c.data === d);
+  // Segunda a sexta sempre; fim de semana só se tiver consulta.
+  const dias = todos.filter((d, i) => (i >= 1 && i <= 5) || temAlgo(d));
+  const primeiro = dias[0]!;
+  const ultimo = dias.at(-1)!;
+  const titulo =
+    primeiro.slice(5, 7) === ultimo.slice(5, 7)
+      ? `${Number(primeiro.slice(8))} a ${formatar(ultimo, { day: "numeric", month: "long" })}`
+      : `${formatar(primeiro, { day: "numeric", month: "short" })} a ${formatar(ultimo, { day: "numeric", month: "short" })}`;
+
+  function soltar(e: DragEvent, data: string) {
+    e.preventDefault();
+    setAlvo(null);
+    const id = e.dataTransfer.getData("text/plain");
+    const c = consultas.find((x) => x.id === id);
+    if (c) onMover(c, data);
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => onMudarSemana(-7)} aria-label="Semana anterior" className="grid size-8 cursor-pointer place-items-center rounded-lg text-ink-soft hover:bg-surface">
+            <ChevronLeft className="size-4" />
+          </button>
+          <h2 className="text-lg font-semibold text-ink">{titulo}</h2>
+          <button type="button" onClick={() => onMudarSemana(7)} aria-label="Próxima semana" className="grid size-8 cursor-pointer place-items-center rounded-lg text-ink-soft hover:bg-surface">
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+        <p className="text-sm text-ink-muted">Arraste um horário para outro dia para remarcar.</p>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="grid min-w-[40rem] gap-3" style={{ gridTemplateColumns: `repeat(${dias.length}, minmax(0, 1fr))` }}>
+          {dias.map((d) => {
+            const itens = consultas.filter((c) => c.data === d).sort((a, b) => a.hora.localeCompare(b.hora));
+            const semana = formatar(d, { weekday: "short" }).replace(".", "");
+            return (
+              <div
+                key={d}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setAlvo(d);
+                }}
+                onDragLeave={() => setAlvo((a) => (a === d ? null : a))}
+                onDrop={(e) => soltar(e, d)}
+                className={`flex min-h-[26rem] min-w-0 flex-col gap-2 rounded-xl p-1 transition ${alvo === d ? "bg-brand-soft" : ""}`}
+              >
+                <div className={`flex items-baseline gap-1.5 border-b-2 px-1.5 pb-2 ${d === hoje ? "border-ink" : "border-line"}`}>
+                  <span className="text-sm text-ink-muted capitalize">{semana}</span>
+                  <span className="text-lg font-semibold text-ink">{paraDate(d).getUTCDate()}</span>
+                </div>
+                {itens.map((c) => (
+                  <div
+                    key={c.id}
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData("text/plain", c.id)}
+                    className="flex cursor-grab flex-col gap-0.5 rounded-field border border-line bg-white px-3 py-2.5 active:cursor-grabbing"
+                  >
+                    <span className="text-[13px] text-ink-muted tabular-nums">
+                      {c.hora} · {duracao(c.duracaoMin)}
+                    </span>
+                    <span className="truncate text-sm font-semibold text-ink">{nomeAlvo(c)}</span>
+                    <span className="truncate text-[13px] text-ink-soft">{c.observacoes || ROTULO_TIPO_CONSULTA[c.tipo]}</span>
+                    <span className={`text-[13px] font-semibold ${COR_STATUS[c.status]}`}>{ROTULO_STATUS_CONSULTA[c.status]}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Campo({ label, dica, children, largo }: { label: string; dica?: string; children: React.ReactNode; largo?: boolean }) {
+  return (
+    <label className={`flex flex-col gap-1.5 ${largo ? "sm:col-span-2" : ""}`}>
+      <span className="text-sm font-semibold text-ink">
+        {label}
+        {dica && <span className="font-normal text-ink-muted"> {dica}</span>}
+      </span>
       {children}
     </label>
   );
 }
 
 function ConsultaModal({
-  open,
-  consulta,
-  dataInicial,
+  dialogo,
   orgId,
   animais,
   veterinarios,
   onClose,
   onDone,
 }: {
-  open: boolean;
-  consulta: Consulta | null;
-  dataInicial: string;
+  dialogo: NonNullable<Dialogo>;
   orgId: string;
   animais: Animal[];
   veterinarios: Veterinario[];
   onClose: () => void;
-  onDone: () => void;
+  onDone: (data?: string) => void;
 }) {
   const [pending, start] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
-  const editando = consulta !== null;
+  const consulta = dialogo.tipo === "remarcar" ? dialogo.consulta : null;
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setErro(null);
     const f = new FormData(e.currentTarget);
     const bruto = {
-      animalId: f.get("animalId"),
+      animalId: consulta && !consulta.animalId ? null : f.get("animalId"),
+      grupoId: consulta?.grupoId ?? null,
       veterinarioId: f.get("veterinarioId") || null,
       data: f.get("data"),
       hora: f.get("hora"),
       duracaoMin: f.get("duracaoMin"),
       tipo: f.get("tipo"),
       observacoes: f.get("observacoes") || null,
-      ...(editando && { status: f.get("status") }),
+      ...(consulta && { status: consulta.status === "cancelada" ? "agendada" : consulta.status }),
     };
-    const parsed = editando
-      ? atualizarConsultaSchema.safeParse(bruto)
-      : criarConsultaSchema.safeParse(bruto);
-    if (!parsed.success) {
-      setErro(parsed.error.issues[0]?.message ?? "Dados inválidos.");
-      return;
-    }
+    const parsed = consulta ? atualizarConsultaSchema.safeParse(bruto) : criarConsultaSchema.safeParse(bruto);
+    if (!parsed.success) return setErro(parsed.error.issues[0]?.message ?? "Dados inválidos.");
 
     start(async () => {
-      const err = editando
-        ? await chamarApi(`/api/org/${orgId}/consultas/${consulta.id}`, {
-            method: "PATCH",
-            body: JSON.stringify(parsed.data),
-          })
-        : await chamarApi(`/api/org/${orgId}/consultas`, {
-            method: "POST",
-            body: JSON.stringify(parsed.data),
-          });
+      const err = consulta
+        ? await chamarApi(`/api/org/${orgId}/consultas/${consulta.id}`, { method: "PATCH", body: JSON.stringify(parsed.data) })
+        : await chamarApi(`/api/org/${orgId}/consultas`, { method: "POST", body: JSON.stringify(parsed.data) });
       if (err) return setErro(err);
-      onDone();
+      onDone(parsed.data.data);
     });
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={editando ? "Editar consulta" : "Nova consulta"} wide>
-      {animais.length === 0 ? (
-        <p className="text-sm text-ink-muted">
-          Cadastre um animal antes de agendar — a consulta precisa estar ligada a um.
-        </p>
+    <Modal
+      open
+      onClose={onClose}
+      title={consulta ? "Remarcar consulta" : "Nova consulta"}
+      subtitle={consulta ? "Muda o dia, a hora ou quem vai atender." : "Aparece na agenda de quem for atender."}
+      wide
+    >
+      {animais.length === 0 && !consulta ? (
+        <p className="text-[15px] text-ink-muted">Cadastre um animal antes de marcar — a consulta precisa estar ligada a um.</p>
       ) : (
-        <form onSubmit={submit} className="space-y-4">
+        <form onSubmit={submit} className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Campo label="Animal" className="sm:col-span-2">
-              <Select name="animalId" required defaultValue={consulta?.animalId ?? ""}>
-                <option value="" disabled>
-                  Escolha o animal
-                </option>
-                {animais.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.nome} · {ROTULO_ESPECIE[a.especie]}
-                    {a.tutor ? ` · ${a.tutor}` : ""}
+            {consulta && !consulta.animalId ? (
+              <Campo label="Grupo" largo>
+                <input className={campo} value={consulta.animalNome} disabled />
+              </Campo>
+            ) : (
+              <Campo label="Animal" largo>
+                <Select name="animalId" required defaultValue={consulta?.animalId ?? ""}>
+                  <option value="" disabled>
+                    Escolha o animal
                   </option>
-                ))}
-              </Select>
-            </Campo>
+                  {animais.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {rotuloAnimal(a)}
+                    </option>
+                  ))}
+                </Select>
+              </Campo>
+            )}
             <Campo label="Data">
-              <input name="data" type="date" required className={inputClasses} defaultValue={consulta?.data ?? dataInicial} />
+              <input name="data" type="date" required className={campo} defaultValue={consulta?.data ?? (dialogo.tipo === "nova" ? dialogo.data : "")} />
             </Campo>
             <Campo label="Hora">
-              <input name="hora" type="time" required className={inputClasses} defaultValue={consulta?.hora ?? "09:00"} />
+              <input name="hora" type="time" required className={campo} defaultValue={consulta?.hora ?? "10:00"} />
             </Campo>
             <Campo label="Tipo">
               <Select name="tipo" defaultValue={consulta?.tipo ?? "consulta"}>
@@ -411,16 +527,16 @@ function ConsultaModal({
             </Campo>
             <Campo label="Duração">
               <Select name="duracaoMin" defaultValue={String(consulta?.duracaoMin ?? 30)}>
-                {[15, 30, 45, 60, 90, 120].map((m) => (
+                {[...new Set([...DURACOES, consulta?.duracaoMin ?? 30])].sort((a, b) => a - b).map((m) => (
                   <option key={m} value={m}>
-                    {m} min
+                    {duracao(m)}
                   </option>
                 ))}
               </Select>
             </Campo>
-            <Campo label="Veterinário" className={editando ? "" : "sm:col-span-2"}>
+            <Campo label="Quem vai atender" largo>
               <Select name="veterinarioId" defaultValue={consulta?.veterinarioId ?? ""}>
-                <option value="">Sem responsável definido</option>
+                <option value="">Ninguém definido</option>
                 {veterinarios.map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.nome}
@@ -428,103 +544,27 @@ function ConsultaModal({
                 ))}
               </Select>
             </Campo>
-            {editando && (
-              <Campo label="Status">
-                <Select name="status" defaultValue={consulta.status}>
-                  {STATUS_CONSULTA.map((s) => (
-                    <option key={s} value={s}>
-                      {ROTULO_STATUS_CONSULTA[s]}
-                    </option>
-                  ))}
-                </Select>
-              </Campo>
-            )}
-            <Campo label="Observações" className="sm:col-span-2">
-              <textarea name="observacoes" rows={2} className={`${inputClasses} h-auto py-2.5`} defaultValue={consulta?.observacoes ?? ""} />
+            <Campo label="Observações" dica="(opcional)" largo>
+              <input name="observacoes" className={campo} placeholder="Algo que quem vai atender precisa saber" defaultValue={consulta?.observacoes ?? ""} />
             </Campo>
           </div>
 
           {erro && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-danger">
               {erro}
             </p>
           )}
 
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className={btn.secundario}>
+          <div className="-mx-6 -mb-6 flex justify-end gap-2 border-t border-line px-6 py-4">
+            <button type="button" onClick={onClose} className="cursor-pointer rounded-field px-3.5 text-[15px] font-semibold text-ink hover:bg-hover">
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={pending}
-              className={btn.primario}
-            >
+            <button type="submit" disabled={pending} className={btn.primario}>
               {pending && <Loader2 className="size-4 animate-spin" />}
-              {editando ? "Salvar" : "Agendar"}
+              {consulta ? "Salvar" : "Marcar consulta"}
             </button>
           </div>
         </form>
-      )}
-    </Modal>
-  );
-}
-
-function ExcluirModal({
-  consulta,
-  orgId,
-  onClose,
-  onDone,
-}: {
-  consulta: Consulta | null;
-  orgId: string;
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const [pending, start] = useTransition();
-  const [erro, setErro] = useState<string | null>(null);
-
-  function excluir() {
-    if (!consulta) return;
-    setErro(null);
-    start(async () => {
-      const err = await chamarApi(`/api/org/${orgId}/consultas/${consulta.id}`, { method: "DELETE" });
-      if (err) return setErro(err);
-      onDone();
-    });
-  }
-
-  return (
-    <Modal open={consulta !== null} onClose={onClose} title="Excluir consulta">
-      {consulta && (
-        <div className="space-y-4">
-          <p className="text-sm text-ink">
-            Excluir a consulta de <strong>{consulta.animalNome}</strong> em{" "}
-            {formatar(consulta.data, { day: "numeric", month: "long" })} às {consulta.hora}?
-          </p>
-          <p className="text-xs text-ink-muted">
-            Isso apaga o registro. Se a consulta só não vai acontecer, prefira editar e marcar como
-            cancelada — o histórico fica.
-          </p>
-          {erro && (
-            <p role="alert" className="text-sm text-red-600">
-              {erro}
-            </p>
-          )}
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className={btn.secundario}>
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={excluir}
-              disabled={pending}
-              className={btn.perigoSolido}
-            >
-              {pending && <Loader2 className="size-4 animate-spin" />}
-              Excluir
-            </button>
-          </div>
-        </div>
       )}
     </Modal>
   );

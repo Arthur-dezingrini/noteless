@@ -7,27 +7,32 @@ import { useState, useTransition } from "react";
 
 import { authClient } from "@/lib/auth/client";
 
-/** Nome da conta ativa, com rótulo — o logo fica acima, no menu. */
-function Conta({ nome, className = "" }: { nome: string; className?: string }) {
+function Conta({ nome, animais }: { nome: string; animais: number | null }) {
   return (
-    <span className={`min-w-0 leading-tight ${className}`}>
-      <span className="block text-[13px] text-ink-muted">Conta</span>
-      <span className="block truncate text-[15px] font-semibold text-ink">{nome}</span>
+    <span className="flex min-w-0 flex-col gap-px text-left">
+      <span className="truncate text-[15px] font-semibold text-ink">{nome}</span>
+      {animais !== null && (
+        <span className="text-[13px] font-medium text-ink-muted">
+          {animais} {animais === 1 ? "animal" : "animais"}
+        </span>
+      )}
     </span>
   );
 }
 
 /**
- * Canto superior esquerdo: a organização ativa, e a troca entre as que o
- * usuário pertence. A escolha vai para a sessão (organization/set-active),
- * então vale em todas as abas e sobrevive a recarregar.
+ * A conta ativa (sítio, fazenda, clínica…) e a troca entre as que o usuário
+ * pertence. A escolha vai para a sessão, então vale em todas as abas.
  */
 export function OrgSwitcher({
   organizacoes,
   ativaId,
+  animais,
 }: {
   organizacoes: Organization[];
   ativaId: string | null;
+  /** Quantos animais a conta ativa tem. */
+  animais: number | null;
 }) {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
@@ -35,13 +40,9 @@ export function OrgSwitcher({
   const [trocandoPara, setTrocandoPara] = useState<string | null>(null);
 
   const ativa = organizacoes.find((o) => o.id === ativaId) ?? organizacoes[0];
-  const podeTrocar = organizacoes.length > 1;
 
   function trocar(id: string) {
-    if (id === ativa?.id) {
-      setAberto(false);
-      return;
-    }
+    if (id === ativa?.id) return setAberto(false);
     setTrocandoPara(id);
     start(async () => {
       await authClient.organization.setActive({ organizationId: id });
@@ -51,13 +52,8 @@ export function OrgSwitcher({
     });
   }
 
-  if (!ativa) {
-    return <Conta nome="Sem organização" className="px-2" />;
-  }
-
-  if (!podeTrocar) {
-    return <Conta nome={ativa.name} className="px-2" />;
-  }
+  if (!ativa) return <div className="px-2.5 py-2"><Conta nome="Sem conta" animais={null} /></div>;
+  if (organizacoes.length < 2) return <div className="px-2.5 py-2"><Conta nome={ativa.name} animais={animais} /></div>;
 
   return (
     <div
@@ -71,11 +67,11 @@ export function OrgSwitcher({
         type="button"
         aria-haspopup="listbox"
         aria-expanded={aberto}
-        aria-label={`Organização ativa: ${ativa.name}. Trocar`}
+        aria-label={`Conta: ${ativa.name}. Trocar de conta`}
         onClick={() => setAberto((v) => !v)}
-        className="flex w-full items-center gap-2 rounded-field border border-line bg-white px-2.5 py-2 text-left transition hover:bg-hover"
+        className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-2.5 py-2 transition hover:bg-hover"
       >
-        <Conta nome={ativa.name} className="flex-1" />
+        <Conta nome={ativa.name} animais={animais} />
         {pending ? (
           <Loader2 className="size-4 shrink-0 animate-spin text-ink-muted" />
         ) : (
@@ -86,7 +82,7 @@ export function OrgSwitcher({
       {aberto && (
         <ul
           role="listbox"
-          aria-label="Organizações"
+          aria-label="Contas"
           className="absolute top-full left-0 z-20 mt-1 w-full overflow-hidden rounded-field border border-line bg-white py-1 shadow-lg"
         >
           {organizacoes.map((o) => {
@@ -99,7 +95,7 @@ export function OrgSwitcher({
                   aria-selected={selecionada}
                   disabled={pending}
                   onClick={() => trocar(o.id)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[15px] text-ink hover:bg-hover disabled:opacity-60"
+                  className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[15px] text-ink hover:bg-hover disabled:opacity-60"
                 >
                   <span className="min-w-0 flex-1 truncate">{o.name}</span>
                   {trocandoPara === o.id ? (

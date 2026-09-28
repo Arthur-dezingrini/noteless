@@ -12,6 +12,7 @@ import { Hono } from "hono";
 import { db } from "../db";
 import { animal } from "../db/animais";
 import { consulta } from "../db/consultas";
+import { grupo } from "../db/historico";
 import { member, user } from "../db/schema";
 import { membroAtual } from "../membros/membro-atual";
 
@@ -24,9 +25,14 @@ export const consultasRoutes = new Hono();
 const colunas = {
   id: consulta.id,
   animalId: consulta.animalId,
+  animalNumero: animal.numero,
   animalNome: animal.nome,
   animalEspecie: animal.especie,
   animalTutor: animal.tutor,
+  animalLocal: animal.local,
+  grupoId: consulta.grupoId,
+  grupoNome: grupo.nome,
+  grupoLocal: grupo.local,
   veterinarioId: consulta.veterinarioId,
   veterinarioNome: user.name,
   data: consulta.data,
@@ -42,12 +48,16 @@ type Linha = { [K in keyof typeof colunas]: (typeof colunas)[K]["_"]["data"] | n
 
 /** Linha do join → contrato. Texto livre no banco vira enum validado aqui. */
 function paraContrato(r: Linha): Consulta {
+  const deGrupo = !r.animalId && !!r.grupoId;
   return {
     id: r.id!,
-    animalId: r.animalId!,
-    animalNome: r.animalNome ?? "—",
-    animalEspecie: especieSchema.catch("outro").parse(r.animalEspecie),
+    animalId: r.animalId,
+    animalNumero: r.animalNumero,
+    animalNome: (deGrupo ? r.grupoNome : r.animalNome) ?? "—",
+    animalEspecie: deGrupo ? null : especieSchema.catch("outro").parse(r.animalEspecie),
     animalTutor: r.animalTutor,
+    grupoId: r.grupoId,
+    local: deGrupo ? r.grupoLocal : r.animalLocal,
     veterinarioId: r.veterinarioId,
     veterinarioNome: r.veterinarioNome,
     data: r.data!,
@@ -61,16 +71,30 @@ function paraContrato(r: Linha): Consulta {
 }
 
 /**
- * Animal e veterinário precisam pertencer à organização — sem isso um id
- * chutado no corpo ligaria uma consulta ao animal de outra fazenda.
+ * Animal (ou grupo) e veterinário precisam pertencer à organização — sem isso
+ * um id chutado no corpo ligaria uma consulta ao animal de outra fazenda.
  */
-async function validarVinculos(orgId: string, animalId: string, veterinarioId: string | null | undefined) {
-  const [a] = await db
-    .select({ id: animal.id })
-    .from(animal)
-    .where(and(eq(animal.id, animalId), eq(animal.organizationId, orgId)))
-    .limit(1);
-  if (!a) return "Animal não encontrado nesta organização.";
+async function validarVinculos(
+  orgId: string,
+  animalId: string | null | undefined,
+  grupoId: string | null | undefined,
+  veterinarioId: string | null | undefined,
+) {
+  if (animalId) {
+    const [a] = await db
+      .select({ id: animal.id })
+      .from(animal)
+      .where(and(eq(animal.id, animalId), eq(animal.organizationId, orgId)))
+      .limit(1);
+    if (!a) return "Animal não encontrado nesta organização.";
+  } else if (grupoId) {
+    const [g] = await db
+      .select({ id: grupo.id })
+      .from(grupo)
+      .where(and(eq(grupo.id, grupoId), eq(grupo.organizationId, orgId)))
+      .limit(1);
+    if (!g) return "Grupo não encontrado nesta organização.";
+  }
 
   if (veterinarioId) {
     const [m] = await db
@@ -98,7 +122,8 @@ consultasRoutes.get("/:orgId/consultas", async (c) => {
   const rows = await db
     .select(colunas)
     .from(consulta)
-    .innerJoin(animal, eq(animal.id, consulta.animalId))
+    .leftJoin(animal, eq(animal.id, consulta.animalId))
+    .leftJoin(grupo, eq(grupo.id, consulta.grupoId))
     .leftJoin(user, eq(user.id, consulta.veterinarioId))
     .where(and(...filtros))
     .orderBy(asc(consulta.data), asc(consulta.hora));
@@ -114,14 +139,16 @@ consultasRoutes.post("/:orgId/consultas", async (c) => {
   const body = criarConsultaSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
 
-  const erro = await validarVinculos(orgId, body.data.animalId, body.data.veterinarioId);
+  const erro = await validarVinculos(orgId, body.data.animalId, body.data.grupoId, body.data.veterinarioId);
   if (erro) return c.json({ error: erro }, 400);
 
   const [nova] = await db
     .insert(consulta)
     .values({
       organizationId: orgId,
-      animalId: body.data.animalId,
+      // Animal tem prioridade: com os dois, a consulta é do animal.
+      animalId: body.data.animalId || null,
+      grupoId: body.data.animalId ? null : (body.data.grupoId ?? null),
       veterinarioId: body.data.veterinarioId ?? null,
       data: body.data.data,
       hora: body.data.hora,
@@ -143,14 +170,16 @@ consultasRoutes.patch("/:orgId/consultas/:id", async (c) => {
   const body = atualizarConsultaSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
 
-  const erro = await validarVinculos(orgId, body.data.animalId, body.data.veterinarioId);
+  const erro = await validarVinculos(orgId, body.data.animalId, body.data.grupoId, body.data.veterinarioId);
   if (erro) return c.json({ error: erro }, 400);
 
   // O filtro por organização garante que ninguém edita consulta alheia.
   const [alvo] = await db
     .update(consulta)
     .set({
-      animalId: body.data.animalId,
+      // Animal tem prioridade: com os dois, a consulta é do animal.
+      animalId: body.data.animalId || null,
+      grupoId: body.data.animalId ? null : (body.data.grupoId ?? null),
       veterinarioId: body.data.veterinarioId ?? null,
       data: body.data.data,
       hora: body.data.hora,

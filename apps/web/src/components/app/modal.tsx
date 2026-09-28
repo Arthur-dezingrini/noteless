@@ -11,12 +11,14 @@ export function Modal({
   open,
   onClose,
   title,
+  subtitle,
   children,
   wide = false,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  subtitle?: string;
   children: ReactNode;
   /** Formulários em duas colunas precisam de mais largura. */
   wide?: boolean;
@@ -38,10 +40,13 @@ export function Modal({
         // Clique no backdrop (fora do conteúdo) fecha.
         if (e.target === ref.current) onClose();
       }}
-      className={`m-auto w-full ${wide ? "max-w-2xl" : "max-w-md"} rounded-dialog border border-line bg-white p-0 shadow-xl backdrop:bg-ink/40`}
+      className={`m-auto w-full ${wide ? "max-w-[600px]" : "max-w-[480px]"} rounded-dialog border border-line bg-white p-0 shadow-xl backdrop:bg-ink/40`}
     >
-      <div className="flex items-center justify-between border-b border-line px-6 py-4">
-        <h2 className="text-lg font-semibold text-ink">{title}</h2>
+      <div className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
+        <div className="flex flex-col gap-0.5">
+          <h2 className="text-lg font-semibold text-ink">{title}</h2>
+          {subtitle && <p className="text-sm text-ink-muted">{subtitle}</p>}
+        </div>
         <button
           type="button"
           onClick={onClose}

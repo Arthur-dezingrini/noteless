@@ -114,7 +114,12 @@ export const DESTINO_OPERACAO: Record<TipoOperacao, { acao: string; feito: strin
 };
 
 /** Tipos que podem mirar um grupo inteiro em vez de um animal. */
-export const TIPOS_COM_GRUPO: readonly TipoOperacao[] = ["aplicar_vacina", "registrar_remedio", "registrar_anotacao"];
+export const TIPOS_COM_GRUPO: readonly TipoOperacao[] = [
+  "aplicar_vacina",
+  "registrar_remedio",
+  "registrar_anotacao",
+  "agendar_consulta",
+];
 
 /** A operação precisa de um alvo do cadastro (animal ou grupo) para ser salva? */
 export function precisaAlvo(op: Operacao): boolean {
@@ -135,6 +140,10 @@ export const ocorrenciaSchema = z.object({
   duracaoSeg: z.number().nullish(),
   operacoes: z.array(operacaoSchema),
   criadoPorNome: z.string(),
+  /** Cargo de quem gravou ("Veterinário", "Ajudante"). */
+  criadoPorCargo: z.string().nullish(),
+  /** O áudio original está guardado e pode ser ouvido. */
+  temAudio: z.boolean().optional(),
   createdAt: z.coerce.date(),
   revisadoPorNome: z.string().nullish(),
   revisadoEm: z.coerce.date().nullish(),
@@ -149,7 +158,7 @@ export type Ocorrencia = z.infer<typeof ocorrenciaSchema>;
 export const CAMPOS_CORRIGIVEIS = {
   registrar_peso: ["animalId", "pesoKg"],
   registrar_anotacao: ["animalId", "grupoId", "texto"],
-  agendar_consulta: ["animalId", "tipoConsulta", "data", "hora", "observacoes"],
+  agendar_consulta: ["animalId", "grupoId", "tipoConsulta", "data", "hora", "observacoes"],
   aplicar_vacina: ["animalId", "grupoId", "vacina", "dose", "data", "proximaData"],
   registrar_remedio: ["animalId", "grupoId", "remedio", "dose", "dias", "carenciaDias"],
   registrar_parto: ["animalId", "data", "crias", "observacoes"],

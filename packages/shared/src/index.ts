@@ -12,3 +12,5 @@ export * from "./consultas";
 export * from "./ocorrencias";
 export * from "./grupos";
 export * from "./ficha";
+export * from "./notificacoes";
+export * from "./inicio";
