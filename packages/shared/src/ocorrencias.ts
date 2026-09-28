@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { especieSchema, sexoSchema } from "./animais";
 import { tipoConsultaSchema } from "./consultas";
 
 /**
@@ -31,6 +32,8 @@ const baseOperacao = z.object({
   alvo: z.string(),
   /** Animal do cadastro que a IA entendeu ser o alvo; null = não achou. */
   animalId: z.string().nullable(),
+  /** Alvo em massa: um grupo inteiro (vacina, remédio, anotação). */
+  grupoId: z.string().nullable().optional(),
   detalhe: z.string(),
   /** 0–100. Abaixo de 70 a interface pede atenção. */
   confianca: z.number().int().min(0).max(100),
@@ -42,21 +45,55 @@ const baseOperacao = z.object({
   original: z.record(z.string(), z.unknown()).optional(),
 });
 
+const textoOpcional = z.string().nullable();
+const inteiroOpcional = z.number().int().min(0).nullable();
+
 export const operacaoSchema = z.discriminatedUnion("tipo", [
   baseOperacao.extend({
     tipo: z.literal("agendar_consulta"),
     data: dataIso.nullable(),
     hora: horaHHMM.nullable(),
     tipoConsulta: tipoConsultaSchema,
-    observacoes: z.string().nullable(),
+    observacoes: textoOpcional,
   }),
   baseOperacao.extend({
     tipo: z.literal("registrar_anotacao"),
-    texto: z.string(),
+    texto: z.string().min(1, "A anotação não pode ficar vazia."),
   }),
   baseOperacao.extend({
     tipo: z.literal("registrar_peso"),
     pesoKg: z.number().positive("O peso precisa ser maior que zero.").max(5000, "Peso fora do normal."),
+  }),
+  baseOperacao.extend({
+    tipo: z.literal("aplicar_vacina"),
+    vacina: z.string().min(1, "Informe a vacina."),
+    dose: textoOpcional,
+    /** Dia da aplicação; null = hoje. */
+    data: dataIso.nullable(),
+    /** Próxima dose / vencimento, se foi dito. */
+    proximaData: dataIso.nullable(),
+  }),
+  baseOperacao.extend({
+    tipo: z.literal("registrar_remedio"),
+    remedio: z.string().min(1, "Informe o remédio."),
+    dose: textoOpcional,
+    /** Duração do tratamento em dias, começando hoje. */
+    dias: z.number().int().min(1, "Mínimo de 1 dia.").max(365, "No máximo 365 dias.").nullable(),
+    carenciaDias: inteiroOpcional,
+  }),
+  baseOperacao.extend({
+    tipo: z.literal("registrar_parto"),
+    data: dataIso.nullable(),
+    crias: z.number().int().min(0).max(30, "Número de crias fora do normal.").nullable(),
+    observacoes: textoOpcional,
+  }),
+  baseOperacao.extend({
+    tipo: z.literal("cadastrar_animal"),
+    nome: z.string().trim().min(1, "Informe o nome do animal."),
+    especie: especieSchema,
+    raca: textoOpcional,
+    sexo: sexoSchema.nullable(),
+    nascimento: dataIso.nullable(),
   }),
 ]);
 export type Operacao = z.infer<typeof operacaoSchema>;
@@ -70,7 +107,24 @@ export const DESTINO_OPERACAO: Record<TipoOperacao, { acao: string; feito: strin
   registrar_peso: { acao: "Registrar pesagem", feito: "Pesagem registrada", onde: "Histórico do animal › Pesagens" },
   registrar_anotacao: { acao: "Registrar anotação", feito: "Anotação registrada", onde: "Histórico do animal › Anotações" },
   agendar_consulta: { acao: "Agendar consulta", feito: "Consulta agendada", onde: "Agenda" },
+  aplicar_vacina: { acao: "Registrar vacina", feito: "Vacina registrada", onde: "Histórico do animal › Vacinas" },
+  registrar_remedio: { acao: "Registrar remédio", feito: "Remédio registrado", onde: "Histórico do animal › Tratamentos" },
+  registrar_parto: { acao: "Registrar parto", feito: "Parto registrado", onde: "Histórico do animal › Partos" },
+  cadastrar_animal: { acao: "Cadastrar animal", feito: "Animal cadastrado", onde: "Animais" },
 };
+
+/** Tipos que podem mirar um grupo inteiro em vez de um animal. */
+export const TIPOS_COM_GRUPO: readonly TipoOperacao[] = ["aplicar_vacina", "registrar_remedio", "registrar_anotacao"];
+
+/** A operação precisa de um alvo do cadastro (animal ou grupo) para ser salva? */
+export function precisaAlvo(op: Operacao): boolean {
+  return op.tipo !== "cadastrar_animal";
+}
+
+/** Tem alvo resolvido — pode ser marcada para salvar. */
+export function temAlvo(op: Operacao): boolean {
+  return !precisaAlvo(op) || op.animalId !== null || !!op.grupoId;
+}
 
 export const ocorrenciaSchema = z.object({
   id: z.string(),
@@ -94,8 +148,12 @@ export type Ocorrencia = z.infer<typeof ocorrenciaSchema>;
 /** Campos que quem confere pode corrigir antes de salvar, por tipo. */
 export const CAMPOS_CORRIGIVEIS = {
   registrar_peso: ["animalId", "pesoKg"],
-  registrar_anotacao: ["animalId", "texto"],
+  registrar_anotacao: ["animalId", "grupoId", "texto"],
   agendar_consulta: ["animalId", "tipoConsulta", "data", "hora", "observacoes"],
+  aplicar_vacina: ["animalId", "grupoId", "vacina", "dose", "data", "proximaData"],
+  registrar_remedio: ["animalId", "grupoId", "remedio", "dose", "dias", "carenciaDias"],
+  registrar_parto: ["animalId", "data", "crias", "observacoes"],
+  cadastrar_animal: ["nome", "especie", "raca", "sexo", "nascimento"],
 } as const satisfies Record<TipoOperacao, readonly string[]>;
 export type CampoCorrigivel = (typeof CAMPOS_CORRIGIVEIS)[TipoOperacao][number];
 

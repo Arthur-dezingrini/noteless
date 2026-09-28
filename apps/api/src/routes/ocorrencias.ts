@@ -8,7 +8,7 @@ import {
   type Operacao,
   type Papel,
 } from "@vocare/shared";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -16,6 +16,7 @@ import { z } from "zod";
 import { db } from "../db";
 import { animal } from "../db/animais";
 import { consulta } from "../db/consultas";
+import { grupo, grupoAnimal, parto, pesagem, tratamento, vacina } from "../db/historico";
 import { anotacaoAnimal, ocorrencia } from "../db/ocorrencias";
 import { user } from "../db/schema";
 import { analisar } from "../ia/analisar";
@@ -123,7 +124,9 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias", async (c) => {
     const transcricao = await transcrever(audio);
     // Áudio que não deu para entender vira ocorrência mesmo assim: quem
     // confere escreve o que foi dito (POST /:id/texto).
-    const analise = transcricao ? await analisar(transcricao, hojeISO(), await animaisDaOrg(orgId)) : null;
+    const analise = transcricao
+      ? await analisar(transcricao, hojeISO(), await animaisDaOrg(orgId), await gruposDaOrg(orgId))
+      : null;
 
     const [nova] = await db
       .insert(ocorrencia)
@@ -145,6 +148,17 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias", async (c) => {
     return c.json({ error: "A IA não conseguiu processar o áudio agora. Tente de novo em instantes." }, 502);
   }
 });
+
+/** Grupos com o tamanho — a IA usa para operações em massa ("vacinei o lote"). */
+function gruposDaOrg(orgId: string) {
+  return db
+    .select({ id: grupo.id, nome: grupo.nome, animais: count(grupoAnimal.animalId) })
+    .from(grupo)
+    .leftJoin(grupoAnimal, eq(grupoAnimal.grupoId, grupo.id))
+    .where(eq(grupo.organizationId, orgId))
+    .groupBy(grupo.id)
+    .orderBy(asc(grupo.nome));
+}
 
 /** Animais ativos da organização — o contexto que a IA usa para ligar nomes a ids. */
 function animaisDaOrg(orgId: string) {
@@ -173,7 +187,7 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/texto", async (c) => {
   if (alvo.status !== "pendente") return c.json({ error: "Esta ocorrência já foi revisada." }, 409);
 
   try {
-    const analise = await analisar(body.data.texto, hojeISO(), await animaisDaOrg(orgId));
+    const analise = await analisar(body.data.texto, hojeISO(), await animaisDaOrg(orgId), await gruposDaOrg(orgId));
     await db
       .update(ocorrencia)
       .set({ transcricao: body.data.texto, resumo: analise.resumo, operacoes: analise.operacoes })
@@ -206,42 +220,112 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/encaminhar", async (c) => {
   return c.json(pronta);
 });
 
-/**
- * Aplica uma operação já confirmada. Tudo aqui exige animal do cadastro —
- * quem não tem animalId nem chega a ser selecionável na tela.
- */
-async function aplicar(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], op: Operacao, orgId: string, userId: string, ocorrenciaId: string) {
-  if (!op.animalId) return "Operação sem animal do cadastro não pode ser aplicada.";
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+/** "AAAA-MM-DD" + n dias. */
+function somarDias(iso: string, dias: number) {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Animais que a operação atinge: o animal, ou todos do grupo. Tudo
+ * conferido contra a organização — id chutado não alcança animal alheio.
+ */
+async function alvos(tx: Tx, op: Operacao, orgId: string): Promise<string[] | string> {
+  if (op.grupoId) {
+    const [g] = await tx
+      .select({ id: grupo.id })
+      .from(grupo)
+      .where(and(eq(grupo.id, op.grupoId), eq(grupo.organizationId, orgId)))
+      .limit(1);
+    if (!g) return "Grupo não encontrado nesta organização.";
+    const membros = await tx
+      .select({ id: grupoAnimal.animalId })
+      .from(grupoAnimal)
+      .innerJoin(animal, eq(animal.id, grupoAnimal.animalId))
+      .where(and(eq(grupoAnimal.grupoId, g.id), eq(animal.status, "ativo")));
+    if (membros.length === 0) return "O grupo não tem animais ativos.";
+    return membros.map((m) => m.id);
+  }
+  if (!op.animalId) return "Operação sem animal do cadastro não pode ser aplicada.";
   const [a] = await tx
     .select({ id: animal.id })
     .from(animal)
     .where(and(eq(animal.id, op.animalId), eq(animal.organizationId, orgId)))
     .limit(1);
   if (!a) return "Animal não encontrado nesta organização.";
+  return [a.id];
+}
+
+/** Aplica uma operação já confirmada. Devolve a mensagem de erro, ou null. */
+async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocorrenciaId: string) {
+  const hoje = hojeISO();
+  const origem = { organizationId: orgId, ocorrenciaId, criadoPorId: userId };
+
+  if (op.tipo === "cadastrar_animal") {
+    await tx.insert(animal).values({
+      organizationId: orgId,
+      nome: op.nome,
+      especie: op.especie,
+      raca: op.raca,
+      sexo: op.sexo,
+      nascimento: op.nascimento,
+    });
+    return null;
+  }
+
+  const ids = await alvos(tx, op, orgId);
+  if (typeof ids === "string") return ids;
+  const um = ids[0]!;
 
   switch (op.tipo) {
     case "agendar_consulta":
       await tx.insert(consulta).values({
         organizationId: orgId,
-        animalId: op.animalId,
-        data: op.data ?? hojeISO(),
+        animalId: um,
+        data: op.data ?? hoje,
         hora: op.hora ?? HORA_PADRAO,
         tipo: op.tipoConsulta,
         observacoes: op.observacoes ?? op.detalhe,
       });
       return null;
     case "registrar_anotacao":
-      await tx.insert(anotacaoAnimal).values({
-        organizationId: orgId,
-        animalId: op.animalId,
-        ocorrenciaId,
-        criadoPorId: userId,
-        texto: op.texto,
-      });
+      await tx.insert(anotacaoAnimal).values(ids.map((animalId) => ({ ...origem, animalId, texto: op.texto })));
       return null;
     case "registrar_peso":
-      await tx.update(animal).set({ pesoKg: String(op.pesoKg) }).where(eq(animal.id, op.animalId));
+      await tx.insert(pesagem).values({ ...origem, animalId: um, pesoKg: String(op.pesoKg), data: hoje });
+      // O cadastro guarda o peso atual; o histórico fica na pesagem.
+      await tx.update(animal).set({ pesoKg: String(op.pesoKg) }).where(eq(animal.id, um));
+      return null;
+    case "aplicar_vacina":
+      await tx.insert(vacina).values(
+        ids.map((animalId) => ({
+          ...origem,
+          animalId,
+          vacina: op.vacina,
+          dose: op.dose,
+          data: op.data ?? hoje,
+          proximaData: op.proximaData,
+        })),
+      );
+      return null;
+    case "registrar_remedio":
+      await tx.insert(tratamento).values(
+        ids.map((animalId) => ({
+          ...origem,
+          animalId,
+          remedio: op.remedio,
+          dose: op.dose,
+          inicio: hoje,
+          fim: op.dias ? somarDias(hoje, op.dias - 1) : null,
+          carenciaDias: op.carenciaDias,
+        })),
+      );
+      return null;
+    case "registrar_parto":
+      await tx.insert(parto).values({ ...origem, animalId: um, data: op.data ?? hoje, crias: op.crias, observacoes: op.observacoes });
       return null;
   }
 }

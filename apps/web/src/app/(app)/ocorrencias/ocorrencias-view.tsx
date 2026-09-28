@@ -3,12 +3,18 @@
 import {
   CAMPOS_CORRIGIVEIS,
   DESTINO_OPERACAO,
+  ESPECIES,
+  ROTULO_ESPECIE,
+  ROTULO_SEXO,
   ROTULO_STATUS_OCORRENCIA,
   ROTULO_TIPO_CONSULTA,
+  SEXOS,
   TIPOS_CONSULTA,
   corrigirOperacao,
   ocorrenciaSchema,
+  temAlvo,
   type CampoCorrigivel,
+  type Especie,
   type Ocorrencia,
   type Operacao,
   type Sexo,
@@ -29,6 +35,20 @@ import { chamarApiJson } from "@/lib/api-client";
 import { duracaoCurta, formatar, haQuantoTempo } from "@/lib/datas";
 
 export type AnimalRef = { id: string; nome: string; sexo: Sexo | null };
+export type GrupoRef = { id: string; nome: string; animais: number };
+
+/** Animais e grupos da conta, para dar nome aos alvos. */
+type Cadastro = { animais: Map<string, AnimalRef>; grupos: Map<string, GrupoRef> };
+
+/** Nome do alvo como a tela mostra: animal do cadastro, grupo, ou o que foi dito. */
+function nomeAlvo(op: Operacao, cad: Cadastro): string {
+  if (op.tipo === "cadastrar_animal") return op.nome;
+  if (op.grupoId) {
+    const g = cad.grupos.get(op.grupoId);
+    return g ? `Grupo ${g.nome} (${g.animais} ${g.animais === 1 ? "animal" : "animais"})` : op.alvo;
+  }
+  return (op.animalId && cad.animais.get(op.animalId)?.nome) || op.alvo;
+}
 
 const TOM_STATUS: Record<StatusOcorrencia, Tone> = {
   pendente: "yellow",
@@ -60,11 +80,15 @@ function naoEntendido(oc: Ocorrencia) {
   return oc.transcricao.trim() === "";
 }
 
-/** "da Mimosa", "do Thor", "de Rex" (sexo não cadastrado). */
-function deAnimal(animal: AnimalRef | undefined, nomeFalado: string) {
-  const nome = animal?.nome ?? nomeFalado;
+/** "da Mimosa", "do Thor", "de Rex" (sexo não cadastrado), "do grupo Bezerros". */
+function deAlvo(op: Operacao, cad: Cadastro) {
+  if (op.grupoId) {
+    const g = cad.grupos.get(op.grupoId);
+    return `do grupo ${g?.nome ?? op.alvo}`;
+  }
+  const animal = op.animalId ? cad.animais.get(op.animalId) : undefined;
   const prep = animal?.sexo === "femea" ? "da" : animal?.sexo === "macho" ? "do" : "de";
-  return `${prep} ${nome}`;
+  return `${prep} ${animal?.nome ?? op.alvo}`;
 }
 
 function juntar(partes: string[]) {
@@ -83,6 +107,18 @@ function descrever(op: Operacao): string {
       return `${op.pesoKg.toLocaleString("pt-BR")} kg · ${op.detalhe}`;
     case "registrar_anotacao":
       return op.texto;
+    case "aplicar_vacina":
+      return [op.vacina, op.dose, op.proximaData && `próxima em ${formatar(op.proximaData, { day: "numeric", month: "short", year: "numeric" })}`]
+        .filter(Boolean)
+        .join(" · ");
+    case "registrar_remedio":
+      return [op.remedio, op.dose, op.dias && `${op.dias} ${op.dias === 1 ? "dia" : "dias"}`].filter(Boolean).join(" · ");
+    case "registrar_parto":
+      return [op.crias != null && `${op.crias} ${op.crias === 1 ? "cria" : "crias"}`, op.data && formatar(op.data, { day: "numeric", month: "short" })]
+        .filter(Boolean)
+        .join(" · ") || op.detalhe;
+    case "cadastrar_animal":
+      return [ROTULO_ESPECIE[op.especie], op.sexo && ROTULO_SEXO[op.sexo], op.raca].filter(Boolean).join(" · ");
   }
 }
 
@@ -93,30 +129,81 @@ const CAMPO_INPUT = `${campo} h-10`;
 
 const ROTULO_CAMPO: Record<CampoCorrigivel, string> = {
   animalId: "Animal",
+  grupoId: "Grupo",
   pesoKg: "Peso",
   texto: "Anotação",
   tipoConsulta: "Tipo",
   data: "Data",
   hora: "Hora",
   observacoes: "Observações",
+  vacina: "Vacina",
+  dose: "Dose",
+  proximaData: "Próxima dose",
+  remedio: "Remédio",
+  dias: "Duração",
+  carenciaDias: "Carência",
+  crias: "Crias",
+  nome: "Nome",
+  especie: "Espécie",
+  raca: "Raça",
+  sexo: "Sexo",
+  nascimento: "Nascimento",
 };
 
+const CAMPOS_DATA: CampoCorrigivel[] = ["data", "proximaData", "nascimento"];
+const CAMPOS_INTEIROS: CampoCorrigivel[] = ["dias", "carenciaDias", "crias"];
+/** Podem ficar vazios (null). */
+const CAMPOS_OPCIONAIS: CampoCorrigivel[] = [
+  "data", "hora", "observacoes", "dose", "proximaData", "dias", "carenciaDias", "crias", "raca", "sexo", "nascimento",
+];
+const CAMPOS_ESCOLHA: CampoCorrigivel[] = ["animalId", "grupoId", "tipoConsulta", "especie", "sexo"];
+
 /** Valor de um campo como o revisor lê. */
-function formatarCampo(campo: CampoCorrigivel, valor: unknown, animais: Map<string, AnimalRef>, alvo: string): string {
+function formatarCampo(campo: CampoCorrigivel, valor: unknown, cad: Cadastro, alvo: string): string {
   if (valor === null || valor === undefined || valor === "") {
-    return campo === "animalId" ? `“${alvo}” (não cadastrado)` : campo === "data" || campo === "hora" ? "Não dita" : "—";
+    if (campo === "animalId") return `“${alvo}” (não cadastrado)`;
+    if (campo === "data" || campo === "hora") return "Não dita";
+    return "—";
   }
   switch (campo) {
     case "animalId":
-      return animais.get(String(valor))?.nome ?? "Animal removido";
+      return cad.animais.get(String(valor))?.nome ?? "Animal removido";
+    case "grupoId":
+      return cad.grupos.get(String(valor))?.nome ?? "Grupo removido";
     case "pesoKg":
       return `${Number(valor).toLocaleString("pt-BR")} kg`;
     case "tipoConsulta":
       return ROTULO_TIPO_CONSULTA[valor as TipoConsulta] ?? String(valor);
+    case "especie":
+      return ROTULO_ESPECIE[valor as Especie] ?? String(valor);
+    case "sexo":
+      return ROTULO_SEXO[valor as Sexo] ?? String(valor);
+    case "dias":
+    case "carenciaDias":
+      return `${valor} ${valor === 1 ? "dia" : "dias"}`;
     case "data":
-      return formatar(String(valor), { weekday: "short", day: "numeric", month: "long" });
+    case "proximaData":
+    case "nascimento":
+      return formatar(String(valor), { weekday: "short", day: "numeric", month: "long", year: "numeric" });
     default:
       return String(valor);
+  }
+}
+
+function opcoesDe(campo: CampoCorrigivel, cad: Cadastro): { v: string; r: string }[] {
+  switch (campo) {
+    case "animalId":
+      return [...cad.animais.values()].map((a) => ({ v: a.id, r: a.nome }));
+    case "grupoId":
+      return [...cad.grupos.values()].map((g) => ({ v: g.id, r: `${g.nome} (${g.animais})` }));
+    case "tipoConsulta":
+      return TIPOS_CONSULTA.map((t) => ({ v: t, r: ROTULO_TIPO_CONSULTA[t] }));
+    case "especie":
+      return ESPECIES.map((e) => ({ v: e, r: ROTULO_ESPECIE[e] }));
+    case "sexo":
+      return SEXOS.map((x) => ({ v: x, r: ROTULO_SEXO[x] }));
+    default:
+      return [];
   }
 }
 
@@ -126,13 +213,13 @@ function formatarCampo(campo: CampoCorrigivel, valor: unknown, animais: Map<stri
  */
 function CamposEditaveis({
   op,
-  animais,
+  cad,
   editavel,
   onCorrigir,
   onDesfazer,
 }: {
   op: Operacao;
-  animais: Map<string, AnimalRef>;
+  cad: Cadastro;
   editavel: boolean;
   onCorrigir: (campo: CampoCorrigivel, valor: unknown) => void;
   onDesfazer: (campo: CampoCorrigivel) => void;
@@ -151,13 +238,15 @@ function CamposEditaveis({
 
   function confirmar(campo: CampoCorrigivel, bruto = rascunho) {
     let valor: unknown = bruto.trim();
-    if (campo === "pesoKg") {
+    if (valor === "") {
+      if (!CAMPOS_OPCIONAIS.includes(campo)) return setErro("Este campo não pode ficar vazio.");
+      valor = null;
+    } else if (campo === "pesoKg") {
       valor = Number(bruto.replace(",", "."));
       if (!Number.isFinite(valor) || (valor as number) <= 0) return setErro("Informe um peso maior que zero.");
-    } else if ((campo === "data" || campo === "hora" || campo === "observacoes") && valor === "") {
-      valor = null;
-    } else if ((campo === "texto" || campo === "animalId") && valor === "") {
-      return setErro("Este campo não pode ficar vazio.");
+    } else if (CAMPOS_INTEIROS.includes(campo)) {
+      valor = Number(bruto);
+      if (!Number.isInteger(valor) || (valor as number) < 0) return setErro("Informe um número inteiro.");
     }
     onCorrigir(campo, valor);
     setEditando(null);
@@ -180,14 +269,13 @@ function CamposEditaveis({
       "aria-label": `Corrigir ${ROTULO_CAMPO[campo].toLowerCase()}`,
       onKeyDown: (e: KeyboardEvent) => teclas(e, campo),
     };
-    if (campo === "animalId" || campo === "tipoConsulta") {
-      const opcoes =
-        campo === "animalId"
-          ? [...animais.values()].map((a) => ({ v: a.id, r: a.nome }))
-          : TIPOS_CONSULTA.map((t) => ({ v: t, r: ROTULO_TIPO_CONSULTA[t] }));
+    if (CAMPOS_ESCOLHA.includes(campo)) {
+      const opcoes = opcoesDe(campo, cad);
       return (
         <Select {...comum} value={rascunho} onChange={(e) => confirmar(campo, e.target.value)}>
-          {campo === "animalId" && <option value="">Escolha o animal…</option>}
+          {(campo === "animalId" || campo === "grupoId" || campo === "sexo") && (
+            <option value="">{campo === "sexo" ? "Não informado" : "Escolha…"}</option>
+          )}
           {opcoes.map((o) => (
             <option key={o.v} value={o.v}>
               {o.r}
@@ -196,22 +284,26 @@ function CamposEditaveis({
         </Select>
       );
     }
-    const tipo = campo === "data" ? "date" : campo === "hora" ? "time" : "text";
+    const tipo = CAMPOS_DATA.includes(campo) ? "date" : campo === "hora" ? "time" : "text";
+    const numerico = campo === "pesoKg" || CAMPOS_INTEIROS.includes(campo);
     return (
       <input
         {...comum}
         type={tipo}
-        inputMode={campo === "pesoKg" ? "decimal" : undefined}
+        inputMode={campo === "pesoKg" ? "decimal" : CAMPOS_INTEIROS.includes(campo) ? "numeric" : undefined}
         value={rascunho}
         onChange={(e) => setRascunho(e.target.value)}
-        className={campo === "pesoKg" ? `${CAMPO_INPUT} max-w-40` : CAMPO_INPUT}
+        className={numerico ? `${CAMPO_INPUT} max-w-40` : CAMPO_INPUT}
       />
     );
   }
 
   return (
     <dl className="grid grid-cols-[max-content_1fr] items-baseline gap-x-5 gap-y-2.5 rounded-field border border-line-soft bg-detail px-4 py-3 text-[15px]">
-      {CAMPOS_CORRIGIVEIS[op.tipo].map((campo) => {
+      {(CAMPOS_CORRIGIVEIS[op.tipo] as readonly CampoCorrigivel[])
+        // Alvo: mostra o grupo quando a operação é para um grupo, senão o animal.
+        .filter((c) => (c === "grupoId" ? !!op.grupoId : c === "animalId" ? !op.grupoId : true))
+        .map((campo) => {
         const corrigido = campo in original;
         return (
           <div key={campo} className="contents">
@@ -221,17 +313,17 @@ function CamposEditaveis({
                 <div className="flex flex-col gap-1.5">
                   {entrada(campo)}
                   <span className="text-[13px] text-ink-muted">
-                    {campo === "animalId" || campo === "tipoConsulta" ? "Escolha para confirmar" : "Enter confirma"} · Esc cancela
+                    {CAMPOS_ESCOLHA.includes(campo) ? "Escolha para confirmar" : "Enter confirma"} · Esc cancela
                   </span>
                   {erro && <span className="text-sm text-danger">{erro}</span>}
                 </div>
               ) : (
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                   <span className="min-w-0 text-ink">
-                    {formatarCampo(campo, atual[campo], animais, op.alvo)}
+                    {formatarCampo(campo, atual[campo], cad, op.alvo)}
                     {corrigido && (
                       <span className="ml-2 text-sm text-ink-muted">
-                        corrigido, era {formatarCampo(campo, original[campo], animais, op.alvo)}
+                        corrigido, era {formatarCampo(campo, original[campo], cad, op.alvo)}
                       </span>
                     )}
                   </span>
@@ -259,7 +351,7 @@ function CamposEditaveis({
 
 function LinhaOperacao({
   op,
-  animais,
+  cad,
   editavel,
   marcada,
   onToggle,
@@ -267,22 +359,21 @@ function LinhaOperacao({
   onDesfazer,
 }: {
   op: Operacao;
-  animais: Map<string, AnimalRef>;
+  cad: Cadastro;
   editavel: boolean;
   marcada: boolean;
   onToggle: () => void;
   onCorrigir: (campo: CampoCorrigivel, valor: unknown) => void;
   onDesfazer: (campo: CampoCorrigivel) => void;
 }) {
-  const animal = op.animalId ? animais.get(op.animalId) : undefined;
-  const semAnimal = op.animalId === null;
+  const semAnimal = !temAlvo(op);
   // Corrigido por quem confere = deixa de ser dúvida da IA.
   const incerta = op.confianca < LIMIAR_ATENCAO && !op.original;
   const [aberta, setAberta] = useState(editavel && (incerta || semAnimal));
   const d = DESTINO_OPERACAO[op.tipo];
   const salva = !editavel && op.aplicada === true;
   const naoSalva = !editavel && op.aplicada === false;
-  const nome = animal?.nome ?? op.alvo;
+  const nome = nomeAlvo(op, cad);
 
   return (
     <li className={`flex gap-3.5 rounded-field p-3 hover:bg-detail ${naoSalva ? "opacity-60" : ""}`}>
@@ -331,7 +422,7 @@ function LinhaOperacao({
 
         {aberta && (
           <>
-            <CamposEditaveis op={op} animais={animais} editavel={editavel} onCorrigir={onCorrigir} onDesfazer={onDesfazer} />
+            <CamposEditaveis op={op} cad={cad} editavel={editavel} onCorrigir={onCorrigir} onDesfazer={onDesfazer} />
             {op.trecho && <p className="text-sm text-ink-muted">você disse “{op.trecho}”</p>}
           </>
         )}
@@ -351,14 +442,14 @@ function LinhaOperacao({
 }
 
 /** O que o rodapé diz que vai acontecer, numa frase. */
-function fraseDoRodape(ops: Operacao[], animais: Map<string, AnimalRef>, quem: "você" | "admin") {
+function fraseDoRodape(ops: Operacao[], cad: Cadastro, quem: "você" | "admin") {
   if (ops.length === 0) {
     return quem === "você"
       ? "Nenhuma ação marcada: ao salvar, a ocorrência é fechada sem mudar nada no sistema."
       : "Nenhuma ação marcada.";
   }
   const partes = ops.map((op) => {
-    const de = deAnimal(op.animalId ? animais.get(op.animalId) : undefined, op.alvo);
+    const de = deAlvo(op, cad);
     switch (op.tipo) {
       case "registrar_peso":
         return `o peso no histórico ${de}`;
@@ -366,6 +457,14 @@ function fraseDoRodape(ops: Operacao[], animais: Map<string, AnimalRef>, quem: "
         return `a anotação no histórico ${de}`;
       case "agendar_consulta":
         return `${ARTIGO_CONSULTA[op.tipoConsulta]} ${de} na agenda`;
+      case "aplicar_vacina":
+        return `a vacina ${op.vacina} no histórico ${de}`;
+      case "registrar_remedio":
+        return `o tratamento com ${op.remedio} no histórico ${de}`;
+      case "registrar_parto":
+        return `o parto no histórico ${de}`;
+      case "cadastrar_animal":
+        return `${op.nome} no cadastro de animais`;
     }
   });
   const inicio = quem === "você" ? "Ao salvar" : "Quando o administrador salvar";
@@ -423,20 +522,20 @@ function TextoManual({ orgId, oc, onAtualizada }: { orgId: string; oc: Ocorrenci
 function Detalhe({
   oc,
   orgId,
-  animais,
+  cad,
   podeSalvar,
   onAtualizada,
 }: {
   oc: Ocorrencia;
   orgId: string;
-  animais: Map<string, AnimalRef>;
+  cad: Cadastro;
   podeSalvar: boolean;
   onAtualizada: (oc: Ocorrencia) => void;
 }) {
   const pendente = oc.status === "pendente";
   // Começa marcado o que tem animal do cadastro e dado seguro.
   const [marcadas, setMarcadas] = useState<Set<number>>(
-    () => new Set(oc.operacoes.flatMap((op, i) => (op.animalId && op.confianca >= LIMIAR_ATENCAO ? [i] : []))),
+    () => new Set(oc.operacoes.flatMap((op, i) => (temAlvo(op) && op.confianca >= LIMIAR_ATENCAO ? [i] : []))),
   );
   const [correcoes, setCorrecoes] = useState<Record<number, Correcao>>({});
   const [pending, start] = useTransition();
@@ -450,8 +549,8 @@ function Detalhe({
 
   function corrigir(i: number, campo: CampoCorrigivel, valor: unknown) {
     setCorrecoes((c) => ({ ...c, [i]: { ...c[i], [campo]: valor } }));
-    // Escolher o animal que faltava libera a ação: já deixa marcada.
-    if (campo === "animalId" && valor) setMarcadas((s) => new Set(s).add(i));
+    // Escolher o animal (ou grupo) que faltava libera a ação: já deixa marcada.
+    if ((campo === "animalId" || campo === "grupoId") && valor) setMarcadas((s) => new Set(s).add(i));
   }
 
   function desfazer(i: number, campo: CampoCorrigivel) {
@@ -460,7 +559,8 @@ function Detalhe({
       delete resto[campo];
       return { ...c, [i]: resto };
     });
-    if (campo === "animalId" && !oc.operacoes[i]?.animalId) {
+    const base = oc.operacoes[i];
+    if ((campo === "animalId" || campo === "grupoId") && base && !temAlvo(base)) {
       setMarcadas((s) => {
         const novo = new Set(s);
         novo.delete(i);
@@ -526,7 +626,7 @@ function Detalhe({
                   <LinhaOperacao
                     key={i}
                     op={op}
-                    animais={animais}
+                    cad={cad}
                     onCorrigir={(campo, valor) => corrigir(i, campo, valor)}
                     onDesfazer={(campo) => desfazer(i, campo)}
                     editavel={pendente}
@@ -552,7 +652,7 @@ function Detalhe({
           {podeSalvar && oc.encaminhadaPorNome && (
             <p className="text-sm text-ink-muted">{oc.encaminhadaPorNome} conferiu e mandou para você salvar.</p>
           )}
-          <p className="text-[15px] text-ink-soft">{fraseDoRodape(escolhidas, animais, podeSalvar ? "você" : "admin")}</p>
+          <p className="text-[15px] text-ink-soft">{fraseDoRodape(escolhidas, cad, podeSalvar ? "você" : "admin")}</p>
           {erro && (
             <p role="alert" className="text-sm text-danger">
               {erro}
@@ -634,18 +734,23 @@ export function OcorrenciasView({
   orgId,
   ocorrencias: iniciais,
   animais: listaAnimais,
+  grupos: listaGrupos,
   podeSalvar,
 }: {
   orgId: string;
   ocorrencias: Ocorrencia[];
   animais: AnimalRef[];
+  grupos: GrupoRef[];
   podeSalvar: boolean;
 }) {
   const router = useRouter();
   const [lista, setLista] = useState(iniciais);
   const [aba, setAba] = useState<StatusOcorrencia>("pendente");
   const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
-  const animais = new Map(listaAnimais.map((a) => [a.id, a]));
+  const cad: Cadastro = {
+    animais: new Map(listaAnimais.map((a) => [a.id, a])),
+    grupos: new Map(listaGrupos.map((g) => [g.id, g])),
+  };
 
   function substituir(oc: Ocorrencia) {
     setLista((l) => l.map((x) => (x.id === oc.id ? oc : x)));
@@ -710,7 +815,7 @@ export function OcorrenciasView({
               key={`${selecionada.id}-${selecionada.status}-${selecionada.transcricao.length}`}
               oc={selecionada}
               orgId={orgId}
-              animais={animais}
+              cad={cad}
               podeSalvar={podeSalvar}
               onAtualizada={substituir}
             />

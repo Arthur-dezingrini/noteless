@@ -1,4 +1,4 @@
-import { getAnimais, getMemberRole, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getAnimais, getGrupos, getMemberRole, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 
 import { OcorrenciasView } from "./ocorrencias-view";
 
@@ -15,9 +15,10 @@ export default async function OcorrenciasPage() {
     );
   }
 
-  const [ocorrencias, animais, membro] = await Promise.all([
+  const [ocorrencias, animais, grupos, membro] = await Promise.all([
     getOcorrencias(org.id),
     getAnimais(org.id),
+    getGrupos(org.id),
     getMemberRole(org.id),
   ]);
 
@@ -26,6 +27,7 @@ export default async function OcorrenciasPage() {
       orgId={org.id}
       ocorrencias={ocorrencias}
       animais={animais.map((a) => ({ id: a.id, nome: a.nome, sexo: a.sexo ?? null }))}
+      grupos={grupos.map((g) => ({ id: g.id, nome: g.nome, animais: g.animalIds.length }))}
       podeSalvar={membro?.role === "owner" || membro?.role === "admin"}
     />
   );

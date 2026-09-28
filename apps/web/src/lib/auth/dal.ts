@@ -1,6 +1,7 @@
 import {
   animalListaSchema,
   consultaListaSchema,
+  grupoListaSchema,
   memberRoleSchema,
   ocorrenciaListaSchema,
   organizationListSchema,
@@ -8,6 +9,7 @@ import {
   usuarioListaSchema,
   type Animal,
   type Consulta,
+  type Grupo,
   type MemberRole,
   type Ocorrencia,
   type Organization,
@@ -121,6 +123,15 @@ export const getConsultas = cache(
     return parsed.success ? parsed.data : [];
   },
 );
+
+/** Grupos de animais da organização, com os ids dos membros. */
+export const getGrupos = cache(async (organizationId: string): Promise<Grupo[]> => {
+  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/grupos`);
+  if (!res.ok) return [];
+
+  const parsed = grupoListaSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : [];
+});
 
 /** Registros de ocorrência da organização, mais recentes primeiro. */
 export const getOcorrencias = cache(async (organizationId: string): Promise<Ocorrencia[]> => {
