@@ -44,23 +44,30 @@
   --radius-dialog: 1.125rem;       /* 18px — janelas */
 }
 
-html {
-  color-scheme: light;
-}
+/*
+ * Regras-base em @layer base: no Tailwind v4 as utilitárias ficam em
+ * @layer utilities, e CSS fora de camada venceria qualquer classe (um
+ * `a { color }` solto pintaria de verde todo link com text-ink, por exemplo).
+ */
+@layer base {
+  html {
+    color-scheme: light;
+  }
 
-body {
-  background: var(--color-page);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-}
+  body {
+    background: var(--color-page);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
 
-a {
-  color: var(--color-brand-ink);
-}
+  a {
+    color: var(--color-brand-ink);
+  }
 
-/* Foco visível só no teclado, em tudo que é clicável. */
-:where(button, a, [role="button"], [tabindex]):focus-visible {
-  outline: 2px solid var(--color-brand);
-  outline-offset: 2px;
+  /* Foco visível só no teclado, em tudo que é clicável. */
+  :where(button, a, [role="button"], [tabindex]):focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
 }

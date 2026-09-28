@@ -5,8 +5,17 @@ import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { Logo } from "@/components/auth/logo";
 import { authClient } from "@/lib/auth/client";
+
+/** Nome da conta ativa, com rótulo — o logo fica acima, no menu. */
+function Conta({ nome, className = "" }: { nome: string; className?: string }) {
+  return (
+    <span className={`min-w-0 leading-tight ${className}`}>
+      <span className="block text-[13px] text-ink-muted">Conta</span>
+      <span className="block truncate text-[15px] font-semibold text-ink">{nome}</span>
+    </span>
+  );
+}
 
 /**
  * Canto superior esquerdo: a organização ativa, e a troca entre as que o
@@ -43,11 +52,11 @@ export function OrgSwitcher({
   }
 
   if (!ativa) {
-    return <Logo tone="dark" subtitle="Sem organização" />;
+    return <Conta nome="Sem organização" className="px-2" />;
   }
 
   if (!podeTrocar) {
-    return <Logo tone="dark" subtitle={ativa.name} />;
+    return <Conta nome={ativa.name} className="px-2" />;
   }
 
   return (
@@ -64,9 +73,9 @@ export function OrgSwitcher({
         aria-expanded={aberto}
         aria-label={`Organização ativa: ${ativa.name}. Trocar`}
         onClick={() => setAberto((v) => !v)}
-        className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-lg px-2 py-1 text-left transition hover:bg-surface"
+        className="flex w-full items-center gap-2 rounded-field border border-line bg-white px-2.5 py-2 text-left transition hover:bg-hover"
       >
-        <Logo tone="dark" subtitle={ativa.name} className="min-w-0 flex-1" />
+        <Conta nome={ativa.name} className="flex-1" />
         {pending ? (
           <Loader2 className="size-4 shrink-0 animate-spin text-ink-muted" />
         ) : (
@@ -78,7 +87,7 @@ export function OrgSwitcher({
         <ul
           role="listbox"
           aria-label="Organizações"
-          className="absolute top-full left-0 z-20 mt-1 w-full overflow-hidden rounded-lg border border-line bg-white py-1 shadow-lg"
+          className="absolute top-full left-0 z-20 mt-1 w-full overflow-hidden rounded-field border border-line bg-white py-1 shadow-lg"
         >
           {organizacoes.map((o) => {
             const selecionada = o.id === ativa.id;
@@ -90,7 +99,7 @@ export function OrgSwitcher({
                   aria-selected={selecionada}
                   disabled={pending}
                   onClick={() => trocar(o.id)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-surface disabled:opacity-60"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[15px] text-ink hover:bg-hover disabled:opacity-60"
                 >
                   <span className="min-w-0 flex-1 truncate">{o.name}</span>
                   {trocandoPara === o.id ? (

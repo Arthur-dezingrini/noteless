@@ -13,7 +13,7 @@ import { getConsultas, getOrgAtiva } from "@/lib/auth/dal";
 import { dataExtenso, hojeISO, TZ } from "@/lib/datas";
 import { ALERTS, REVENUE, STATS } from "@/lib/mock/dashboard";
 
-export const metadata = { title: "Dashboard" };
+export const metadata = { title: "Início" };
 
 function saudacao(date: Date): string {
   const hora = Number(

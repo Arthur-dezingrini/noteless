@@ -1,25 +1,18 @@
-import {
-  BookOpen,
-  CalendarDays,
-  LayoutDashboard,
-  PawPrint,
-  Settings,
-  TriangleAlert,
-  type LucideIcon,
-} from "lucide-react";
+export type NavItem = { href: string; label: string };
 
-export type NavItem = {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-};
-
-/** Fonte única do menu lateral. Ordem aqui = ordem na tela. */
+/**
+ * Fonte única do menu lateral. Ordem aqui = ordem na tela. Sem ícones: o menu
+ * é curto e os rótulos bastam.
+ */
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/agenda", label: "Agenda", icon: CalendarDays },
-  { href: "/animais", label: "Animais", icon: PawPrint },
-  { href: "/prontuarios", label: "Prontuários", icon: BookOpen },
-  { href: "/ocorrencias", label: "Ocorrências", icon: TriangleAlert },
-  { href: "/configuracoes", label: "Configurações", icon: Settings },
+  { href: "/dashboard", label: "Início" },
+  { href: "/agenda", label: "Agenda" },
+  { href: "/animais", label: "Animais" },
+  { href: "/grupos", label: "Grupos" },
+  { href: "/prontuarios", label: "Prontuários" },
+  { href: "/ocorrencias", label: "Ocorrências" },
+  { href: "/relatorios", label: "Relatórios" },
 ];
+
+/** Fica no rodapé do menu, junto do usuário. */
+export const NAV_RODAPE: NavItem[] = [{ href: "/configuracoes", label: "Configurações" }];

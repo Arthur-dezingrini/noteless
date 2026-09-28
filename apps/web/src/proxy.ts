@@ -14,7 +14,17 @@ import { NextResponse, type NextRequest } from "next/server";
  * loop infinito. Quem decide se um cookie ainda vale é a página de login,
  * consultando a api.
  */
-const ROTAS_PROTEGIDAS = ["/dashboard", "/agenda", "/animais", "/prontuarios", "/ocorrencias", "/configuracoes"];
+const ROTAS_PROTEGIDAS = [
+  "/dashboard",
+  "/agenda",
+  "/animais",
+  "/grupos",
+  "/prontuarios",
+  "/ocorrencias",
+  "/relatorios",
+  "/configuracoes",
+  "/perfil",
+];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

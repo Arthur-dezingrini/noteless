@@ -1,47 +1,24 @@
 import { Bell } from "lucide-react";
-import Link from "next/link";
-import type { Session } from "@vocare/shared";
 
-import { LogoutButton } from "@/components/auth/logout-button";
-
-import { Avatar } from "./avatar";
-
-export function Header({
-  user,
-  papel,
-}: {
-  user: Session["user"];
-  papel: string;
-}) {
+/**
+ * Topo da área logada: só o sino. Quem está logado e o "Sair" ficam no
+ * rodapé do menu lateral.
+ */
+export function Header({ naoLidas }: { naoLidas: number }) {
   return (
-    <header className="flex h-16 items-center justify-end gap-4 border-b border-line bg-white px-6">
+    <header className="flex h-14 shrink-0 items-center justify-end border-b border-line px-6">
       <button
         type="button"
-        aria-label="Notificações"
-        className="relative rounded-lg p-2 text-ink-muted transition hover:bg-surface hover:text-ink"
+        aria-label={naoLidas ? `Notificações, ${naoLidas} novas` : "Notificações"}
+        className="relative grid size-10 place-items-center rounded-field text-ink hover:bg-surface"
       >
         <Bell className="size-5" />
-        <span
-          aria-hidden="true"
-          className="absolute top-1.5 right-1.5 size-2 rounded-full bg-brand ring-2 ring-white"
-        />
+        {naoLidas > 0 && (
+          <span className="absolute top-1 right-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-notify px-1 text-[11px] font-bold text-white ring-2 ring-page">
+            {naoLidas}
+          </span>
+        )}
       </button>
-
-      <div className="h-6 w-px bg-line" />
-
-      <Link
-        href="/perfil"
-        className="flex items-center gap-3 rounded-lg px-1 py-1 transition hover:bg-surface"
-        aria-label="Abrir meu perfil"
-      >
-        <Avatar name={user.name || user.email} image={user.image} />
-        <div className="leading-tight">
-          <p className="text-sm font-semibold text-ink">{user.name || user.email}</p>
-          <p className="text-xs text-ink-muted">{papel || user.email}</p>
-        </div>
-      </Link>
-
-      <LogoutButton />
     </header>
   );
 }
