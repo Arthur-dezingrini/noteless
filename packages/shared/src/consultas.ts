@@ -68,6 +68,8 @@ export const consultaSchema = z.object({
   tipo: tipoConsultaSchema,
   status: statusConsultaSchema,
   observacoes: z.string().nullish(),
+  /** O atendimento registrado para esta consulta, se já houver. */
+  prontuarioId: z.string().nullish(),
   createdAt: z.coerce.date(),
 });
 

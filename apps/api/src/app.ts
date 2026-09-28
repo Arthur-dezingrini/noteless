@@ -13,6 +13,7 @@ import { relatoriosRoutes } from "./routes/relatorios";
 import { gruposRoutes } from "./routes/grupos";
 import { ocorrenciasRoutes } from "./routes/ocorrencias";
 import { perfilRoutes } from "./routes/perfil";
+import { prontuariosRoutes } from "./routes/prontuarios";
 import { usuariosRoutes } from "./routes/usuarios";
 
 export const app = new Hono();
@@ -47,4 +48,5 @@ app.route("/api/org", fichaRoutes);
 app.route("/api/org", notificacoesRoutes);
 app.route("/api/org", inicioRoutes);
 app.route("/api/org", relatoriosRoutes);
+app.route("/api/org", prontuariosRoutes);
 app.route("/api/perfil", perfilRoutes);

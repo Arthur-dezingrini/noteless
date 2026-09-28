@@ -75,6 +75,8 @@ function comMudanca(c: Consulta, m: Partial<Pick<Consulta, "data" | "hora" | "st
 type Props = {
   orgId: string;
   hoje: string;
+  /** Dia aberto ao entrar (?dia=, vindo do "Ver na agenda"). */
+  dia?: string;
   consultas: Consulta[];
   animais: Animal[];
   veterinarios: Veterinario[];
@@ -82,14 +84,17 @@ type Props = {
   novaPara?: NovaConsulta;
 };
 
-export function AgendaView({ orgId, hoje, consultas: iniciais, animais, veterinarios, novaPara }: Props) {
+export function AgendaView({ orgId, hoje, dia, consultas: iniciais, animais, veterinarios, novaPara }: Props) {
   const router = useRouter();
   const [consultas, setConsultas] = useState(iniciais);
-  const [selecionado, setSelecionado] = useState(hoje);
+  const [selecionado, setSelecionado] = useState(dia ?? hoje);
   const [modo, setModo] = useState<Modo>("dia");
   const [dialogo, setDialogo] = useState<Dialogo>(novaPara ? { tipo: "nova", data: hoje, ...novaPara } : null);
   const [erro, setErro] = useState<string | null>(null);
-  const [{ ano, mes }, setMesVisivel] = useState(() => ({ ano: Number(hoje.slice(0, 4)), mes: Number(hoje.slice(5, 7)) }));
+  const [{ ano, mes }, setMesVisivel] = useState(() => {
+    const d = dia ?? hoje;
+    return { ano: Number(d.slice(0, 4)), mes: Number(d.slice(5, 7)) };
+  });
 
   // Depois de salvar, o servidor manda a lista nova; a tela acompanha.
   const [anteriores, setAnteriores] = useState(iniciais);
@@ -274,6 +279,11 @@ function LinhaConsulta({
   const acoes: { rotulo: string; fazer: () => void; perigo?: boolean }[] = [
     ...(!fechada ? [{ rotulo: "Marcar como concluída", fazer: onConcluir }] : []),
     { rotulo: "Remarcar", fazer: onRemarcar },
+    ...(c.prontuarioId
+      ? [{ rotulo: "Ver atendimento", fazer: () => router.push(`/prontuarios?id=${c.prontuarioId}`) }]
+      : c.animalId && c.status !== "cancelada"
+        ? [{ rotulo: "Registrar atendimento", fazer: () => router.push(`/prontuarios?consulta=${c.id}`) }]
+        : []),
     ...(c.animalId ? [{ rotulo: "Ver ficha do animal", fazer: () => router.push(`/animais/${c.animalId}`) }] : []),
     ...(fechada
       ? [{ rotulo: "Voltar para agendada", fazer: onReabrir }]

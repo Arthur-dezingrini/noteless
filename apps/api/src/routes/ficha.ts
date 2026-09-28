@@ -14,7 +14,7 @@ import { z } from "zod";
 
 import { db } from "../db";
 import { animal } from "../db/animais";
-import { consulta } from "../db/consultas";
+import { consulta, prontuario } from "../db/consultas";
 import { grupo, grupoAnimal, parto, pesagem, tratamento, vacina } from "../db/historico";
 import { anotacaoAnimal, ocorrencia } from "../db/ocorrencias";
 import { user } from "../db/schema";
@@ -45,7 +45,7 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
     .limit(1);
   if (!a) return c.json({ error: "Animal não encontrado." }, 404);
 
-  const [grupos, pesagens, vacinas, consultas, anotacoes, tratamentos, partos, pendentes] = await Promise.all([
+  const [grupos, pesagens, vacinas, consultas, anotacoes, tratamentos, partos, pendentes, prontuarios] = await Promise.all([
     db
       .select({ id: grupo.id, nome: grupo.nome })
       .from(grupoAnimal)
@@ -91,6 +91,11 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
       .select({ id: ocorrencia.id, operacoes: ocorrencia.operacoes, transcricao: ocorrencia.transcricao })
       .from(ocorrencia)
       .where(and(eq(ocorrencia.organizationId, orgId), eq(ocorrencia.status, "pendente"))),
+    db
+      .select({ id: prontuario.id, consultaId: prontuario.consultaId, data: prontuario.data, tipo: prontuario.tipo, diagnostico: prontuario.diagnostico, queixa: prontuario.queixa, por: user.name })
+      .from(prontuario)
+      .leftJoin(user, eq(user.id, prontuario.veterinarioId))
+      .where(eq(prontuario.animalId, id)),
   ]);
 
   const hoje = diaSP(new Date());
@@ -131,7 +136,10 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
     }
   }
 
+  // Consulta com atendimento registrado mostra o diagnóstico e leva ao prontuário.
+  const atendimentoDa = new Map(prontuarios.filter((p) => p.consultaId).map((p) => [p.consultaId!, p]));
   for (const cons of consultas) {
+    const at = atendimentoDa.get(cons.id);
     const tipo = ROTULO_TIPO_CONSULTA[tipoConsultaSchema.catch("outro").parse(cons.tipo)];
     const status = statusConsultaSchema.catch("agendada").parse(cons.status);
     const futura = cons.data > hoje || (cons.data === hoje && status !== "concluida");
@@ -140,12 +148,29 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
       tipo: "consulta",
       data: cons.data,
       titulo: `${tipo} às ${cons.hora}`,
-      detalhe: [ROTULO_STATUS_CONSULTA[status], cons.obs].filter(Boolean).join(" · "),
-      por: cons.por,
+      detalhe: at
+        ? at.diagnostico || at.queixa || null
+        : [ROTULO_STATUS_CONSULTA[status], cons.obs].filter(Boolean).join(" · "),
+      por: at?.por ?? cons.por,
+      prontuarioId: at?.id,
     };
     if (status === "cancelada") historico.push(ev);
     else if (futura) proximos.push(ev);
     else historico.push(ev);
+  }
+
+  // Atendimento que não veio de consulta agendada (emergência, visita avulsa).
+  for (const p of prontuarios) {
+    if (p.consultaId) continue;
+    historico.push({
+      id: p.id,
+      tipo: "consulta",
+      data: p.data,
+      titulo: ROTULO_TIPO_CONSULTA[tipoConsultaSchema.catch("outro").parse(p.tipo)],
+      detalhe: p.diagnostico || p.queixa || null,
+      por: p.por,
+      prontuarioId: p.id,
+    });
   }
 
   for (const n of anotacoes) {

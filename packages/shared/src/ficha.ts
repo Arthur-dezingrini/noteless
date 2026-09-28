@@ -30,6 +30,8 @@ export const eventoSchema = z.object({
   ocorrenciaId: z.string().nullish(),
   /** Salvo nas últimas 48 h a partir de uma ocorrência — a tela marca "Novo". */
   novo: z.boolean().optional(),
+  /** Consulta com atendimento registrado: a ficha leva ao prontuário. */
+  prontuarioId: z.string().nullish(),
 });
 export type Evento = z.infer<typeof eventoSchema>;
 

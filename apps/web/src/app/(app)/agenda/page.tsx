@@ -34,6 +34,7 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
     <AgendaView
       orgId={org.id}
       hoje={hojeISO()}
+      dia={typeof q.dia === "string" && /^\d{4}-\d{2}-\d{2}$/.test(q.dia) ? q.dia : undefined}
       consultas={consultas}
       animais={animais.filter((a) => a.status === "ativo")}
       veterinarios={usuarios.map((u) => ({ id: u.id, nome: u.name }))}

@@ -11,7 +11,7 @@ import { Hono } from "hono";
 
 import { db } from "../db";
 import { animal } from "../db/animais";
-import { consulta } from "../db/consultas";
+import { consulta, prontuario } from "../db/consultas";
 import { grupo } from "../db/historico";
 import { member, user } from "../db/schema";
 import { membroAtual } from "../membros/membro-atual";
@@ -41,6 +41,7 @@ const colunas = {
   tipo: consulta.tipo,
   status: consulta.status,
   observacoes: consulta.observacoes,
+  prontuarioId: prontuario.id,
   createdAt: consulta.createdAt,
 };
 
@@ -66,6 +67,7 @@ function paraContrato(r: Linha): Consulta {
     tipo: tipoConsultaSchema.catch("outro").parse(r.tipo),
     status: statusConsultaSchema.catch("agendada").parse(r.status),
     observacoes: r.observacoes,
+    prontuarioId: r.prontuarioId,
     createdAt: r.createdAt!,
   };
 }
@@ -125,6 +127,7 @@ consultasRoutes.get("/:orgId/consultas", async (c) => {
     .leftJoin(animal, eq(animal.id, consulta.animalId))
     .leftJoin(grupo, eq(grupo.id, consulta.grupoId))
     .leftJoin(user, eq(user.id, consulta.veterinarioId))
+    .leftJoin(prontuario, eq(prontuario.consultaId, consulta.id))
     .where(and(...filtros))
     .orderBy(asc(consulta.data), asc(consulta.hora));
 

@@ -8,6 +8,7 @@ import {
   notificacaoListaSchema,
   ocorrenciaListaSchema,
   organizationListSchema,
+  prontuarioListaSchema,
   relatorioSchema,
   sessionSchema,
   usuarioListaSchema,
@@ -20,6 +21,7 @@ import {
   type Notificacao,
   type Ocorrencia,
   type Organization,
+  type Prontuario,
   type Relatorio,
   type TipoRelatorio,
   type Session,
@@ -132,6 +134,15 @@ export const getConsultas = cache(
     return parsed.success ? parsed.data : [];
   },
 );
+
+/** Atendimentos registrados, do mais recente para o mais antigo. */
+export const getProntuarios = cache(async (organizationId: string): Promise<Prontuario[]> => {
+  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/prontuarios`);
+  if (!res.ok) return [];
+
+  const parsed = prontuarioListaSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : [];
+});
 
 /** Ficha do animal (cadastro + histórico + próximos + pendências); null se não existe. */
 export const getFicha = cache(async (organizationId: string, animalId: string): Promise<FichaAnimal | null> => {

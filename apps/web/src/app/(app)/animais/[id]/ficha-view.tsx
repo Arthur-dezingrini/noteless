@@ -211,6 +211,11 @@ function LinhaHistorico({ e }: { e: Evento }) {
             {[e.detalhe, !e.ocorrenciaId && e.por && `por ${e.por}`].filter(Boolean).join(" · ")}
           </span>
         )}
+        {e.prontuarioId && (
+          <Link href={`/prontuarios?id=${e.prontuarioId}`} className="w-fit text-sm font-semibold text-brand-ink no-underline hover:underline">
+            Ver atendimento
+          </Link>
+        )}
         {e.ocorrenciaId && (
           <span className="flex items-center gap-1.5 text-[13px] text-ink-muted">
             <Mic className="size-[13px]" aria-hidden="true" />
