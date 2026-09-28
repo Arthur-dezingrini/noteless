@@ -1,10 +1,11 @@
-import { criarGrupoSchema, type Grupo, type Papel } from "@vocare/shared";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { ROTULO_TIPO_CONSULTA, criarGrupoSchema, tipoConsultaSchema, type Grupo, type Papel } from "@vocare/shared";
+import { and, asc, desc, eq, gte, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
 
 import { db } from "../db";
 import { animal } from "../db/animais";
-import { grupo, grupoAnimal } from "../db/historico";
+import { consulta } from "../db/consultas";
+import { grupo, grupoAnimal, tratamento, vacina } from "../db/historico";
 import { membroAtual } from "../membros/membro-atual";
 
 /**
@@ -24,6 +25,55 @@ async function listar(orgId: string, id?: string): Promise<Grupo[]> {
     .select({ grupoId: grupoAnimal.grupoId, animalId: grupoAnimal.animalId })
     .from(grupoAnimal)
     .where(inArray(grupoAnimal.grupoId, grupos.map((g) => g.id)));
+  const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  const dm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  const ids = grupos.map((g) => g.id);
+  const todosMembros = [...new Set(membros.map((m) => m.animalId))];
+
+  // Próxima consulta de cada grupo e os registros em massa mais recentes dos
+  // membros (vacina/remédio salvos de um áudio ficam um por animal).
+  const [proximas, vacinas, tratamentos] = await Promise.all([
+    db
+      .select({ grupoId: consulta.grupoId, data: consulta.data, tipo: consulta.tipo, obs: consulta.observacoes })
+      .from(consulta)
+      .where(and(inArray(consulta.grupoId, ids), gte(consulta.data, hoje), ne(consulta.status, "cancelada")))
+      .orderBy(asc(consulta.data), asc(consulta.hora)),
+    todosMembros.length
+      ? db
+          .select({ animalId: vacina.animalId, nome: vacina.vacina, data: vacina.data })
+          .from(vacina)
+          .where(inArray(vacina.animalId, todosMembros))
+          .orderBy(desc(vacina.data))
+          .limit(500)
+      : [],
+    todosMembros.length
+      ? db
+          .select({ animalId: tratamento.animalId, nome: tratamento.remedio, data: tratamento.inicio })
+          .from(tratamento)
+          .where(inArray(tratamento.animalId, todosMembros))
+          .orderBy(desc(tratamento.inicio))
+          .limit(500)
+      : [],
+  ]);
+
+  function ultimoRegistro(animais: Set<string>) {
+    // Agrupa por (tipo, nome, data): "Vacina raiva em 2 animais · 28/09".
+    const contagem = new Map<string, { texto: string; data: string; n: number }>();
+    for (const [rotulo, lista] of [["Vacina", vacinas], ["Remédio", tratamentos]] as const) {
+      for (const r of lista) {
+        if (!animais.has(r.animalId)) continue;
+        const chave = `${rotulo}|${r.nome.toLowerCase()}|${r.data}`;
+        const atual = contagem.get(chave) ?? { texto: `${rotulo} ${r.nome}`, data: r.data, n: 0 };
+        atual.n += 1;
+        contagem.set(chave, atual);
+      }
+    }
+    // Mais recente primeiro; no mesmo dia, o que atingiu mais animais.
+    const [mais] = [...contagem.values()].sort((a, b) => (a.data !== b.data ? (a.data < b.data ? 1 : -1) : b.n - a.n));
+    if (!mais) return null;
+    return `${mais.texto} em ${mais.n} ${mais.n === 1 ? "animal" : "animais"} · ${mais.data === hoje ? "hoje" : dm(mais.data)}`;
+  }
+
   return grupos.map((g) => ({
     id: g.id,
     nome: g.nome,
@@ -31,6 +81,13 @@ async function listar(orgId: string, id?: string): Promise<Grupo[]> {
     especie: g.especie,
     local: g.local,
     animalIds: membros.filter((m) => m.grupoId === g.id).map((m) => m.animalId),
+    proximo: (() => {
+      const p = proximas.find((x) => x.grupoId === g.id);
+      if (!p) return null;
+      const tipo = ROTULO_TIPO_CONSULTA[tipoConsultaSchema.catch("outro").parse(p.tipo)];
+      return `${p.obs || tipo} · ${p.data === hoje ? "hoje" : dm(p.data)}`;
+    })(),
+    ultimo: ultimoRegistro(new Set(membros.filter((m) => m.grupoId === g.id).map((m) => m.animalId))),
     createdAt: g.createdAt,
   }));
 }

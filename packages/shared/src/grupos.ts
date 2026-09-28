@@ -9,6 +9,10 @@ export const grupoSchema = z.object({
   especie: z.string().nullish(),
   local: z.string().nullish(),
   animalIds: z.array(z.string()),
+  /** "Vacina de aftosa · 25/09" — próxima consulta do grupo, se houver. */
+  proximo: z.string().nullish(),
+  /** "Vacina de brucelose em 17 animais · 24/09" — último registro em massa. */
+  ultimo: z.string().nullish(),
   createdAt: z.coerce.date(),
 });
 export const grupoListaSchema = z.array(grupoSchema);
