@@ -7,6 +7,18 @@ export class IaNaoConfigurada extends Error {
 }
 
 /**
+ * O Whisper "alucina" com áudio sem fala (silêncio, ruído, tom): devolve
+ * pontuação solta ou frases de legenda que nunca foram ditas. Isso tem que
+ * virar "não entendido", não uma ocorrência com texto inventado.
+ */
+const ALUCINACOES = [/^obrigad[oa]\.?$/i, /amara\.org/i, /^legendas? (por|pela)/i, /^tchau\.?$/i, /inscreva-se/i];
+
+function pareceFala(texto: string) {
+  if (!/\p{L}{2,}/u.test(texto)) return false;
+  return !ALUCINACOES.some((r) => r.test(texto));
+}
+
+/**
  * Áudio → texto, pela API de transcrição compatível com a OpenAI
  * (`/audio/transcriptions`). Serve Groq, OpenAI e afins — muda só a base e o
  * modelo no .env. Português forçado: o Whisper acerta mais quando sabe a
@@ -34,5 +46,6 @@ export async function transcrever(audio: File): Promise<string> {
   }
 
   const { text } = (await res.json()) as { text?: string };
-  return (text ?? "").trim();
+  const limpo = (text ?? "").trim();
+  return pareceFala(limpo) ? limpo : "";
 }

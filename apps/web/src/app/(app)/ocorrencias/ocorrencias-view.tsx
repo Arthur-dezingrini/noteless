@@ -6,7 +6,6 @@ import {
   ESPECIES,
   ROTULO_ESPECIE,
   ROTULO_SEXO,
-  ROTULO_STATUS_OCORRENCIA,
   ROTULO_TIPO_CONSULTA,
   SEXOS,
   TIPOS_CONSULTA,
@@ -21,40 +20,25 @@ import {
   type StatusOcorrencia,
   type TipoConsulta,
 } from "@vocare/shared";
-import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { Check, ChevronDown, Loader2, Pause, Play } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type FormEvent, type KeyboardEvent } from "react";
+import { useRef, useState, useTransition, type KeyboardEvent } from "react";
 
-import { Avatar } from "@/components/app/avatar";
-import { Badge, type Tone } from "@/components/app/badge";
-import { Card } from "@/components/app/card";
-import { PageHeader } from "@/components/app/page-header";
 import { Select } from "@/components/app/select";
 import { btn, campo } from "@/components/app/ui";
 import { chamarApiJson } from "@/lib/api-client";
+import { BRAND_NAME } from "@/lib/brand";
 import { duracaoCurta, formatar, haQuantoTempo } from "@/lib/datas";
 
-export type AnimalRef = { id: string; nome: string; sexo: Sexo | null };
+import { AnimalModal } from "../animais/animal-modal";
+
+export type AnimalRef = { id: string; nome: string; numero: string | null; sexo: Sexo | null };
 export type GrupoRef = { id: string; nome: string; animais: number };
 
 /** Animais e grupos da conta, para dar nome aos alvos. */
 type Cadastro = { animais: Map<string, AnimalRef>; grupos: Map<string, GrupoRef> };
-
-/** Nome do alvo como a tela mostra: animal do cadastro, grupo, ou o que foi dito. */
-function nomeAlvo(op: Operacao, cad: Cadastro): string {
-  if (op.tipo === "cadastrar_animal") return op.nome;
-  if (op.grupoId) {
-    const g = cad.grupos.get(op.grupoId);
-    return g ? `Grupo ${g.nome} (${g.animais} ${g.animais === 1 ? "animal" : "animais"})` : op.alvo;
-  }
-  return (op.animalId && cad.animais.get(op.animalId)?.nome) || op.alvo;
-}
-
-const TOM_STATUS: Record<StatusOcorrencia, Tone> = {
-  pendente: "yellow",
-  confirmada: "green",
-  descartada: "gray",
-};
+type Correcao = Partial<Record<CampoCorrigivel, unknown>>;
 
 /** Abaixo disto a tela pede para conferir o dado. */
 const LIMIAR_ATENCAO = 70;
@@ -64,6 +48,15 @@ const ABAS: { status: StatusOcorrencia; label: string }[] = [
   { status: "confirmada", label: "Salvas" },
   { status: "descartada", label: "Descartadas" },
 ];
+
+const VAZIO: Record<StatusOcorrencia, { titulo: string; texto: string }> = {
+  pendente: {
+    titulo: "Nada para conferir",
+    texto: `Quando alguém falar no microfone do ${BRAND_NAME}, a ocorrência aparece aqui para você conferir antes de entrar no sistema.`,
+  },
+  confirmada: { titulo: "Nada salvo ainda", texto: "As ocorrências que você conferir e salvar ficam aqui." },
+  descartada: { titulo: "Nenhuma ocorrência descartada", texto: "O que for descartado fica aqui por 30 dias, caso mude de ideia." },
+};
 
 /** "o retorno", "a vacinação"… — para montar a frase do rodapé. */
 const ARTIGO_CONSULTA: Record<TipoConsulta, string> = {
@@ -75,57 +68,6 @@ const ARTIGO_CONSULTA: Record<TipoConsulta, string> = {
   exame: "o exame",
   outro: "o atendimento",
 };
-
-function naoEntendido(oc: Ocorrencia) {
-  return oc.transcricao.trim() === "";
-}
-
-/** "da Mimosa", "do Thor", "de Rex" (sexo não cadastrado), "do grupo Bezerros". */
-function deAlvo(op: Operacao, cad: Cadastro) {
-  if (op.grupoId) {
-    const g = cad.grupos.get(op.grupoId);
-    return `do grupo ${g?.nome ?? op.alvo}`;
-  }
-  const animal = op.animalId ? cad.animais.get(op.animalId) : undefined;
-  const prep = animal?.sexo === "femea" ? "da" : animal?.sexo === "macho" ? "do" : "de";
-  return `${prep} ${animal?.nome ?? op.alvo}`;
-}
-
-function juntar(partes: string[]) {
-  if (partes.length <= 1) return partes.join("");
-  return `${partes.slice(0, -1).join(", ")} e ${partes.at(-1)}`;
-}
-
-/** Uma linha curta com os dois primeiros dados da operação. */
-function descrever(op: Operacao): string {
-  switch (op.tipo) {
-    case "agendar_consulta": {
-      const quando = op.data ? formatar(op.data, { day: "numeric", month: "short" }) : "data a definir";
-      return `${ROTULO_TIPO_CONSULTA[op.tipoConsulta]} · ${quando}${op.hora ? ` às ${op.hora}` : ""}`;
-    }
-    case "registrar_peso":
-      return `${op.pesoKg.toLocaleString("pt-BR")} kg · ${op.detalhe}`;
-    case "registrar_anotacao":
-      return op.texto;
-    case "aplicar_vacina":
-      return [op.vacina, op.dose, op.proximaData && `próxima em ${formatar(op.proximaData, { day: "numeric", month: "short", year: "numeric" })}`]
-        .filter(Boolean)
-        .join(" · ");
-    case "registrar_remedio":
-      return [op.remedio, op.dose, op.dias && `${op.dias} ${op.dias === 1 ? "dia" : "dias"}`].filter(Boolean).join(" · ");
-    case "registrar_parto":
-      return [op.crias != null && `${op.crias} ${op.crias === 1 ? "cria" : "crias"}`, op.data && formatar(op.data, { day: "numeric", month: "short" })]
-        .filter(Boolean)
-        .join(" · ") || op.detalhe;
-    case "cadastrar_animal":
-      return [ROTULO_ESPECIE[op.especie], op.sexo && ROTULO_SEXO[op.sexo], op.raca].filter(Boolean).join(" · ");
-  }
-}
-
-type Correcao = Partial<Record<CampoCorrigivel, unknown>>;
-
-/** Campo de correção, um pouco mais baixo que o padrão para caber na linha. */
-const CAMPO_INPUT = `${campo} h-10`;
 
 const ROTULO_CAMPO: Record<CampoCorrigivel, string> = {
   animalId: "Animal",
@@ -157,17 +99,77 @@ const CAMPOS_OPCIONAIS: CampoCorrigivel[] = [
   "data", "hora", "observacoes", "dose", "proximaData", "dias", "carenciaDias", "crias", "raca", "sexo", "nascimento",
 ];
 const CAMPOS_ESCOLHA: CampoCorrigivel[] = ["animalId", "grupoId", "tipoConsulta", "especie", "sexo"];
+/** O alvo aparece na linha "nº 07 Thor → …"; na tabela, só quando falta, foi corrigido ou é grupo. */
+const CAMPOS_ALVO: CampoCorrigivel[] = ["animalId", "grupoId"];
+
+function naoEntendido(oc: Ocorrencia) {
+  return oc.transcricao.trim() === "";
+}
+
+function rotulo(a: { numero: string | null; nome: string }) {
+  if (a.numero && a.nome) return `nº ${a.numero} ${a.nome}`;
+  return a.numero ? `nº ${a.numero}` : a.nome;
+}
+
+/** Nome do alvo: animal do cadastro, grupo, animal novo, ou o que foi dito. */
+function nomeAlvo(op: Operacao, cad: Cadastro): string {
+  if (op.tipo === "cadastrar_animal") return op.nome;
+  if (op.grupoId) {
+    const g = cad.grupos.get(op.grupoId);
+    return g ? `${g.nome} (${g.animais} ${g.animais === 1 ? "animal" : "animais"})` : op.alvo;
+  }
+  const a = op.animalId ? cad.animais.get(op.animalId) : undefined;
+  if (a) return rotulo(a);
+  return op.animalId ? "animal novo" : `${op.alvo} (não encontrado)`;
+}
+
+/** "da Mimosa", "do Thor", "de Rex" (sexo não cadastrado), "do Lote 4". */
+function deAlvo(op: Operacao, cad: Cadastro) {
+  if (op.grupoId) return `do ${cad.grupos.get(op.grupoId)?.nome ?? op.alvo}`;
+  const a = op.animalId ? cad.animais.get(op.animalId) : undefined;
+  const prep = a?.sexo === "femea" ? "da" : a?.sexo === "macho" ? "do" : "de";
+  return `${prep} ${a?.nome || (a ? rotulo(a) : op.alvo)}`;
+}
+
+function juntar(partes: string[]) {
+  if (partes.length <= 1) return partes.join("");
+  return `${partes.slice(0, -1).join(", ")} e ${partes.at(-1)}`;
+}
+
+/** O que cada operação vira, dentro da frase do rodapé. */
+function efeito(op: Operacao, cad: Cadastro): string {
+  const de = deAlvo(op, cad);
+  switch (op.tipo) {
+    case "registrar_peso":
+      return `o peso no histórico ${de}`;
+    case "registrar_anotacao":
+      return `a anotação no histórico ${de}`;
+    case "agendar_consulta":
+      return `${ARTIGO_CONSULTA[op.tipoConsulta]} ${de} na agenda`;
+    case "aplicar_vacina":
+      return `a vacina ${op.vacina} no histórico ${de}`;
+    case "registrar_remedio":
+      return `o tratamento com ${op.remedio} no histórico ${de}`;
+    case "registrar_parto":
+      return `o parto no histórico ${de}`;
+    case "cadastrar_animal":
+      return `${op.nome} no cadastro de animais`;
+  }
+}
 
 /** Valor de um campo como o revisor lê. */
-function formatarCampo(campo: CampoCorrigivel, valor: unknown, cad: Cadastro, alvo: string): string {
+function formatarCampo(c: CampoCorrigivel, valor: unknown, cad: Cadastro, alvo: string): string {
   if (valor === null || valor === undefined || valor === "") {
-    if (campo === "animalId") return `“${alvo}” (não cadastrado)`;
-    if (campo === "data" || campo === "hora") return "Não dita";
+    if (c === "animalId") return `“${alvo}” (não encontrado)`;
+    if (c === "data") return "hoje";
+    if (c === "hora") return "não dita";
     return "—";
   }
-  switch (campo) {
-    case "animalId":
-      return cad.animais.get(String(valor))?.nome ?? "Animal removido";
+  switch (c) {
+    case "animalId": {
+      const a = cad.animais.get(String(valor));
+      return a ? rotulo(a) : "animal novo";
+    }
     case "grupoId":
       return cad.grupos.get(String(valor))?.nome ?? "Grupo removido";
     case "pesoKg":
@@ -184,16 +186,16 @@ function formatarCampo(campo: CampoCorrigivel, valor: unknown, cad: Cadastro, al
     case "data":
     case "proximaData":
     case "nascimento":
-      return formatar(String(valor), { weekday: "short", day: "numeric", month: "long", year: "numeric" });
+      return formatar(String(valor), { day: "2-digit", month: "2-digit", year: "numeric" });
     default:
       return String(valor);
   }
 }
 
-function opcoesDe(campo: CampoCorrigivel, cad: Cadastro): { v: string; r: string }[] {
-  switch (campo) {
+function opcoesDe(c: CampoCorrigivel, cad: Cadastro): { v: string; r: string }[] {
+  switch (c) {
     case "animalId":
-      return [...cad.animais.values()].map((a) => ({ v: a.id, r: a.nome }));
+      return [...cad.animais.values()].map((a) => ({ v: a.id, r: rotulo(a) }));
     case "grupoId":
       return [...cad.grupos.values()].map((g) => ({ v: g.id, r: `${g.nome} (${g.animais})` }));
     case "tipoConsulta":
@@ -207,22 +209,38 @@ function opcoesDe(campo: CampoCorrigivel, cad: Cadastro): { v: string; r: string
   }
 }
 
+/** Campos da tabela de detalhes, na ordem de leitura. */
+function camposDe(op: Operacao): CampoCorrigivel[] {
+  const todos = CAMPOS_CORRIGIVEIS[op.tipo] as readonly CampoCorrigivel[];
+  const corrigido = op.original ?? {};
+  return [
+    ...todos.filter((c) => !CAMPOS_ALVO.includes(c)),
+    ...todos.filter((c) => {
+      if (c === "grupoId") return !!op.grupoId;
+      if (c === "animalId") return !op.grupoId && (!temAlvo(op) || "animalId" in corrigido);
+      return false;
+    }),
+  ];
+}
+
 /**
  * Uma linha por campo, com "Corrigir". Enter confirma, Esc cancela; o valor
- * que a IA tinha proposto continua à vista ("corrigido, era 480 kg").
+ * que a IA tinha proposto continua à vista ("corrigido, era “480 kg”").
  */
 function CamposEditaveis({
   op,
   cad,
   editavel,
+  registradoPor,
   onCorrigir,
   onDesfazer,
 }: {
   op: Operacao;
   cad: Cadastro;
   editavel: boolean;
-  onCorrigir: (campo: CampoCorrigivel, valor: unknown) => void;
-  onDesfazer: (campo: CampoCorrigivel) => void;
+  registradoPor: string;
+  onCorrigir: (c: CampoCorrigivel, valor: unknown) => void;
+  onDesfazer: (c: CampoCorrigivel) => void;
 }) {
   const [editando, setEditando] = useState<CampoCorrigivel | null>(null);
   const [rascunho, setRascunho] = useState("");
@@ -230,32 +248,32 @@ function CamposEditaveis({
   const atual = op as Record<string, unknown>;
   const original = op.original ?? {};
 
-  function abrir(campo: CampoCorrigivel) {
+  function abrir(c: CampoCorrigivel) {
     setErro(null);
-    setEditando(campo);
-    setRascunho(atual[campo] == null ? "" : String(atual[campo]));
+    setEditando(c);
+    setRascunho(atual[c] == null ? "" : String(atual[c]));
   }
 
-  function confirmar(campo: CampoCorrigivel, bruto = rascunho) {
+  function confirmar(c: CampoCorrigivel, bruto = rascunho) {
     let valor: unknown = bruto.trim();
     if (valor === "") {
-      if (!CAMPOS_OPCIONAIS.includes(campo)) return setErro("Este campo não pode ficar vazio.");
+      if (!CAMPOS_OPCIONAIS.includes(c)) return setErro("Este campo não pode ficar vazio.");
       valor = null;
-    } else if (campo === "pesoKg") {
+    } else if (c === "pesoKg") {
       valor = Number(bruto.replace(",", "."));
       if (!Number.isFinite(valor) || (valor as number) <= 0) return setErro("Informe um peso maior que zero.");
-    } else if (CAMPOS_INTEIROS.includes(campo)) {
+    } else if (CAMPOS_INTEIROS.includes(c)) {
       valor = Number(bruto);
       if (!Number.isInteger(valor) || (valor as number) < 0) return setErro("Informe um número inteiro.");
     }
-    onCorrigir(campo, valor);
+    onCorrigir(c, valor);
     setEditando(null);
   }
 
-  function teclas(e: KeyboardEvent, campo: CampoCorrigivel) {
+  function teclas(e: KeyboardEvent, c: CampoCorrigivel) {
     if (e.key === "Enter") {
       e.preventDefault();
-      confirmar(campo);
+      confirmar(c);
     } else if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
@@ -263,20 +281,13 @@ function CamposEditaveis({
     }
   }
 
-  function entrada(campo: CampoCorrigivel) {
-    const comum = {
-      autoFocus: true,
-      "aria-label": `Corrigir ${ROTULO_CAMPO[campo].toLowerCase()}`,
-      onKeyDown: (e: KeyboardEvent) => teclas(e, campo),
-    };
-    if (CAMPOS_ESCOLHA.includes(campo)) {
-      const opcoes = opcoesDe(campo, cad);
+  function entrada(c: CampoCorrigivel) {
+    const comum = { autoFocus: true, "aria-label": ROTULO_CAMPO[c], onKeyDown: (e: KeyboardEvent) => teclas(e, c) };
+    if (CAMPOS_ESCOLHA.includes(c)) {
       return (
-        <Select {...comum} value={rascunho} onChange={(e) => confirmar(campo, e.target.value)}>
-          {(campo === "animalId" || campo === "grupoId" || campo === "sexo") && (
-            <option value="">{campo === "sexo" ? "Não informado" : "Escolha…"}</option>
-          )}
-          {opcoes.map((o) => (
+        <Select {...comum} value={rascunho} onChange={(e) => confirmar(c, e.target.value)} className="min-w-0 flex-[1_1_10rem]">
+          {(c === "animalId" || c === "grupoId" || c === "sexo") && <option value="">{c === "sexo" ? "Não informado" : "Escolha…"}</option>}
+          {opcoesDe(c, cad).map((o) => (
             <option key={o.v} value={o.v}>
               {o.r}
             </option>
@@ -284,67 +295,70 @@ function CamposEditaveis({
         </Select>
       );
     }
-    const tipo = CAMPOS_DATA.includes(campo) ? "date" : campo === "hora" ? "time" : "text";
-    const numerico = campo === "pesoKg" || CAMPOS_INTEIROS.includes(campo);
     return (
       <input
         {...comum}
-        type={tipo}
-        inputMode={campo === "pesoKg" ? "decimal" : CAMPOS_INTEIROS.includes(campo) ? "numeric" : undefined}
+        type={CAMPOS_DATA.includes(c) ? "date" : c === "hora" ? "time" : "text"}
+        inputMode={c === "pesoKg" ? "decimal" : CAMPOS_INTEIROS.includes(c) ? "numeric" : undefined}
         value={rascunho}
         onChange={(e) => setRascunho(e.target.value)}
-        className={numerico ? `${CAMPO_INPUT} max-w-40` : CAMPO_INPUT}
+        className="h-[34px] min-w-0 flex-[1_1_10rem] rounded-lg border border-brand bg-white px-2.5 text-sm text-ink outline-none"
       />
     );
   }
 
   return (
-    <dl className="grid grid-cols-[max-content_1fr] items-baseline gap-x-5 gap-y-2.5 rounded-field border border-line-soft bg-detail px-4 py-3 text-[15px]">
-      {(CAMPOS_CORRIGIVEIS[op.tipo] as readonly CampoCorrigivel[])
-        // Alvo: mostra o grupo quando a operação é para um grupo, senão o animal.
-        .filter((c) => (c === "grupoId" ? !!op.grupoId : c === "animalId" ? !op.grupoId : true))
-        .map((campo) => {
-        const corrigido = campo in original;
+    <dl className="grid grid-cols-[max-content_minmax(0,1fr)] items-center gap-x-[18px] gap-y-1.5 rounded-field border border-line-soft bg-detail px-3.5 py-2.5 text-sm">
+      {camposDe(op).map((c) => {
+        const corrigido = c in original;
         return (
-          <div key={campo} className="contents">
-            <dt className="text-ink-muted">{ROTULO_CAMPO[campo]}</dt>
-            <dd className="min-w-0">
-              {editando === campo ? (
-                <div className="flex flex-col gap-1.5">
-                  {entrada(campo)}
-                  <span className="text-[13px] text-ink-muted">
-                    {CAMPOS_ESCOLHA.includes(campo) ? "Escolha para confirmar" : "Enter confirma"} · Esc cancela
-                  </span>
-                  {erro && <span className="text-sm text-danger">{erro}</span>}
-                </div>
+          <div key={c} className="contents">
+            <dt className="text-ink-muted">{ROTULO_CAMPO[c]}</dt>
+            <dd className="flex min-h-[30px] min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+              {editando === c ? (
+                <>
+                  {entrada(c)}
+                  {!CAMPOS_ESCOLHA.includes(c) && (
+                    <button type="button" onClick={() => confirmar(c)} className="h-[34px] cursor-pointer rounded-lg bg-ink px-3 text-[13px] font-semibold text-white">
+                      Pronto
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setEditando(null)} className="h-[34px] cursor-pointer rounded-lg px-2 text-[13px] font-semibold text-ink-soft">
+                    Cancelar
+                  </button>
+                  {erro && <span className="basis-full text-[13px] text-danger">{erro}</span>}
+                </>
               ) : (
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <span className="min-w-0 text-ink">
-                    {formatarCampo(campo, atual[campo], cad, op.alvo)}
-                    {corrigido && (
-                      <span className="ml-2 text-sm text-ink-muted">
-                        corrigido, era {formatarCampo(campo, original[campo], cad, op.alvo)}
-                      </span>
-                    )}
-                  </span>
-                  {editavel && (
-                    <span className="flex shrink-0 gap-3">
-                      {corrigido && (
-                        <button type="button" onClick={() => onDesfazer(campo)} className="cursor-pointer text-sm font-semibold text-ink-muted hover:text-ink">
+                <>
+                  <span className="font-semibold text-ink">{formatarCampo(c, atual[c], cad, op.alvo)}</span>
+                  {corrigido && (
+                    <>
+                      <span className="text-[13px] text-brand-ink">corrigido, era “{formatarCampo(c, original[c], cad, op.alvo)}”</span>
+                      {editavel && (
+                        <button type="button" onClick={() => onDesfazer(c)} className="cursor-pointer text-[13px] font-semibold text-ink-soft underline underline-offset-[3px]">
                           Desfazer
                         </button>
                       )}
-                      <button type="button" onClick={() => abrir(campo)} className="cursor-pointer text-sm font-semibold text-brand-ink hover:underline">
-                        Corrigir
-                      </button>
-                    </span>
+                    </>
                   )}
-                </div>
+                  {editavel && (
+                    <button
+                      type="button"
+                      onClick={() => abrir(c)}
+                      aria-label={`Corrigir ${ROTULO_CAMPO[c].toLowerCase()}`}
+                      className="ml-auto cursor-pointer rounded-md px-2 py-1 text-[13px] font-semibold text-ink-soft hover:bg-[#efede8]"
+                    >
+                      Corrigir
+                    </button>
+                  )}
+                </>
               )}
             </dd>
           </div>
         );
       })}
+      <dt className="text-ink-muted">Registrado por</dt>
+      <dd className="flex min-h-[30px] items-center font-semibold text-ink">{registradoPor}</dd>
     </dl>
   );
 }
@@ -352,67 +366,73 @@ function CamposEditaveis({
 function LinhaOperacao({
   op,
   cad,
-  editavel,
+  estado,
   marcada,
+  aberta,
+  registradoPor,
   onToggle,
+  onAbrir,
   onCorrigir,
   onDesfazer,
+  onCadastrarNovo,
 }: {
   op: Operacao;
   cad: Cadastro;
-  editavel: boolean;
+  estado: StatusOcorrencia;
   marcada: boolean;
+  aberta: boolean;
+  registradoPor: string;
   onToggle: () => void;
-  onCorrigir: (campo: CampoCorrigivel, valor: unknown) => void;
-  onDesfazer: (campo: CampoCorrigivel) => void;
+  onAbrir: () => void;
+  onCorrigir: (c: CampoCorrigivel, valor: unknown) => void;
+  onDesfazer: (c: CampoCorrigivel) => void;
+  onCadastrarNovo: () => void;
 }) {
-  const semAnimal = !temAlvo(op);
-  // Corrigido por quem confere = deixa de ser dúvida da IA.
-  const incerta = op.confianca < LIMIAR_ATENCAO && !op.original;
-  const [aberta, setAberta] = useState(editavel && (incerta || semAnimal));
+  const editavel = estado === "pendente";
+  const salva = estado === "confirmada";
+  const bloqueada = editavel && !temAlvo(op);
+  const ligada = salva ? op.aplicada !== false : editavel && marcada;
   const d = DESTINO_OPERACAO[op.tipo];
-  const salva = !editavel && op.aplicada === true;
-  const naoSalva = !editavel && op.aplicada === false;
-  const nome = nomeAlvo(op, cad);
+  const atual = op as Record<string, unknown>;
+  const corrigidos = Object.keys(op.original ?? {}).length;
+  const resumo = camposDe(op)
+    .slice(0, 2)
+    .map((c) => formatarCampo(c, atual[c], cad, op.alvo))
+    .join(" · ");
+  const linkHistorico =
+    salva && op.aplicada && op.animalId && cad.animais.has(op.animalId)
+      ? { href: `/animais/${op.animalId}`, rotulo: `Ver no histórico${op.tipo === "agendar_consulta" ? " e na agenda" : ""}` }
+      : null;
 
   return (
-    <li className={`flex gap-3.5 rounded-field p-3 hover:bg-detail ${naoSalva ? "opacity-60" : ""}`}>
-      {editavel ? (
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={marcada}
-          aria-label={`${d.acao}: ${nome}`}
-          disabled={semAnimal}
-          onClick={onToggle}
-          className={`mt-0.5 grid size-[22px] shrink-0 cursor-pointer place-items-center rounded-md border-[1.5px] text-white disabled:cursor-not-allowed ${
-            marcada ? "border-brand bg-brand" : semAnimal ? "border-dashed border-[#d8b0a6]" : "border-[#c9c5bb] bg-white"
-          }`}
-        >
-          {marcada && <Check className="size-3" strokeWidth={3.5} />}
-        </button>
-      ) : (
-        <span
-          aria-hidden="true"
-          className={`mt-0.5 grid size-[22px] shrink-0 place-items-center rounded-md ${salva ? "bg-brand-soft text-brand-ink" : ""}`}
-        >
-          {salva && <Check className="size-3.5" strokeWidth={3} />}
-        </span>
-      )}
+    <li className={`flex items-start gap-3.5 rounded-field p-3 hover:bg-detail ${estado === "descartada" || (salva && op.aplicada === false) ? "opacity-55" : ""}`}>
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={ligada}
+        aria-label={`${salva ? d.feito : d.acao}: ${nomeAlvo(op, cad)}`}
+        disabled={!editavel || bloqueada}
+        onClick={onToggle}
+        className={`mt-px grid size-[22px] shrink-0 place-items-center rounded-md border-[1.5px] text-white ${
+          ligada ? "border-brand bg-brand" : bloqueada ? "border-dashed border-[#d8b0a6] bg-white" : "border-[#c9c5bb] bg-white"
+        } ${editavel && !bloqueada ? "cursor-pointer" : "cursor-default"}`}
+      >
+        {ligada && <Check className="size-3" strokeWidth={3.5} />}
+      </button>
 
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <button
-          type="button"
-          onClick={() => setAberta(!aberta)}
-          aria-expanded={aberta}
-          className="flex cursor-pointer justify-between gap-3 text-left"
-        >
+        <button type="button" onClick={onAbrir} aria-expanded={aberta} className="flex cursor-pointer items-start justify-between gap-3 text-left">
           <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="text-base font-semibold text-ink">{salva ? d.feito : d.acao}</span>
+            <span className="text-base font-semibold text-ink">{salva && op.aplicada !== false ? d.feito : d.acao}</span>
             <span className="text-sm text-ink-muted">
-              {nome} → {d.onde}
+              {nomeAlvo(op, cad)} → {d.onde}
             </span>
-            {!aberta && <span className="truncate text-sm text-ink-soft">{descrever(op)}</span>}
+            {!aberta && (
+              <span className="truncate text-sm text-ink-soft">
+                {resumo}
+                {corrigidos > 0 && " · corrigido"}
+              </span>
+            )}
           </span>
           <span className="flex shrink-0 items-center gap-1 text-[13px] font-semibold text-ink-muted">
             {aberta ? "Menos" : "Detalhes"}
@@ -422,100 +442,78 @@ function LinhaOperacao({
 
         {aberta && (
           <>
-            <CamposEditaveis op={op} cad={cad} editavel={editavel} onCorrigir={onCorrigir} onDesfazer={onDesfazer} />
+            <CamposEditaveis op={op} cad={cad} editavel={editavel} registradoPor={registradoPor} onCorrigir={onCorrigir} onDesfazer={onDesfazer} />
             {op.trecho && <p className="text-sm text-ink-muted">você disse “{op.trecho}”</p>}
           </>
         )}
 
-        {editavel && incerta && !semAnimal && (
+        {editavel && op.confianca < LIMIAR_ATENCAO && temAlvo(op) && !op.original && (
           <p className="text-sm text-warn">Confira: não temos certeza deste dado.</p>
         )}
-        {editavel && semAnimal && (
-          <p className="text-sm text-danger">
-            Não achamos “{op.alvo}” no cadastro de animais. Abra os detalhes e corrija o animal para poder salvar.
+        {bloqueada && (
+          <p className="flex flex-wrap items-baseline gap-3 text-sm">
+            <span className="text-danger">Não achamos “{op.alvo}” no cadastro.</span>
+            <button type="button" onClick={onCadastrarNovo} className="cursor-pointer font-semibold text-ink underline underline-offset-[3px]">
+              Cadastrar como animal novo
+            </button>
           </p>
         )}
-        {naoSalva && <p className="text-sm text-ink-muted">Não foi salva.</p>}
+        {linkHistorico && (
+          <Link href={linkHistorico.href} className="self-start text-sm font-semibold no-underline hover:underline">
+            {linkHistorico.rotulo}
+          </Link>
+        )}
       </div>
     </li>
   );
 }
 
-/** O que o rodapé diz que vai acontecer, numa frase. */
-function fraseDoRodape(ops: Operacao[], cad: Cadastro, quem: "você" | "admin") {
-  if (ops.length === 0) {
-    return quem === "você"
-      ? "Nenhuma ação marcada: ao salvar, a ocorrência é fechada sem mudar nada no sistema."
-      : "Nenhuma ação marcada.";
-  }
-  const partes = ops.map((op) => {
-    const de = deAlvo(op, cad);
-    switch (op.tipo) {
-      case "registrar_peso":
-        return `o peso no histórico ${de}`;
-      case "registrar_anotacao":
-        return `a anotação no histórico ${de}`;
-      case "agendar_consulta":
-        return `${ARTIGO_CONSULTA[op.tipoConsulta]} ${de} na agenda`;
-      case "aplicar_vacina":
-        return `a vacina ${op.vacina} no histórico ${de}`;
-      case "registrar_remedio":
-        return `o tratamento com ${op.remedio} no histórico ${de}`;
-      case "registrar_parto":
-        return `o parto no histórico ${de}`;
-      case "cadastrar_animal":
-        return `${op.nome} no cadastro de animais`;
-    }
-  });
-  const inicio = quem === "você" ? "Ao salvar" : "Quando o administrador salvar";
-  return `${inicio}, o sistema registra ${juntar(partes)}.`;
-}
-
-function TextoManual({ orgId, oc, onAtualizada }: { orgId: string; oc: Ocorrencia; onAtualizada: (oc: Ocorrencia) => void }) {
-  const [pending, start] = useTransition();
-  const [erro, setErro] = useState<string | null>(null);
-
-  function enviar(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const texto = String(new FormData(e.currentTarget).get("texto") ?? "");
-    setErro(null);
-    start(async () => {
-      const r = await chamarApiJson<unknown>(`/api/org/${orgId}/ocorrencias/${oc.id}/texto`, {
-        method: "POST",
-        body: JSON.stringify({ texto }),
-      });
-      if (!r.ok) return setErro(r.error);
-      const parsed = ocorrenciaSchema.safeParse(r.data);
-      if (parsed.success) onAtualizada(parsed.data);
-    });
-  }
+/** Player simples do áudio original: play/pausa, barra de progresso, duração. */
+function Audio({ src, duracaoSeg }: { src: string | null; duracaoSeg: number | null | undefined }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  const [tocando, setTocando] = useState(false);
+  const [progresso, setProgresso] = useState(0);
+  const total = duracaoSeg ?? 0;
 
   return (
-    <form onSubmit={enviar} className="flex flex-col gap-3 rounded-field border border-warn-border bg-warn-bg p-4">
-      <p className="text-[15px] font-semibold text-warn">Não conseguimos entender este áudio.</p>
-      <label htmlFor={`texto-${oc.id}`} className="text-[15px] text-ink">
-        Escrever o que foi dito
-      </label>
-      <textarea
-        id={`texto-${oc.id}`}
-        name="texto"
-        rows={3}
-        required
-        placeholder="Ex.: pesei a Mimosa, deu 480 quilos"
-        className={`${campo} h-auto py-2.5`}
-      />
-      {erro && (
-        <p role="alert" className="text-sm text-danger">
-          {erro}
-        </p>
+    <div className="flex items-center gap-2.5">
+      <button
+        type="button"
+        disabled={!src}
+        onClick={() => {
+          const el = ref.current;
+          if (!el) return;
+          if (el.paused) void el.play();
+          else el.pause();
+        }}
+        aria-label={tocando ? "Pausar áudio" : "Ouvir áudio"}
+        className="grid size-[30px] cursor-pointer place-items-center rounded-full bg-surface text-ink disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {tocando ? <Pause className="size-3 fill-current" /> : <Play className="size-3 fill-current" />}
+      </button>
+      <span className="relative h-0.5 max-w-60 flex-1 rounded-sm bg-[#e3dfd6]">
+        <span className="absolute inset-y-0 left-0 rounded-sm bg-ink" style={{ width: `${progresso * 100}%` }} />
+      </span>
+      <span className="text-sm text-ink-muted tabular-nums">{src ? duracaoCurta(total) : "sem áudio guardado"}</span>
+      {src && (
+        <audio
+          ref={ref}
+          src={src}
+          preload="none"
+          onPlay={() => setTocando(true)}
+          onPause={() => setTocando(false)}
+          onEnded={() => {
+            setTocando(false);
+            setProgresso(0);
+          }}
+          onTimeUpdate={(e) => {
+            const el = e.currentTarget;
+            const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : total;
+            setProgresso(dur ? Math.min(1, el.currentTime / dur) : 0);
+          }}
+        />
       )}
-      <div>
-        <button type="submit" disabled={pending} className={btn.primario}>
-          {pending && <Loader2 className="size-4 animate-spin" />}
-          Enviar texto
-        </button>
-      </div>
-    </form>
+    </div>
   );
 }
 
@@ -532,12 +530,18 @@ function Detalhe({
   podeSalvar: boolean;
   onAtualizada: (oc: Ocorrencia) => void;
 }) {
-  const pendente = oc.status === "pendente";
-  // Começa marcado o que tem animal do cadastro e dado seguro.
+  const router = useRouter();
+  const estado = oc.status;
+  const pendente = estado === "pendente";
+  const falhou = naoEntendido(oc);
   const [marcadas, setMarcadas] = useState<Set<number>>(
     () => new Set(oc.operacoes.flatMap((op, i) => (temAlvo(op) && op.confianca >= LIMIAR_ATENCAO ? [i] : []))),
   );
+  const [abertas, setAbertas] = useState<Set<number>>(() => new Set());
   const [correcoes, setCorrecoes] = useState<Record<number, Correcao>>({});
+  const [escrevendo, setEscrevendo] = useState(false);
+  const [texto, setTexto] = useState("");
+  const [cadastrarPara, setCadastrarPara] = useState<number | null>(null);
   const [pending, start] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
 
@@ -547,20 +551,27 @@ function Detalhe({
     return r.ok ? r.op : op;
   });
 
-  function corrigir(i: number, campo: CampoCorrigivel, valor: unknown) {
-    setCorrecoes((c) => ({ ...c, [i]: { ...c[i], [campo]: valor } }));
-    // Escolher o animal (ou grupo) que faltava libera a ação: já deixa marcada.
-    if ((campo === "animalId" || campo === "grupoId") && valor) setMarcadas((s) => new Set(s).add(i));
+  function alternar(set: Set<number>, v: number) {
+    const novo = new Set(set);
+    if (novo.has(v)) novo.delete(v);
+    else novo.add(v);
+    return novo;
   }
 
-  function desfazer(i: number, campo: CampoCorrigivel) {
-    setCorrecoes((c) => {
-      const resto = { ...c[i] };
-      delete resto[campo];
-      return { ...c, [i]: resto };
+  function corrigir(i: number, c: CampoCorrigivel, valor: unknown) {
+    setCorrecoes((x) => ({ ...x, [i]: { ...x[i], [c]: valor } }));
+    // Escolher o animal (ou grupo) que faltava libera a ação: já deixa marcada.
+    if (CAMPOS_ALVO.includes(c) && valor) setMarcadas((s) => new Set(s).add(i));
+  }
+
+  function desfazer(i: number, c: CampoCorrigivel) {
+    setCorrecoes((x) => {
+      const resto = { ...x[i] };
+      delete resto[c];
+      return { ...x, [i]: resto };
     });
     const base = oc.operacoes[i];
-    if ((campo === "animalId" || campo === "grupoId") && base && !temAlvo(base)) {
+    if (CAMPOS_ALVO.includes(c) && base && !temAlvo(base)) {
       setMarcadas((s) => {
         const novo = new Set(s);
         novo.delete(i);
@@ -569,12 +580,13 @@ function Detalhe({
     }
   }
 
-  function agir(acao: "confirmar" | "descartar" | "encaminhar") {
+  function agir(acao: "confirmar" | "descartar" | "encaminhar" | "restaurar" | "texto") {
     setErro(null);
     start(async () => {
+      const corpo = acao === "confirmar" ? { operacoes: [...marcadas], correcoes } : acao === "texto" ? { texto } : {};
       const r = await chamarApiJson<unknown>(`/api/org/${orgId}/ocorrencias/${oc.id}/${acao}`, {
         method: "POST",
-        body: JSON.stringify(acao === "confirmar" ? { operacoes: [...marcadas], correcoes } : {}),
+        body: JSON.stringify(corpo),
       });
       if (!r.ok) return setErro(r.error);
       const parsed = ocorrenciaSchema.safeParse(r.data);
@@ -584,147 +596,241 @@ function Detalhe({
 
   const escolhidas = efetivas.filter((_, i) => marcadas.has(i));
   const n = escolhidas.length;
+  const totalCorrigidos = efetivas.reduce((t, op) => t + Object.keys(op.original ?? {}).length, 0);
+  const todasAbertas = oc.operacoes.length > 0 && oc.operacoes.every((_, i) => abertas.has(i));
+
+  let frase = n ? `Ao salvar, o sistema registra ${juntar(escolhidas.map((op) => efeito(op, cad)))}.` : "Nada marcado. Marque o que deve entrar no sistema.";
+  if (!podeSalvar && n) {
+    frase = `Só administradores salvam no sistema. Um administrador vai conferir e salvar ${n > 1 ? `estas ${n} ações` : "esta ação"}.`;
+  }
+  if (pendente && totalCorrigidos) frase += ` Você corrigiu ${totalCorrigidos} ${totalCorrigidos > 1 ? "dados" : "dado"}.`;
+
+  const status =
+    falhou && pendente
+      ? { rotulo: "Não entendido", cor: "text-danger" }
+      : {
+          pendente: { rotulo: "Para conferir", cor: "text-warn" },
+          confirmada: { rotulo: "Salva", cor: "text-brand-ink" },
+          descartada: { rotulo: "Descartada", cor: "text-ink-muted" },
+        }[estado];
 
   return (
-    <Card className="flex flex-col">
-      <div className="flex flex-wrap items-center gap-3 border-b border-line-soft px-6 py-5">
-        <Avatar name={oc.criadoPorNome} />
-        <div className="min-w-0 flex-1">
-          <p className="text-base font-semibold text-ink">{oc.criadoPorNome}</p>
-          <p className="text-sm text-ink-muted">
-            <span suppressHydrationWarning>{haQuantoTempo(oc.createdAt)}</span>
-            {oc.duracaoSeg != null && <> · áudio de {duracaoCurta(oc.duracaoSeg)}</>}
-          </p>
+    <section aria-label="Ocorrência" className="flex min-w-0 flex-[999_1_28rem] flex-col rounded-card border border-line bg-white">
+      <div className="flex flex-col gap-3.5 px-6 py-5">
+        <div className="flex items-baseline justify-between gap-3 text-[15px]">
+          <span>
+            <b className="font-semibold text-ink">{oc.criadoPorNome}</b>
+            <span className="text-ink-muted">
+              {oc.criadoPorCargo && ` · ${oc.criadoPorCargo}`} · <span suppressHydrationWarning>{haQuantoTempo(oc.createdAt)}</span>
+            </span>
+          </span>
+          <span className={`font-semibold ${status.cor}`}>{status.rotulo}</span>
         </div>
-        <Badge tone={TOM_STATUS[oc.status]}>{ROTULO_STATUS_OCORRENCIA[oc.status]}</Badge>
+        {!falhou && <blockquote className="text-[17px] leading-relaxed text-pretty text-ink">“{oc.transcricao}”</blockquote>}
+        <Audio src={oc.temAudio ? `/api/org/${orgId}/ocorrencias/${oc.id}/audio` : null} duracaoSeg={oc.duracaoSeg} />
       </div>
 
-      <div className="flex flex-col gap-5 px-6 py-5">
-        {naoEntendido(oc) ? (
-          pendente ? (
-            <TextoManual orgId={orgId} oc={oc} onAtualizada={onAtualizada} />
-          ) : (
-            <p className="text-[15px] text-ink-muted">Áudio não entendido.</p>
-          )
-        ) : (
-          <div className="flex flex-col gap-2">
-            <blockquote className="text-[17px] leading-relaxed text-ink">“{oc.transcricao}”</blockquote>
-            {oc.resumo && <p className="text-[15px] text-ink-muted">{oc.resumo}</p>}
+      {falhou && pendente && (
+        <div className="flex flex-col gap-3.5 border-t border-line-soft px-6 pt-5 pb-6">
+          <div className="flex flex-col gap-1.5">
+            <p className="text-base font-semibold text-danger">Não conseguimos entender este áudio</p>
+            <p className="text-[15px] leading-normal text-ink-soft">Pode ter tido muito barulho ou o som ficou baixo. Ouça e escreva o que foi dito.</p>
           </div>
-        )}
-
-        {!naoEntendido(oc) && (
-          <section className="flex flex-col gap-1">
-            <h2 className="text-sm font-semibold text-ink-muted">
-              {pendente ? "O que vai para o sistema" : "O que foi para o sistema"}
-            </h2>
-            {oc.operacoes.length === 0 ? (
-              <p className="py-2 text-[15px] text-ink-muted">Nenhuma ação encontrada neste áudio.</p>
-            ) : (
-              <ul className="-mx-3 flex flex-col">
-                {efetivas.map((op, i) => (
-                  <LinhaOperacao
-                    key={i}
-                    op={op}
-                    cad={cad}
-                    onCorrigir={(campo, valor) => corrigir(i, campo, valor)}
-                    onDesfazer={(campo) => desfazer(i, campo)}
-                    editavel={pendente}
-                    marcada={marcadas.has(i)}
-                    onToggle={() =>
-                      setMarcadas((s) => {
-                        const novo = new Set(s);
-                        if (novo.has(i)) novo.delete(i);
-                        else novo.add(i);
-                        return novo;
-                      })
-                    }
-                  />
-                ))}
-              </ul>
-            )}
-          </section>
-        )}
-      </div>
-
-      {pendente && !naoEntendido(oc) && (
-        <div className="flex flex-col gap-3 border-t border-line-soft px-6 py-4">
-          {podeSalvar && oc.encaminhadaPorNome && (
-            <p className="text-sm text-ink-muted">{oc.encaminhadaPorNome} conferiu e mandou para você salvar.</p>
+          {escrevendo && (
+            <textarea
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              rows={3}
+              autoFocus
+              aria-label="O que foi dito no áudio"
+              placeholder="Ex.: Dei vermífugo na Bolota, 5 ml."
+              className={`${campo} h-auto resize-y py-2.5 leading-normal`}
+            />
           )}
-          <p className="text-[15px] text-ink-soft">{fraseDoRodape(escolhidas, cad, podeSalvar ? "você" : "admin")}</p>
           {erro && (
             <p role="alert" className="text-sm text-danger">
               {erro}
             </p>
           )}
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {podeSalvar ? (
-              <>
-                <button type="button" disabled={pending} onClick={() => agir("descartar")} className={btn.perigo}>
-                  Descartar
-                </button>
-                <button type="button" disabled={pending} onClick={() => agir("confirmar")} className={btn.primario}>
-                  {pending && <Loader2 className="size-4 animate-spin" />}
-                  {n === 0 ? "Fechar sem ações" : `Salvar ${n} ${n === 1 ? "ação" : "ações"}`}
-                </button>
-              </>
-            ) : oc.encaminhadaEm ? (
-              <p className="text-sm text-ink-muted">
-                Mandada para o administrador <span suppressHydrationWarning>{haQuantoTempo(oc.encaminhadaEm)}</span>.
-              </p>
-            ) : (
-              <button type="button" disabled={pending} onClick={() => agir("encaminhar")} className={btn.primario}>
+          <div className="flex flex-wrap gap-2">
+            {escrevendo ? (
+              <button type="button" disabled={pending || texto.trim().length < 3} onClick={() => agir("texto")} className={btn.primario}>
                 {pending && <Loader2 className="size-4 animate-spin" />}
-                Mandar para o administrador
+                Enviar texto
+              </button>
+            ) : (
+              <button type="button" onClick={() => setEscrevendo(true)} className={btn.secundario}>
+                Escrever o que foi dito
+              </button>
+            )}
+            {podeSalvar && (
+              <button type="button" disabled={pending} onClick={() => agir("descartar")} className={btn.perigo}>
+                Descartar
               </button>
             )}
           </div>
         </div>
       )}
 
-      {!pendente && oc.revisadoPorNome && (
-        <p className="border-t border-line-soft px-6 py-4 text-sm text-ink-muted">
-          {oc.status === "confirmada" ? "Salva" : "Descartada"} por {oc.revisadoPorNome}
+      {efetivas.length > 0 && (
+        <>
+          <div className="flex items-baseline justify-between gap-3 border-t border-line-soft px-6 pt-4 pb-1.5">
+            <h2 className="text-sm font-semibold text-ink-muted">
+              {pendente ? "O que vai ser feito no sistema" : estado === "confirmada" ? "O que foi feito no sistema" : "O que ia ser feito"}
+            </h2>
+            <button
+              type="button"
+              onClick={() => setAbertas(todasAbertas ? new Set() : new Set(oc.operacoes.map((_, i) => i)))}
+              className="cursor-pointer text-sm font-semibold text-ink-soft"
+            >
+              {todasAbertas ? "Esconder detalhes" : "Mostrar detalhes"}
+            </button>
+          </div>
+          <ul className="flex flex-col px-3 pb-2.5">
+            {efetivas.map((op, i) => (
+              <LinhaOperacao
+                key={i}
+                op={op}
+                cad={cad}
+                estado={estado}
+                marcada={marcadas.has(i)}
+                aberta={abertas.has(i)}
+                registradoPor={oc.criadoPorNome}
+                onToggle={() => setMarcadas((s) => alternar(s, i))}
+                onAbrir={() => setAbertas((s) => alternar(s, i))}
+                onCorrigir={(c, v) => corrigir(i, c, v)}
+                onDesfazer={(c) => desfazer(i, c)}
+                onCadastrarNovo={() => setCadastrarPara(i)}
+              />
+            ))}
+          </ul>
+        </>
+      )}
+
+      {!falhou && efetivas.length === 0 && (
+        <p className="border-t border-line-soft px-6 py-5 text-[15px] text-ink-muted">Nenhuma ação encontrada neste áudio.</p>
+      )}
+
+      {pendente && !falhou && (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-t border-line-soft px-6 py-3.5">
+          <p className="flex-[1_1_18rem] text-sm leading-snug text-pretty text-ink-soft">
+            {podeSalvar && oc.encaminhadaPorNome && <>{oc.encaminhadaPorNome} conferiu e mandou para você. </>}
+            {frase}
+          </p>
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex gap-2">
+              {podeSalvar && (
+                <button type="button" disabled={pending} onClick={() => agir("descartar")} className={btn.perigo}>
+                  Descartar
+                </button>
+              )}
+              {podeSalvar ? (
+                <button type="button" disabled={pending || n === 0} onClick={() => agir("confirmar")} className={`${btn.primario} px-[18px]`}>
+                  {pending && <Loader2 className="size-4 animate-spin" />}
+                  {n === 0 ? "Nada marcado" : `Salvar ${n} ${n === 1 ? "ação" : "ações"}`}
+                </button>
+              ) : oc.encaminhadaEm ? (
+                <span className="text-sm text-ink-muted">
+                  Mandada para o administrador <span suppressHydrationWarning>{haQuantoTempo(oc.encaminhadaEm)}</span>.
+                </span>
+              ) : (
+                <button type="button" disabled={pending || n === 0} onClick={() => agir("encaminhar")} className={btn.primario}>
+                  {pending && <Loader2 className="size-4 animate-spin" />}
+                  Mandar para o administrador
+                </button>
+              )}
+            </div>
+            {erro && (
+              <p role="alert" className="text-sm text-danger">
+                {erro}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {estado === "confirmada" && (
+        <p className="border-t border-line-soft px-6 py-3.5 text-sm text-ink-muted">
+          Conferido e salvo{oc.revisadoPorNome && ` por ${oc.revisadoPorNome}`}
           {oc.revisadoEm && (
             <>
               {" "}
-              · <span suppressHydrationWarning>{haQuantoTempo(oc.revisadoEm)}</span>
+              <span suppressHydrationWarning>{haQuantoTempo(oc.revisadoEm)}</span>
             </>
           )}
+          .
         </p>
       )}
-    </Card>
+
+      {estado === "descartada" && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft px-6 py-3.5">
+          <span className="text-sm text-ink-muted">Nada disto entrou no sistema. Fica guardado aqui por 30 dias.</span>
+          {podeSalvar && (
+            <button type="button" disabled={pending} onClick={() => agir("restaurar")} className={btn.secundario}>
+              Voltar para conferir
+            </button>
+          )}
+        </div>
+      )}
+
+      {cadastrarPara !== null && (
+        <AnimalModal
+          animal={null}
+          orgId={orgId}
+          possoRemover={false}
+          inicial={{ nome: oc.operacoes[cadastrarPara]?.alvo }}
+          onClose={() => setCadastrarPara(null)}
+          onDone={(r) => {
+            const i = cadastrarPara;
+            setCadastrarPara(null);
+            // O animal novo passa a ser o alvo; a lista de animais vem no refresh.
+            if (r?.criadoId) corrigir(i, "animalId", r.criadoId);
+            router.refresh();
+          }}
+        />
+      )}
+    </section>
   );
 }
 
 function ItemLista({ oc, ativa, onClick }: { oc: Ocorrencia; ativa: boolean; onClick: () => void }) {
-  const acoes = oc.status === "confirmada" ? oc.operacoes.filter((o) => o.aplicada).length : oc.operacoes.length;
+  const falhou = naoEntendido(oc);
+  const n = oc.operacoes.length;
+  const atencao = oc.operacoes.filter((op) => !temAlvo(op) || op.confianca < LIMIAR_ATENCAO).length;
+  let resumo = `${n} ${n === 1 ? "ação" : "ações"} no sistema`;
+  let ponto = "bg-[#c9c5bb]";
+  let cor = "text-ink-muted";
+  if (falhou) {
+    resumo = "Não entendemos o áudio";
+    ponto = "bg-danger";
+    cor = "text-danger";
+  } else if (oc.status === "pendente" && atencao) {
+    resumo += ` · ${atencao} para conferir`;
+    ponto = "bg-warn-dot";
+  } else if (oc.status === "confirmada") {
+    ponto = "bg-brand";
+  }
+  if (oc.status === "pendente" && oc.encaminhadaEm) resumo += " · mandada ao administrador";
+
   return (
     <li>
       <button
         type="button"
         onClick={onClick}
         aria-current={ativa ? "true" : undefined}
-        className={`flex w-full cursor-pointer flex-col gap-1 border-b border-line-soft px-4 py-3.5 text-left transition last:border-b-0 ${
-          ativa ? "bg-surface" : "hover:bg-hover"
-        }`}
+        className={`flex w-full cursor-pointer flex-col gap-1 rounded-field px-3.5 py-3 text-left transition ${ativa ? "bg-surface" : "hover:bg-hover"}`}
       >
-        <span className="flex items-baseline justify-between gap-3">
-          <span className="truncate text-[15px] font-semibold text-ink">{oc.criadoPorNome}</span>
-          <span className="shrink-0 text-[13px] text-ink-muted" suppressHydrationWarning>
+        <span className="flex justify-between gap-2 text-[15px]">
+          <span className="truncate font-semibold text-ink">{oc.criadoPorNome}</span>
+          <span className="shrink-0 text-ink-muted" suppressHydrationWarning>
             {haQuantoTempo(oc.createdAt)}
           </span>
         </span>
-        <span className={`line-clamp-2 text-sm ${naoEntendido(oc) ? "text-warn" : "text-ink-soft"}`}>
-          {naoEntendido(oc) ? "Áudio não entendido" : oc.transcricao}
+        <span className="truncate text-[15px] text-ink-soft">{falhou ? `Áudio de ${duracaoCurta(oc.duracaoSeg ?? 0)}` : oc.transcricao}</span>
+        <span className={`flex items-center gap-1.5 text-sm ${cor}`}>
+          <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${ponto}`} />
+          {resumo}
         </span>
-        {!naoEntendido(oc) && (
-          <span className="text-[13px] text-ink-muted">
-            {acoes} {acoes === 1 ? "ação" : "ações"} no sistema
-            {oc.status === "pendente" && oc.encaminhadaEm && " · mandada ao administrador"}
-          </span>
-        )}
       </button>
     </li>
   );
@@ -736,17 +842,25 @@ export function OcorrenciasView({
   animais: listaAnimais,
   grupos: listaGrupos,
   podeSalvar,
+  selecionarId,
 }: {
   orgId: string;
   ocorrencias: Ocorrencia[];
   animais: AnimalRef[];
   grupos: GrupoRef[];
   podeSalvar: boolean;
+  /** Vindo de uma notificação: abre esta ocorrência, na aba certa. */
+  selecionarId?: string;
 }) {
   const router = useRouter();
   const [lista, setLista] = useState(iniciais);
-  const [aba, setAba] = useState<StatusOcorrencia>("pendente");
-  const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
+  const [anteriores, setAnteriores] = useState(iniciais);
+  if (anteriores !== iniciais) {
+    setAnteriores(iniciais);
+    setLista(iniciais);
+  }
+  const [aba, setAba] = useState<StatusOcorrencia>(() => iniciais.find((o) => o.id === selecionarId)?.status ?? "pendente");
+  const [selecionadaId, setSelecionadaId] = useState<string | null>(selecionarId ?? null);
   const cad: Cadastro = {
     animais: new Map(listaAnimais.map((a) => [a.id, a])),
     grupos: new Map(listaGrupos.map((g) => [g.id, g])),
@@ -754,6 +868,8 @@ export function OcorrenciasView({
 
   function substituir(oc: Ocorrencia) {
     setLista((l) => l.map((x) => (x.id === oc.id ? oc : x)));
+    setAba(oc.status);
+    setSelecionadaId(oc.id);
     // Salvar cria consulta/anotação/peso: as outras telas (e o contador do menu) precisam ver.
     router.refresh();
   }
@@ -762,13 +878,13 @@ export function OcorrenciasView({
   const selecionada = visiveis.find((o) => o.id === selecionadaId) ?? visiveis[0];
 
   return (
-    <>
-      <PageHeader
-        title="Ocorrências"
-        subtitle="O que foi contado nos áudios, pronto para conferir. Nada entra no sistema sem você salvar."
-      />
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1.5">
+        <h1 className="text-[28px] leading-tight font-semibold tracking-tight text-ink">Ocorrências</h1>
+        <p className="text-base text-ink-muted">O que foi falado no microfone do {BRAND_NAME}. Nada entra no sistema antes de alguém conferir.</p>
+      </div>
 
-      <div role="tablist" aria-label="Situação" className="mb-5 flex gap-5 border-b border-line">
+      <div role="tablist" aria-label="Situação" className="flex gap-6 border-b border-line">
         {ABAS.map((t) => {
           const n = lista.filter((o) => o.status === t.status).length;
           const ativo = t.status === aba;
@@ -786,30 +902,24 @@ export function OcorrenciasView({
                 ativo ? "border-ink font-semibold text-ink" : "border-transparent text-ink-muted hover:text-ink"
               }`}
             >
-              {t.label} <span className="ml-0.5 font-normal text-ink-muted tabular-nums">{n}</span>
+              {t.label} <span className="ml-0.5 font-medium text-ink-muted tabular-nums">{n}</span>
             </button>
           );
         })}
       </div>
 
       {visiveis.length === 0 ? (
-        <Card className="px-6 py-14 text-center">
-          <p className="text-base font-semibold text-ink">
-            {aba === "pendente" ? "Nada para conferir agora." : aba === "confirmada" ? "Nenhuma ocorrência salva ainda." : "Nenhuma ocorrência descartada."}
-          </p>
-          {aba === "pendente" && (
-            <p className="mt-1 text-[15px] text-ink-muted">Quando alguém gravar um áudio no campo, ele aparece aqui.</p>
-          )}
-        </Card>
+        <div className="flex max-w-xl flex-col gap-1.5 py-6">
+          <p className="text-lg font-semibold text-ink">{VAZIO[aba].titulo}</p>
+          <p className="text-[15px] leading-relaxed text-ink-soft">{VAZIO[aba].texto}</p>
+        </div>
       ) : (
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(16rem,20rem)_1fr]">
-          <Card className="overflow-hidden">
-            <ul aria-label="Ocorrências">
-              {visiveis.map((oc) => (
-                <ItemLista key={oc.id} oc={oc} ativa={oc.id === selecionada?.id} onClick={() => setSelecionadaId(oc.id)} />
-              ))}
-            </ul>
-          </Card>
+        <div className="flex flex-wrap items-start gap-7">
+          <ul aria-label="Ocorrências" className="flex max-w-[310px] min-w-0 flex-[1_1_15rem] flex-col gap-0.5">
+            {visiveis.map((oc) => (
+              <ItemLista key={oc.id} oc={oc} ativa={oc.id === selecionada?.id} onClick={() => setSelecionadaId(oc.id)} />
+            ))}
+          </ul>
           {selecionada && (
             <Detalhe
               key={`${selecionada.id}-${selecionada.status}-${selecionada.transcricao.length}`}
@@ -822,6 +932,6 @@ export function OcorrenciasView({
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }

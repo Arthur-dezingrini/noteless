@@ -18,7 +18,7 @@ import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { Modal } from "@/components/app/modal";
 import { Select } from "@/components/app/select";
 import { btn, campo } from "@/components/app/ui";
-import { chamarApi } from "@/lib/api-client";
+import { chamarApi, chamarApiJson } from "@/lib/api-client";
 
 function Campo({ label, dica, children, largo }: { label: string; dica?: string; children: ReactNode; largo?: boolean }) {
   return (
@@ -46,14 +46,18 @@ export function AnimalModal({
   animal,
   orgId,
   possoRemover,
+  inicial,
   onClose,
   onDone,
 }: {
   animal: Animal | null;
   orgId: string;
   possoRemover: boolean;
+  /** Pré-preenche o cadastro (ex.: o nome que foi dito no áudio). */
+  inicial?: { nome?: string; numero?: string };
   onClose: () => void;
-  onDone: (removido?: boolean) => void;
+  /** `criadoId` vem no cadastro novo; `removido` quando o animal saiu. */
+  onDone: (r?: { removido?: boolean; criadoId?: string }) => void;
 }) {
   const [pending, start] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
@@ -84,12 +88,14 @@ export function AnimalModal({
     if (!parsed.success) return setErro(parsed.error.issues[0]?.message ?? "Dados inválidos.");
 
     start(async () => {
-      const err = await chamarApi(animal ? `/api/org/${orgId}/animais/${animal.id}` : `/api/org/${orgId}/animais`, {
-        method: animal ? "PATCH" : "POST",
-        body: JSON.stringify(parsed.data),
-      });
-      if (err) return setErro(err);
-      onDone();
+      if (animal) {
+        const err = await chamarApi(`/api/org/${orgId}/animais/${animal.id}`, { method: "PATCH", body: JSON.stringify(parsed.data) });
+        if (err) return setErro(err);
+        return onDone();
+      }
+      const r = await chamarApiJson<{ id: string }>(`/api/org/${orgId}/animais`, { method: "POST", body: JSON.stringify(parsed.data) });
+      if (!r.ok) return setErro(r.error);
+      onDone({ criadoId: r.data.id });
     });
   }
 
@@ -99,7 +105,7 @@ export function AnimalModal({
     start(async () => {
       const err = await chamarApi(`/api/org/${orgId}/animais/${animal.id}`, { method: "DELETE" });
       if (err) return setErro(err);
-      onDone(true);
+      onDone({ removido: true });
     });
   }
 
@@ -114,10 +120,10 @@ export function AnimalModal({
       <form onSubmit={submit} className="flex flex-col gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Campo label="Número" dica="(brinco, coleira ou registro)">
-            <input name="numero" className={campo} defaultValue={animal?.numero ?? ""} placeholder="Ex.: 132" autoComplete="off" autoFocus />
+            <input name="numero" className={campo} defaultValue={animal?.numero ?? inicial?.numero ?? ""} placeholder="Ex.: 132" autoComplete="off" autoFocus />
           </Campo>
           <Campo label="Nome">
-            <input name="nome" className={campo} defaultValue={animal?.nome ?? ""} placeholder="Ex.: Thor" autoComplete="off" />
+            <input name="nome" className={campo} defaultValue={animal?.nome ?? inicial?.nome ?? ""} placeholder="Ex.: Thor" autoComplete="off" />
           </Campo>
           <Campo label="Espécie">
             <Select name="especie" defaultValue={animal?.especie ?? "cao"}>

@@ -186,9 +186,9 @@ export function FichaView({
           orgId={orgId}
           possoRemover={possoRemover}
           onClose={() => setEditando(false)}
-          onDone={(removido) => {
+          onDone={(r) => {
             setEditando(false);
-            if (removido) router.push("/animais");
+            if (r?.removido) router.push("/animais");
             router.refresh();
           }}
         />

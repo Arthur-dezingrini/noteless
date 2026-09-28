@@ -4,8 +4,8 @@ import { OcorrenciasView } from "./ocorrencias-view";
 
 export const metadata = { title: "Ocorrências" };
 
-export default async function OcorrenciasPage() {
-  const [, org] = await Promise.all([requireSession(), getOrgAtiva()]);
+export default async function OcorrenciasPage({ searchParams }: PageProps<"/ocorrencias">) {
+  const [, org, busca] = await Promise.all([requireSession(), getOrgAtiva(), searchParams]);
 
   if (!org) {
     return (
@@ -26,9 +26,10 @@ export default async function OcorrenciasPage() {
     <OcorrenciasView
       orgId={org.id}
       ocorrencias={ocorrencias}
-      animais={animais.map((a) => ({ id: a.id, nome: a.nome, sexo: a.sexo ?? null }))}
+      animais={animais.map((a) => ({ id: a.id, nome: a.nome, numero: a.numero ?? null, sexo: a.sexo ?? null }))}
       grupos={grupos.map((g) => ({ id: g.id, nome: g.nome, animais: g.animalIds.length }))}
       podeSalvar={membro?.role === "owner" || membro?.role === "admin"}
+      selecionarId={typeof busca.id === "string" ? busca.id : undefined}
     />
   );
 }
