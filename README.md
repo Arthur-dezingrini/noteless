@@ -253,9 +253,14 @@ migração.
   numa transação. Operação sem animal do cadastro não é aplicável — a tela
   avisa. O áudio não fica guardado (provisório); sobram transcrição e duração.
 
-  Hoje o áudio entra pelo botão **Gravar ocorrência** na própria tela (grava
-  no navegador). WhatsApp e o gravador de campo vão desaguar na mesma rota,
-  `POST /api/org/:orgId/ocorrencias` (multipart, campo `audio`).
+  O áudio entra por `POST /api/org/:orgId/ocorrencias` (multipart, campo
+  `audio`) — é por aí que o gravador de campo (ESP32, em `firmware/`) e o
+  WhatsApp vão chegar. Áudio que a transcrição não entende vira ocorrência
+  mesmo assim; quem confere escreve o que foi dito (`POST …/:id/texto`) e a IA
+  reinterpreta.
+
+  Qualquer membro confere; **salvar ou descartar é do administrador**. O
+  membro usa "Mandar para o administrador" (`POST …/:id/encaminhar`).
 
   A IA precisa de uma chave no `.env` da api (veja `.env.example`). Com só
   `GROQ_API_KEY` (plano grátis em console.groq.com) a transcrição (Whisper)

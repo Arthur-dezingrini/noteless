@@ -9,6 +9,7 @@ import { organization, user } from "./schema";
  * não dado do sistema — só na confirmação viram linhas nas tabelas de verdade.
  *
  * O áudio em si não é guardado (provisório): sobra a transcrição e a duração.
+ * Transcrição vazia = áudio não entendido; quem confere escreve o que foi dito.
  */
 export const ocorrencia = pgTable(
   "ocorrencia",
@@ -28,6 +29,9 @@ export const ocorrencia = pgTable(
     operacoes: jsonb("operacoes").notNull(),
     revisadoPorId: text("revisado_por_id").references(() => user.id, { onDelete: "set null" }),
     revisadoEm: timestamp("revisado_em"),
+    // Membro sem permissão de salvar confere e passa para o administrador.
+    encaminhadaPorId: text("encaminhada_por_id").references(() => user.id, { onDelete: "set null" }),
+    encaminhadaEm: timestamp("encaminhada_em"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [index("ocorrencia_organization_id_status_idx").on(table.organizationId, table.status)],

@@ -2,8 +2,10 @@ import {
   confirmarOcorrenciaSchema,
   operacaoSchema,
   statusOcorrenciaSchema,
+  textoOcorrenciaSchema,
   type Ocorrencia,
   type Operacao,
+  type Papel,
 } from "@vocare/shared";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
@@ -21,9 +23,13 @@ import { membroAtual } from "../membros/membro-atual";
 
 /**
  * Registros de ocorrência: áudio entra, IA propõe, humano confirma. Qualquer
- * membro grava e revisa — no campo, quem grava costuma ser quem confere.
+ * membro grava e confere; salvar (aplicar ao sistema) ou descartar é do
+ * administrador — o membro manda para ele.
  */
 export const ocorrenciasRoutes = new Hono();
+
+const PODE_SALVAR: Papel[] = ["owner", "admin"];
+const SO_ADMIN = "Só o administrador salva ou descarta ocorrências. Use \"Mandar para o administrador\".";
 
 const TAMANHO_MAXIMO = 25 * 1024 * 1024; // limite do Whisper
 const HORA_PADRAO = "08:00";
@@ -37,6 +43,7 @@ function hojeISO() {
 
 const criador = alias(user, "criador");
 const revisor = alias(user, "revisor");
+const encaminhador = alias(user, "encaminhador");
 
 const colunas = {
   id: ocorrencia.id,
@@ -49,6 +56,8 @@ const colunas = {
   createdAt: ocorrencia.createdAt,
   revisadoPorNome: revisor.name,
   revisadoEm: ocorrencia.revisadoEm,
+  encaminhadaPorNome: encaminhador.name,
+  encaminhadaEm: ocorrencia.encaminhadaEm,
 };
 
 type Linha = { [K in keyof typeof colunas]: (typeof colunas)[K]["_"]["data"] | null };
@@ -67,6 +76,8 @@ function paraContrato(r: Linha): Ocorrencia {
     createdAt: r.createdAt!,
     revisadoPorNome: r.revisadoPorNome,
     revisadoEm: r.revisadoEm,
+    encaminhadaPorNome: r.encaminhadaPorNome,
+    encaminhadaEm: r.encaminhadaEm,
   };
 }
 
@@ -78,6 +89,7 @@ async function buscar(orgId: string, id?: string) {
     .from(ocorrencia)
     .leftJoin(criador, eq(criador.id, ocorrencia.criadoPorId))
     .leftJoin(revisor, eq(revisor.id, ocorrencia.revisadoPorId))
+    .leftJoin(encaminhador, eq(encaminhador.id, ocorrencia.encaminhadaPorId))
     .where(and(...filtros))
     .orderBy(desc(ocorrencia.createdAt));
   return rows.map(paraContrato);
@@ -108,15 +120,9 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias", async (c) => {
 
   try {
     const transcricao = await transcrever(audio);
-    if (!transcricao) return c.json({ error: "Não deu para entender nada no áudio. Grave de novo, mais perto do microfone." }, 422);
-
-    const animais = await db
-      .select({ id: animal.id, nome: animal.nome, especie: animal.especie, raca: animal.raca, tutor: animal.tutor })
-      .from(animal)
-      .where(and(eq(animal.organizationId, orgId), eq(animal.status, "ativo")))
-      .orderBy(asc(animal.nome));
-
-    const analise = await analisar(transcricao, hojeISO(), animais);
+    // Áudio que não deu para entender vira ocorrência mesmo assim: quem
+    // confere escreve o que foi dito (POST /:id/texto).
+    const analise = transcricao ? await analisar(transcricao, hojeISO(), await animaisDaOrg(orgId)) : null;
 
     const [nova] = await db
       .insert(ocorrencia)
@@ -124,9 +130,9 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias", async (c) => {
         organizationId: orgId,
         criadoPorId: eu.userId,
         transcricao,
-        resumo: analise.resumo,
+        resumo: analise?.resumo ?? "",
         duracaoSeg,
-        operacoes: analise.operacoes,
+        operacoes: analise?.operacoes ?? [],
       })
       .returning({ id: ocorrencia.id });
 
@@ -137,6 +143,66 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias", async (c) => {
     console.error("[ocorrencias] falha no pipeline de áudio:", e);
     return c.json({ error: "A IA não conseguiu processar o áudio agora. Tente de novo em instantes." }, 502);
   }
+});
+
+/** Animais ativos da organização — o contexto que a IA usa para ligar nomes a ids. */
+function animaisDaOrg(orgId: string) {
+  return db
+    .select({ id: animal.id, nome: animal.nome, especie: animal.especie, raca: animal.raca, tutor: animal.tutor })
+    .from(animal)
+    .where(and(eq(animal.organizationId, orgId), eq(animal.status, "ativo")))
+    .orderBy(asc(animal.nome));
+}
+
+/**
+ * Áudio não entendido (ou mal entendido): o texto escrito substitui a
+ * transcrição e a IA interpreta de novo. Só enquanto está para conferir.
+ */
+ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/texto", async (c) => {
+  const orgId = c.req.param("orgId");
+  const id = c.req.param("id");
+  const eu = await membroAtual(c.req.raw.headers, orgId);
+  if (!eu) return c.json({ error: "Sem acesso a esta organização." }, 403);
+
+  const body = textoOcorrenciaSchema.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
+
+  const [alvo] = await buscar(orgId, id);
+  if (!alvo) return c.json({ error: "Ocorrência não encontrada." }, 404);
+  if (alvo.status !== "pendente") return c.json({ error: "Esta ocorrência já foi revisada." }, 409);
+
+  try {
+    const analise = await analisar(body.data.texto, hojeISO(), await animaisDaOrg(orgId));
+    await db
+      .update(ocorrencia)
+      .set({ transcricao: body.data.texto, resumo: analise.resumo, operacoes: analise.operacoes })
+      .where(and(eq(ocorrencia.id, id), eq(ocorrencia.organizationId, orgId)));
+  } catch (e) {
+    if (e instanceof IaNaoConfigurada) return c.json({ error: e.message }, 503);
+    console.error("[ocorrencias] falha ao interpretar texto:", e);
+    return c.json({ error: "A IA não conseguiu interpretar o texto agora. Tente de novo em instantes." }, 502);
+  }
+
+  const [pronta] = await buscar(orgId, id);
+  return c.json(pronta);
+});
+
+/** Membro conferiu e passa para o administrador salvar. */
+ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/encaminhar", async (c) => {
+  const orgId = c.req.param("orgId");
+  const id = c.req.param("id");
+  const eu = await membroAtual(c.req.raw.headers, orgId);
+  if (!eu) return c.json({ error: "Sem acesso a esta organização." }, 403);
+
+  const [alvo] = await db
+    .update(ocorrencia)
+    .set({ encaminhadaPorId: eu.userId, encaminhadaEm: new Date() })
+    .where(and(eq(ocorrencia.id, id), eq(ocorrencia.organizationId, orgId), eq(ocorrencia.status, "pendente")))
+    .returning({ id: ocorrencia.id });
+  if (!alvo) return c.json({ error: "Ocorrência não encontrada ou já revisada." }, 404);
+
+  const [pronta] = await buscar(orgId, id);
+  return c.json(pronta);
 });
 
 /**
@@ -184,6 +250,7 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/confirmar", async (c) => {
   const id = c.req.param("id");
   const eu = await membroAtual(c.req.raw.headers, orgId);
   if (!eu) return c.json({ error: "Sem acesso a esta organização." }, 403);
+  if (!PODE_SALVAR.includes(eu.role)) return c.json({ error: SO_ADMIN }, 403);
 
   const body = confirmarOcorrenciaSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
@@ -226,6 +293,7 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/descartar", async (c) => {
   const id = c.req.param("id");
   const eu = await membroAtual(c.req.raw.headers, orgId);
   if (!eu) return c.json({ error: "Sem acesso a esta organização." }, 403);
+  if (!PODE_SALVAR.includes(eu.role)) return c.json({ error: SO_ADMIN }, 403);
 
   const [alvo] = await db
     .update(ocorrencia)
