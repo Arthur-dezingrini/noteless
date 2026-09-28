@@ -245,13 +245,19 @@ migração.
   responsável em vez de sumir). Data e hora separadas, "de parede", sem fuso.
   Qualquer membro agenda, edita e exclui. Status: agendada, confirmada,
   urgente, concluída, cancelada — prefira cancelar a excluir, o histórico fica.
+- **Prontuários** — `prontuario`: o registro de um atendimento (queixa, exame
+  físico, diagnóstico, remédios receitados, exames pedidos). Normalmente
+  documenta uma consulta da agenda — "Registrar atendimento" no menu dela —
+  e registrar marca a consulta como concluída. O retorno preenchido vira uma
+  consulta nova na agenda. Qualquer membro registra e corrige; apagar é de
+  administrador.
 - **Ocorrências** — `ocorrencia`: o coração do produto. Um áudio do campo
   entra, é transcrito e interpretado pela IA, e vira um registro *pendente*
   com as operações propostas (JSON). Nada é gravado nas outras tabelas até um
   humano confirmar: a confirmação aplica só as operações marcadas (agendar
   consulta, anotação no animal em `anotacao_animal`, atualizar peso), tudo
   numa transação. Operação sem animal do cadastro não é aplicável — a tela
-  avisa. O áudio não fica guardado (provisório); sobram transcrição e duração.
+  avisa. O áudio fica em `ocorrencia_audio` para quem confere poder ouvir.
 
   O áudio entra por `POST /api/org/:orgId/ocorrencias` (multipart, campo
   `audio`) — é por aí que o gravador de campo (ESP32, em `firmware/`) e o
