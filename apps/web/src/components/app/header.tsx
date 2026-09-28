@@ -54,7 +54,7 @@ export function Header({ orgId, notificacoes }: { orgId: string | null; notifica
   }
 
   return (
-    <header className="relative flex h-14 shrink-0 items-center justify-end border-b border-line px-6">
+    <header className="print:hidden relative flex h-14 shrink-0 items-center justify-end border-b border-line px-6">
       <div ref={caixa}>
         <button
           type="button"

@@ -40,6 +40,8 @@ export const vacina = pgTable(
     ...comum(),
     vacina: text("vacina").notNull(),
     dose: text("dose"),
+    // Aplicada no grupo inteiro (o relatório mostra "Lote 4 (17 animais)").
+    grupoId: text("grupo_id"),
     data: date("data").notNull(),
     // Quando vence / próxima dose. Os relatórios de "a vencer" usam isto.
     proximaData: date("proxima_data"),
@@ -57,6 +59,7 @@ export const tratamento = pgTable(
     ...comum(),
     remedio: text("remedio").notNull(),
     dose: text("dose"),
+    grupoId: text("grupo_id"),
     inicio: date("inicio").notNull(),
     fim: date("fim"),
     // Dias sem abate/ordenha depois do fim.

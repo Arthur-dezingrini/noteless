@@ -26,7 +26,9 @@ import { Calendario } from "./calendario";
 
 type Modo = "dia" | "semana";
 type Veterinario = { id: string; nome: string };
-type Dialogo = { tipo: "nova"; data: string } | { tipo: "remarcar"; consulta: Consulta } | null;
+/** Pré-preenchimento da consulta nova (ex.: "Marcar na agenda" do relatório de vacinas). */
+export type NovaConsulta = { animalId?: string; tipoConsulta?: string; observacoes?: string };
+type Dialogo = ({ tipo: "nova"; data: string } & NovaConsulta) | { tipo: "remarcar"; consulta: Consulta } | null;
 
 const COR_STATUS: Record<StatusConsulta, string> = {
   agendada: "text-warn",
@@ -76,14 +78,16 @@ type Props = {
   consultas: Consulta[];
   animais: Animal[];
   veterinarios: Veterinario[];
+  /** Abre a janela de consulta nova já preenchida. */
+  novaPara?: NovaConsulta;
 };
 
-export function AgendaView({ orgId, hoje, consultas: iniciais, animais, veterinarios }: Props) {
+export function AgendaView({ orgId, hoje, consultas: iniciais, animais, veterinarios, novaPara }: Props) {
   const router = useRouter();
   const [consultas, setConsultas] = useState(iniciais);
   const [selecionado, setSelecionado] = useState(hoje);
   const [modo, setModo] = useState<Modo>("dia");
-  const [dialogo, setDialogo] = useState<Dialogo>(null);
+  const [dialogo, setDialogo] = useState<Dialogo>(novaPara ? { tipo: "nova", data: hoje, ...novaPara } : null);
   const [erro, setErro] = useState<string | null>(null);
   const [{ ano, mes }, setMesVisivel] = useState(() => ({ ano: Number(hoje.slice(0, 4)), mes: Number(hoje.slice(5, 7)) }));
 
@@ -498,7 +502,7 @@ function ConsultaModal({
               </Campo>
             ) : (
               <Campo label="Animal" largo>
-                <Select name="animalId" required defaultValue={consulta?.animalId ?? ""}>
+                <Select name="animalId" required defaultValue={consulta?.animalId ?? (dialogo.tipo === "nova" ? dialogo.animalId : undefined) ?? ""}>
                   <option value="" disabled>
                     Escolha o animal
                   </option>
@@ -517,7 +521,7 @@ function ConsultaModal({
               <input name="hora" type="time" required className={campo} defaultValue={consulta?.hora ?? "10:00"} />
             </Campo>
             <Campo label="Tipo">
-              <Select name="tipo" defaultValue={consulta?.tipo ?? "consulta"}>
+              <Select name="tipo" defaultValue={consulta?.tipo ?? (dialogo.tipo === "nova" ? dialogo.tipoConsulta : undefined) ?? "consulta"}>
                 {TIPOS_CONSULTA.map((t) => (
                   <option key={t} value={t}>
                     {ROTULO_TIPO_CONSULTA[t]}
@@ -545,7 +549,7 @@ function ConsultaModal({
               </Select>
             </Campo>
             <Campo label="Observações" dica="(opcional)" largo>
-              <input name="observacoes" className={campo} placeholder="Algo que quem vai atender precisa saber" defaultValue={consulta?.observacoes ?? ""} />
+              <input name="observacoes" className={campo} placeholder="Algo que quem vai atender precisa saber" defaultValue={consulta?.observacoes ?? (dialogo.tipo === "nova" ? dialogo.observacoes : undefined) ?? ""} />
             </Campo>
           </div>
 

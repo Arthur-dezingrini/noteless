@@ -11,8 +11,8 @@ import { AgendaView } from "./agenda-view";
 
 export const metadata = { title: "Agenda" };
 
-export default async function AgendaPage() {
-  const [, org] = await Promise.all([requireSession(), getOrgAtiva()]);
+export default async function AgendaPage({ searchParams }: PageProps<"/agenda">) {
+  const [, org, q] = await Promise.all([requireSession(), getOrgAtiva(), searchParams]);
 
   if (!org) {
     return (
@@ -37,6 +37,15 @@ export default async function AgendaPage() {
       consultas={consultas}
       animais={animais.filter((a) => a.status === "ativo")}
       veterinarios={usuarios.map((u) => ({ id: u.id, nome: u.name }))}
+      novaPara={
+        typeof q.nova === "string"
+          ? {
+              animalId: q.nova,
+              tipoConsulta: typeof q.tipo === "string" ? q.tipo : undefined,
+              observacoes: typeof q.obs === "string" ? q.obs : undefined,
+            }
+          : undefined
+      }
     />
   );
 }

@@ -57,7 +57,7 @@ export function Sidebar({
   const nome = user.name || user.email;
 
   return (
-    <aside className="sticky top-0 flex h-svh w-56 shrink-0 flex-col gap-[18px] overflow-y-auto border-r border-line px-3.5 py-[22px]">
+    <aside className="print:hidden sticky top-0 flex h-svh w-56 shrink-0 flex-col gap-[18px] overflow-y-auto border-r border-line px-3.5 py-[22px]">
       <Logo className="px-2" />
       <OrgSwitcher organizacoes={organizacoes} ativaId={ativaId} animais={animais} />
 

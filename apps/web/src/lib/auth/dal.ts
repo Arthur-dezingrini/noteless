@@ -8,6 +8,7 @@ import {
   notificacaoListaSchema,
   ocorrenciaListaSchema,
   organizationListSchema,
+  relatorioSchema,
   sessionSchema,
   usuarioListaSchema,
   type Animal,
@@ -19,6 +20,8 @@ import {
   type Notificacao,
   type Ocorrencia,
   type Organization,
+  type Relatorio,
+  type TipoRelatorio,
   type Session,
   type Usuario,
 } from "@vocare/shared";
@@ -158,6 +161,22 @@ export const getAvisos = cache(async (organizationId: string): Promise<Aviso[]> 
   const parsed = avisoListaSchema.safeParse(await res.json());
   return parsed.success ? parsed.data : [];
 });
+
+/** Um dos relatórios, para o período (e o animal, no de peso) pedido. */
+export async function getRelatorio(
+  organizationId: string,
+  tipo: TipoRelatorio,
+  params: { periodo?: string; animalId?: string },
+): Promise<Relatorio | null> {
+  const q = new URLSearchParams();
+  if (params.periodo) q.set("periodo", params.periodo);
+  if (params.animalId) q.set("animalId", params.animalId);
+  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/relatorios/${tipo}${q.size ? `?${q}` : ""}`);
+  if (!res.ok) return null;
+
+  const parsed = relatorioSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : null;
+}
 
 /** Avisos do sino do usuário atual nesta organização (os 30 mais recentes). */
 export const getNotificacoes = cache(async (organizationId: string): Promise<Notificacao[]> => {
