@@ -7,17 +7,17 @@ import {
   vincularUsuarioSchema,
   type Usuario,
 } from "@vocare/shared";
-import { Link2, Loader2, Plus, UsersRound } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import { z } from "zod";
 
-import { Avatar } from "@/components/app/avatar";
-import { Card, CardHeader } from "@/components/app/card";
+import { initials } from "@/components/app/avatar";
 import { Modal } from "@/components/app/modal";
 import { Select } from "@/components/app/select";
 import { btn, campo } from "@/components/app/ui";
 import { chamarApi, chamarApiJson } from "@/lib/api-client";
+import { BRAND_NAME } from "@/lib/brand";
 
 const inputClasses = campo;
 
@@ -47,93 +47,61 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
 
   return (
     <>
-      <Card>
-        <CardHeader
-          title="Usuários do sistema"
-          aside={
-            possoGerenciar && (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setVinculando(true)}
-                  className={btn.secundario}
-                >
-                  <Link2 className="size-4" /> Vincular usuário
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAdicionando(true)}
-                  className={btn.primario}
-                >
-                  <Plus className="size-4" /> Cadastrar usuário
-                </button>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[15px] text-ink-soft">
+            {usuarios.length} {usuarios.length === 1 ? "pessoa com acesso" : "pessoas com acesso"}
+          </p>
+          {possoGerenciar && (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setVinculando(true)} className={btn.secundario}>
+                Vincular conta existente
+              </button>
+              <button type="button" onClick={() => setAdicionando(true)} className={btn.primario}>
+                Cadastrar usuário
+              </button>
+            </div>
+          )}
+        </div>
+
+        <ul className="rounded-card border border-line bg-white">
+          {usuarios.map((u, i) => (
+            <li key={u.id} className={`flex flex-wrap items-center gap-3 px-5 py-3 ${i ? "border-t border-line-soft" : ""}`}>
+              <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-[#e9e5dc] text-[13px] font-semibold text-ink">
+                {initials(u.name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-semibold text-ink">
+                  {u.name}
+                  {u.id === meuId && <span className="ml-1 font-normal text-ink-muted">(você)</span>}
+                </p>
+                <p className="truncate text-sm text-ink-muted">{[u.cargo, u.email].filter(Boolean).join(" · ")}</p>
               </div>
-            )
-          }
-        />
-        {usuarios.length === 0 ? (
-          <div className="flex min-h-64 flex-col items-center justify-center px-5 pb-8 text-center">
-            <span className="flex size-12 items-center justify-center rounded-full bg-brand-soft text-brand">
-              <UsersRound className="size-5" />
-            </span>
-            <h3 className="mt-4 text-sm font-semibold text-ink">Nenhum usuário cadastrado</h3>
-            <p className="mt-1 max-w-sm text-sm text-ink-muted">
-              Os usuários autorizados podem ser cadastrados através do sistema.
-            </p>
-          </div>
-        ) : (
-          <ul className="space-y-2 px-5 pb-5">
-            {usuarios.map((u) => (
-              <li
-                key={u.id}
-                className="flex items-center gap-3 rounded-lg bg-surface px-3 py-3"
-              >
-                <Avatar name={u.name} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-ink">
-                    {u.name}
-                    {u.id === meuId && (
-                      <span className="ml-2 text-xs font-normal text-ink-muted">(você)</span>
-                    )}
-                  </p>
-                  <p className="truncate text-xs text-ink-muted">
-                    {[ROTULO_PAPEL[u.role], u.cargo, u.email].filter(Boolean).join(" · ")}
-                  </p>
+              <span className="w-32 text-[15px] text-ink-soft">{ROTULO_PAPEL[u.role]}</span>
+              {possoGerenciar && (
+                <div className="flex w-40 shrink-0 justify-end gap-1">
+                  <button type="button" onClick={() => setEditando(u)} className="cursor-pointer rounded-lg px-2.5 py-1.5 text-sm font-semibold text-ink hover:bg-hover">
+                    Editar
+                  </button>
+                  {u.id !== meuId && u.role !== "owner" && (
+                    <button type="button" onClick={() => setRemovendo(u)} className="cursor-pointer rounded-lg px-2.5 py-1.5 text-sm font-semibold text-danger hover:bg-danger-bg">
+                      Remover
+                    </button>
+                  )}
                 </div>
-                {possoGerenciar && (
-                  <div className="flex shrink-0 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setEditando(u)}
-                      className={btn.pequeno}
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      disabled={u.id === meuId || u.role === "owner"}
-                      onClick={() => setRemovendo(u)}
-                      title={
-                        u.id === meuId
-                          ? "Você não pode deletar seu próprio usuário"
-                          : u.role === "owner"
-                            ? "O proprietário não pode ser deletado"
-                            : "Deletar usuário"
-                      }
-                      className={btn.pequenoPerigo}
-                    >
-                      Deletar
-                    </button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+              )}
+            </li>
+          ))}
+        </ul>
+
+        <p className="max-w-2xl text-sm leading-relaxed text-ink-muted">
+          Administrador confere ocorrências e mexe em usuários e dados da conta. Membro grava ocorrências e consulta, mas o que ele grava vai
+          para um administrador conferir.
+        </p>
+      </div>
 
       {feedback && (
-        <p role="status" className="rounded-lg bg-brand-soft px-4 py-3 text-sm text-brand">
+        <p role="status" className="mt-4 text-sm text-brand-ink">
           {feedback}
         </p>
       )}
@@ -228,7 +196,7 @@ function AdicionarModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Cadastrar usuário">
+    <Modal open={open} onClose={onClose} title="Cadastrar usuário" subtitle="A pessoa entra com o e-mail e a senha provisória.">
       <form onSubmit={submit} className="space-y-4">
         <Campo label="Nome">
           <input name="name" className={inputClasses} required autoComplete="off" />
@@ -315,10 +283,10 @@ function VincularModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Vincular usuário">
+    <Modal open={open} onClose={onClose} title="Vincular conta existente" subtitle="Para quem já usa o sistema em outra conta.">
       <form onSubmit={submit} className="space-y-4">
         <p className="text-sm text-ink-muted">
-          Para quem já tem conta no VOCare por outra clínica ou fazenda. A pessoa
+          Para quem já tem conta no {BRAND_NAME} por outra clínica ou fazenda. A pessoa
           passa a ver esta organização no seletor; nome e senha não mudam.
         </p>
         <Campo label="E-mail da conta">

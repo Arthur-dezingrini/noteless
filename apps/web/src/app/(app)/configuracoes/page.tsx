@@ -1,19 +1,11 @@
 import { getOrgAtiva } from "@/lib/auth/dal";
 
-import { ClinicaForm } from "./clinica-form";
+import { ContaForm } from "./conta-form";
 
 export const metadata = { title: "Configurações" };
 
-export default async function ConfiguracoesClinicaPage() {
+export default async function ConfiguracoesContaPage() {
   const org = await getOrgAtiva();
-
-  if (!org) {
-    return (
-      <p className="rounded-xl border border-line bg-white p-6 text-sm text-ink-muted">
-        Você ainda não faz parte de nenhuma organização.
-      </p>
-    );
-  }
-
-  return <ClinicaForm org={org} />;
+  if (!org) return <p className="text-[15px] text-ink-muted">Você ainda não faz parte de nenhuma organização.</p>;
+  return <ContaForm org={org} />;
 }
