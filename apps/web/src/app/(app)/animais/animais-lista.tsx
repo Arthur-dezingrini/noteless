@@ -1,423 +1,201 @@
 "use client";
 
-import {
-  atualizarAnimalSchema,
-  criarAnimalSchema,
-  ESPECIES,
-  ROTULO_ESPECIE,
-  ROTULO_SEXO,
-  ROTULO_STATUS_ANIMAL,
-  SEXOS,
-  STATUS_ANIMAL,
-  type Animal,
-  type Especie,
-  type StatusAnimal,
-} from "@vocare/shared";
-import { Loader2, MoreHorizontal, Plus, Search, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { ESPECIES, ROTULO_ESPECIE, ROTULO_SEXO, type Animal, type Especie } from "@vocare/shared";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition, type FormEvent } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 
-import { Badge, type Tone } from "@/components/app/badge";
-import { Card } from "@/components/app/card";
-import { Modal } from "@/components/app/modal";
-import { PageHeader } from "@/components/app/page-header";
 import { Select } from "@/components/app/select";
 import { btn, campo } from "@/components/app/ui";
-import { idade } from "@/lib/datas";
 
-const inputClasses = campo;
+import { AnimalModal } from "./animal-modal";
 
-const TOM_STATUS: Record<StatusAnimal, Tone> = { ativo: "green", inativo: "gray" };
+type Situacao = "ativo" | "tratamento" | "inativo";
 
-type Props = {
-  orgId: string;
-  animais: Animal[];
-  possoRemover: boolean;
+function situacao(a: Animal): Situacao {
+  if (a.status === "inativo") return "inativo";
+  return a.emTratamento ? "tratamento" : "ativo";
+}
+
+const SITUACAO: Record<Situacao, { rotulo: string; cor: string }> = {
+  ativo: { rotulo: "Ativo", cor: "text-brand-ink" },
+  tratamento: { rotulo: "Em tratamento", cor: "text-warn" },
+  inativo: { rotulo: "Inativo", cor: "text-ink-muted" },
 };
 
-/** Chamada à api pelo rewrite (/api/* → apps/api); o cookie vai junto. */
-async function chamarApi(path: string, init: RequestInit): Promise<string | null> {
-  const res = await fetch(path, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init.headers },
-  });
-  if (res.ok) return null;
-  const body = (await res.json().catch(() => null)) as { error?: string } | null;
-  return body?.error ?? "Não foi possível concluir. Tente de novo.";
+function peso(kg: number | null | undefined) {
+  return kg == null ? "—" : `${kg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg`;
 }
 
-/** "AAAA-MM-DD" → "DD/MM/AAAA", sem passar por Date (sem fuso). */
-function formatarData(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const [a, m, d] = iso.split("-");
-  return `${d}/${m}/${a}`;
+/** "AAAA-MM-DD" → "DD/MM". */
+function diaMes(iso: string | null | undefined) {
+  return iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "—";
 }
 
-function formatarPeso(kg: number | null | undefined): string {
-  if (kg == null) return "—";
-  return `${kg.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg`;
-}
-
-function Campo({
-  label,
-  children,
-  className = "",
-}: {
-  label: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <label className={`block space-y-1.5 ${className}`}>
-      <span className="block text-sm font-medium text-ink">{label}</span>
-      {children}
-    </label>
-  );
-}
+type Props = { orgId: string; animais: Animal[]; possoRemover: boolean };
 
 export function AnimaisLista({ orgId, animais, possoRemover }: Props) {
   const router = useRouter();
   const [busca, setBusca] = useState("");
   const [especie, setEspecie] = useState<Especie | "">("");
-  const [status, setStatus] = useState<StatusAnimal | "">("");
-  const [cadastrando, setCadastrando] = useState(false);
-  const [editando, setEditando] = useState<Animal | null>(null);
+  const [filtroSituacao, setFiltroSituacao] = useState<Situacao | "">("");
+  const [modal, setModal] = useState<{ animal: Animal | null } | null>(null);
+
+  // Só as espécies que a conta tem, para o filtro não virar lista de zoológico.
+  const especiesNaConta = ESPECIES.filter((e) => animais.some((a) => a.especie === e));
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     return animais.filter((a) => {
       if (especie && a.especie !== especie) return false;
-      if (status && a.status !== status) return false;
+      if (filtroSituacao && situacao(a) !== filtroSituacao) return false;
       if (!termo) return true;
-      return [a.nome, ROTULO_ESPECIE[a.especie], a.raca, a.tutor]
-        .filter(Boolean)
-        .some((v) => v!.toLowerCase().includes(termo));
+      return [a.nome, a.numero, a.microchip].some((v) => v?.toLowerCase().includes(termo));
     });
-  }, [animais, busca, especie, status]);
+  }, [animais, busca, especie, filtroSituacao]);
 
-  const total = animais.length;
+  function abrir(a: Animal) {
+    router.push(`/animais/${a.id}`);
+  }
+
+  function teclas(e: KeyboardEvent, a: Animal) {
+    if (e.key === "Enter") abrir(a);
+  }
 
   return (
-    <>
-      <PageHeader
-        title="Animais"
-        subtitle={`${total.toLocaleString("pt-BR")} ${total === 1 ? "animal cadastrado" : "animais cadastrados"}`}
-        aside={
-          <button
-            type="button"
-            onClick={() => setCadastrando(true)}
-            className={btn.primario}
-          >
-            <Plus className="size-4" /> Cadastrar animal
-          </button>
-        }
-      />
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-[28px] leading-tight font-semibold tracking-tight text-ink">Animais</h1>
+          <p className="text-base text-ink-muted">Clique em um animal para ver o histórico completo.</p>
+        </div>
+        <button type="button" onClick={() => setModal({ animal: null })} className={btn.secundario}>
+          Cadastrar animal
+        </button>
+      </div>
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
-        <label className="relative flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-ink-muted" />
-          <input
-            type="search"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por nome, espécie ou tutor..."
-            aria-label="Buscar animal"
-            className={`${inputClasses} pl-10`}
-          />
-        </label>
-        <Select
-          value={especie}
-          onChange={(e) => setEspecie(e.target.value as Especie | "")}
-          aria-label="Filtrar por espécie"
-          className="sm:w-44"
-        >
-          <option value="">Todas espécies</option>
-          {ESPECIES.map((e) => (
+      <div className="flex flex-wrap gap-2.5">
+        <input
+          type="search"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar por nome ou número"
+          aria-label="Buscar animal por nome ou número"
+          className={`${campo} h-[42px] max-w-[400px] flex-[1_1_15rem]`}
+        />
+        <Select value={especie} onChange={(e) => setEspecie(e.target.value as Especie | "")} aria-label="Espécie" className="w-48">
+          <option value="">Todas as espécies</option>
+          {especiesNaConta.map((e) => (
             <option key={e} value={e}>
               {ROTULO_ESPECIE[e]}
             </option>
           ))}
         </Select>
-        <Select
-          value={status}
-          onChange={(e) => setStatus(e.target.value as StatusAnimal | "")}
-          aria-label="Filtrar por status"
-          className="sm:w-40"
-        >
-          <option value="">Todos status</option>
-          {STATUS_ANIMAL.map((s) => (
+        <Select value={filtroSituacao} onChange={(e) => setFiltroSituacao(e.target.value as Situacao | "")} aria-label="Situação" className="w-48">
+          <option value="">Qualquer situação</option>
+          {(Object.keys(SITUACAO) as Situacao[]).map((s) => (
             <option key={s} value={s}>
-              {ROTULO_STATUS_ANIMAL[s]}
+              {SITUACAO[s].rotulo}
             </option>
           ))}
         </Select>
       </div>
 
-      <Card className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-line text-xs text-ink-muted">
-              <th className="px-5 py-3 font-medium">Animal</th>
-              <th className="px-3 py-3 font-medium">Espécie / Raça</th>
-              <th className="px-3 py-3 font-medium">Tutor</th>
-              <th className="px-3 py-3 font-medium">Peso</th>
-              <th className="px-3 py-3 font-medium">Última visita</th>
-              <th className="px-3 py-3 font-medium">Status</th>
-              <th className="px-3 py-3">
+      <div className="overflow-hidden rounded-card border border-line bg-white">
+        <table className="w-full table-fixed text-left text-[15px]">
+          <thead className="border-b border-line bg-detail text-[13px] font-semibold text-ink-muted">
+            <tr>
+              <th className="px-[18px] py-3 font-semibold">Animal</th>
+              <th className="hidden px-3 py-3 font-semibold md:table-cell">Espécie e raça</th>
+              <th className="hidden w-24 px-3 py-3 font-semibold xl:table-cell">Sexo</th>
+              <th className="hidden w-24 px-3 py-3 font-semibold md:table-cell">Peso</th>
+              <th className="hidden px-3 py-3 font-semibold xl:table-cell">Onde fica</th>
+              <th className="hidden w-28 px-3 py-3 font-semibold xl:table-cell">Última visita</th>
+              <th className="w-32 px-3 py-3 font-semibold">Situação</th>
+              <th className="w-12 px-3 py-3">
                 <span className="sr-only">Ações</span>
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-line">
-            {filtrados.map((a) => {
-              const anos = idade(a.nascimento);
+          <tbody>
+            {filtrados.map((a, i) => {
+              const s = SITUACAO[situacao(a)];
               return (
-                <tr key={a.id} className="transition hover:bg-surface/60">
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <span
-                        aria-hidden="true"
-                        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-soft text-sm font-bold text-brand"
-                      >
-                        {a.nome[0]?.toUpperCase()}
-                      </span>
-                      <div className="min-w-0">
-                        <Link href={`/animais/${a.id}`} className="font-semibold text-ink hover:underline">
-                          {a.nome}
-                        </Link>
-                        {anos && <p className="text-xs text-ink-muted">{anos}</p>}
-                      </div>
-                    </div>
+                <tr
+                  key={a.id}
+                  role="link"
+                  tabIndex={0}
+                  aria-label={`Abrir ficha de ${a.nome || `nº ${a.numero}`}`}
+                  onClick={() => abrir(a)}
+                  onKeyDown={(e) => teclas(e, a)}
+                  className={`cursor-pointer hover:bg-detail focus-visible:bg-detail focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${i ? "border-t border-line-soft" : ""}`}
+                >
+                  <td className="px-[18px] py-3">
+                    <span className="flex min-w-0 items-baseline gap-2">
+                      {a.numero && <span className="shrink-0 text-ink-muted tabular-nums">nº {a.numero}</span>}
+                      <span className="truncate font-semibold text-ink">{a.nome || (a.numero ? "" : "Sem nome")}</span>
+                    </span>
+                    <span className="block truncate text-sm text-ink-muted md:hidden">
+                      {ROTULO_ESPECIE[a.especie]} · {peso(a.pesoKg)}
+                    </span>
                   </td>
-                  <td className="px-3 py-4">
-                    <span className="text-sm text-ink-soft">{ROTULO_ESPECIE[a.especie]}</span>
-                    {a.raca && <p className="mt-1 text-xs text-ink-muted">{a.raca}</p>}
+                  <td className="hidden truncate px-3 py-3 text-ink-soft md:table-cell">
+                    {[ROTULO_ESPECIE[a.especie], a.raca].filter(Boolean).join(" · ")}
                   </td>
-                  <td className="px-3 py-4 text-ink">{a.tutor || "—"}</td>
-                  <td className="px-3 py-4 text-ink tabular-nums">{formatarPeso(a.pesoKg)}</td>
-                  <td className="px-3 py-4 text-ink-muted tabular-nums">{formatarData(a.ultimaVisita)}</td>
-                  <td className="px-3 py-4">
-                    <Badge tone={TOM_STATUS[a.status]}>{ROTULO_STATUS_ANIMAL[a.status]}</Badge>
-                  </td>
-                  <td className="px-3 py-4 text-right">
+                  <td className="hidden px-3 py-3 text-ink-soft xl:table-cell">{a.sexo ? ROTULO_SEXO[a.sexo] : "—"}</td>
+                  <td className="hidden px-3 py-3 text-ink tabular-nums md:table-cell">{peso(a.pesoKg)}</td>
+                  <td className="hidden truncate px-3 py-3 text-ink-soft xl:table-cell">{a.local || "—"}</td>
+                  <td className="hidden px-3 py-3 text-ink-soft tabular-nums xl:table-cell">{diaMes(a.ultimaVisita)}</td>
+                  <td className={`px-3 py-3 text-sm font-semibold ${s.cor}`}>{s.rotulo}</td>
+                  <td className="px-3 py-3 text-right">
                     <button
                       type="button"
-                      onClick={() => setEditando(a)}
-                      aria-label={`Editar ${a.nome}`}
-                      className="rounded-lg p-1.5 text-ink-muted transition hover:bg-surface hover:text-ink"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setModal({ animal: a });
+                      }}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      aria-label={`Editar ${a.nome || `nº ${a.numero}`}`}
+                      className="grid size-7 cursor-pointer place-items-center rounded-md text-lg leading-none text-ink-muted hover:bg-surface"
                     >
-                      <MoreHorizontal className="size-4" />
+                      …
                     </button>
                   </td>
                 </tr>
               );
             })}
-            {filtrados.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-5 py-10 text-center text-sm text-ink-muted">
-                  {total === 0
-                    ? "Nenhum animal cadastrado ainda. Clique em “Cadastrar animal” para começar."
-                    : "Nenhum animal encontrado com esses filtros."}
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
-      </Card>
-
-      <AnimalModal
-        key={editando?.id ?? "novo"}
-        open={cadastrando || editando !== null}
-        animal={editando}
-        orgId={orgId}
-        possoRemover={possoRemover}
-        onClose={() => {
-          setCadastrando(false);
-          setEditando(null);
-        }}
-        onDone={() => {
-          setCadastrando(false);
-          setEditando(null);
-          router.refresh();
-        }}
-      />
-    </>
-  );
-}
-
-/** Texto do formulário: vazio vira null, como o contrato espera. */
-function texto(form: FormData, nome: string): string | null {
-  const v = form.get(nome);
-  return typeof v === "string" && v.trim() !== "" ? v : null;
-}
-
-/** Um modal só para cadastrar e editar — a diferença é ter `animal` ou não. */
-function AnimalModal({
-  open,
-  animal,
-  orgId,
-  possoRemover,
-  onClose,
-  onDone,
-}: {
-  open: boolean;
-  animal: Animal | null;
-  orgId: string;
-  possoRemover: boolean;
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const [pending, start] = useTransition();
-  const [erro, setErro] = useState<string | null>(null);
-  const [confirmarRemocao, setConfirmarRemocao] = useState(false);
-
-  function fechar() {
-    setErro(null);
-    setConfirmarRemocao(false);
-    onClose();
-  }
-
-  function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setErro(null);
-    const form = new FormData(e.currentTarget);
-    const dados = {
-      nome: form.get("nome"),
-      especie: form.get("especie"),
-      raca: texto(form, "raca"),
-      sexo: texto(form, "sexo"),
-      nascimento: texto(form, "nascimento"),
-      pesoKg: texto(form, "pesoKg"),
-      tutor: texto(form, "tutor"),
-      tutorTelefone: texto(form, "tutorTelefone"),
-      ultimaVisita: texto(form, "ultimaVisita"),
-    };
-    const parsed = animal
-      ? atualizarAnimalSchema.safeParse({ ...dados, status: form.get("status") })
-      : criarAnimalSchema.safeParse(dados);
-    if (!parsed.success) {
-      setErro(parsed.error.issues[0]?.message ?? "Dados inválidos.");
-      return;
-    }
-
-    const formEl = e.currentTarget;
-    start(async () => {
-      const err = await chamarApi(
-        animal ? `/api/org/${orgId}/animais/${animal.id}` : `/api/org/${orgId}/animais`,
-        { method: animal ? "PATCH" : "POST", body: JSON.stringify(parsed.data) },
-      );
-      if (err) return setErro(err);
-      formEl.reset();
-      onDone();
-    });
-  }
-
-  function remover() {
-    if (!animal) return;
-    setErro(null);
-    start(async () => {
-      const err = await chamarApi(`/api/org/${orgId}/animais/${animal.id}`, { method: "DELETE" });
-      if (err) return setErro(err);
-      setConfirmarRemocao(false);
-      onDone();
-    });
-  }
-
-  return (
-    <Modal open={open} onClose={fechar} title={animal ? "Editar animal" : "Cadastrar animal"} wide>
-      <form onSubmit={submit} className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          <Campo label="Nome">
-            <input name="nome" className={inputClasses} defaultValue={animal?.nome} required autoComplete="off" autoFocus />
-          </Campo>
-          <Campo label="Espécie">
-            <Select name="especie" defaultValue={animal?.especie ?? "cao"}>
-              {ESPECIES.map((e) => (
-                <option key={e} value={e}>
-                  {ROTULO_ESPECIE[e]}
-                </option>
-              ))}
-            </Select>
-          </Campo>
-          <Campo label="Raça">
-            <input name="raca" className={inputClasses} defaultValue={animal?.raca ?? ""} placeholder="Golden Retriever, Siamês, SRD…" />
-          </Campo>
-          <Campo label="Sexo">
-            <Select name="sexo" defaultValue={animal?.sexo ?? ""}>
-              <option value="">Não informado</option>
-              {SEXOS.map((s) => (
-                <option key={s} value={s}>
-                  {ROTULO_SEXO[s]}
-                </option>
-              ))}
-            </Select>
-          </Campo>
-          <Campo label="Data de nascimento">
-            <input name="nascimento" type="date" className={inputClasses} defaultValue={animal?.nascimento ?? ""} />
-          </Campo>
-          <Campo label="Peso (kg)">
-            <input name="pesoKg" type="number" step="0.1" min="0" className={inputClasses} defaultValue={animal?.pesoKg ?? ""} placeholder="0,0" />
-          </Campo>
-          <Campo label="Tutor">
-            <input name="tutor" className={inputClasses} defaultValue={animal?.tutor ?? ""} placeholder="Nome do responsável" />
-          </Campo>
-          <Campo label="Telefone do tutor">
-            <input name="tutorTelefone" type="tel" className={inputClasses} defaultValue={animal?.tutorTelefone ?? ""} placeholder="(11) 99999-9999" />
-          </Campo>
-          <Campo label="Última visita">
-            <input name="ultimaVisita" type="date" className={inputClasses} defaultValue={animal?.ultimaVisita ?? ""} />
-          </Campo>
-          {animal && (
-            <Campo label="Status">
-              <Select name="status" defaultValue={animal.status}>
-                {STATUS_ANIMAL.map((s) => (
-                  <option key={s} value={s}>
-                    {ROTULO_STATUS_ANIMAL[s]}
-                  </option>
-                ))}
-              </Select>
-            </Campo>
-          )}
-        </div>
-
-        {erro && <p role="alert" className="text-sm text-red-600">{erro}</p>}
-
-        {confirmarRemocao && animal && (
-          <div className="flex items-center justify-between gap-3 rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-800">
-            <span>
-              Remover <strong>{animal.nome}</strong> do cadastro? Isso não pode ser desfeito.
-            </span>
-            <span className="flex shrink-0 gap-3 text-xs font-semibold">
-              <button type="button" onClick={remover} disabled={pending} className="text-red-700 hover:underline disabled:opacity-60">
-                Sim, remover
-              </button>
-              <button type="button" onClick={() => setConfirmarRemocao(false)} className="text-ink-muted hover:underline">
-                Não
-              </button>
-            </span>
+        {filtrados.length === 0 && (
+          <div className="flex flex-col gap-1.5 p-9 text-center">
+            <p className="text-base font-semibold text-ink">
+              {animais.length === 0 ? "Nenhum animal cadastrado ainda" : "Nenhum animal encontrado"}
+            </p>
+            <p className="text-[15px] text-ink-muted">
+              {animais.length === 0
+                ? "Cadastre aqui ou fale no microfone: “nasceu um bezerro, número 132”."
+                : "Confira o nome ou o número, ou limpe os filtros."}
+            </p>
           </div>
         )}
+      </div>
+      {filtrados.length > 0 && (
+        <p className="text-sm text-ink-muted">
+          Mostrando {filtrados.length} de {animais.length} {animais.length === 1 ? "animal" : "animais"}
+        </p>
+      )}
 
-        <div className="flex items-center justify-between gap-2 pt-2">
-          {animal && possoRemover && !confirmarRemocao ? (
-            <button type="button" onClick={() => setConfirmarRemocao(true)} className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 hover:underline">
-              <Trash2 className="size-3.5" /> Remover animal
-            </button>
-          ) : (
-            <span />
-          )}
-          <div className="flex gap-2">
-            <button type="button" onClick={fechar} className={btn.secundario}>
-              Cancelar
-            </button>
-            <button type="submit" disabled={pending} className={btn.primario}>
-              {pending && <Loader2 className="size-4 animate-spin" />}
-              {animal ? "Salvar" : "Cadastrar"}
-            </button>
-          </div>
-        </div>
-      </form>
-    </Modal>
+      {modal && (
+        <AnimalModal
+          animal={modal.animal}
+          orgId={orgId}
+          possoRemover={possoRemover}
+          onClose={() => setModal(null)}
+          onDone={() => {
+            setModal(null);
+            router.refresh();
+          }}
+        />
+      )}
+    </div>
   );
 }

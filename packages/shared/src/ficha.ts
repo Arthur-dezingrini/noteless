@@ -28,6 +28,8 @@ export const eventoSchema = z.object({
   por: z.string().nullish(),
   /** Veio de um áudio? */
   ocorrenciaId: z.string().nullish(),
+  /** Salvo nas últimas 48 h a partir de uma ocorrência — a tela marca "Novo". */
+  novo: z.boolean().optional(),
 });
 export type Evento = z.infer<typeof eventoSchema>;
 
@@ -44,6 +46,9 @@ export const fichaAnimalSchema = z.object({
   grupos: z.array(z.object({ id: z.string(), nome: z.string() })),
   historico: z.array(eventoSchema),
   proximos: z.array(eventoSchema),
+  /** "Precisa de atenção": vacina vencida e afins. */
   pendencias: z.array(pendenciaSchema),
+  /** Ocorrências para conferir que falam deste animal (ainda fora do histórico). */
+  ocorrenciasPendentes: z.number().int(),
 });
 export type FichaAnimal = z.infer<typeof fichaAnimalSchema>;

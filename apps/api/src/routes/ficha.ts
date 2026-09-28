@@ -52,13 +52,13 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
       .innerJoin(grupo, eq(grupo.id, grupoAnimal.grupoId))
       .where(eq(grupoAnimal.animalId, id)),
     db
-      .select({ id: pesagem.id, data: pesagem.data, pesoKg: pesagem.pesoKg, por: user.name, oc: pesagem.ocorrenciaId })
+      .select({ id: pesagem.id, data: pesagem.data, pesoKg: pesagem.pesoKg, por: user.name, oc: pesagem.ocorrenciaId, em: pesagem.createdAt })
       .from(pesagem)
       .leftJoin(user, eq(user.id, pesagem.criadoPorId))
       .where(eq(pesagem.animalId, id))
       .orderBy(desc(pesagem.data), desc(pesagem.createdAt)),
     db
-      .select({ id: vacina.id, data: vacina.data, vacina: vacina.vacina, dose: vacina.dose, proxima: vacina.proximaData, por: user.name, oc: vacina.ocorrenciaId })
+      .select({ id: vacina.id, data: vacina.data, vacina: vacina.vacina, dose: vacina.dose, proxima: vacina.proximaData, por: user.name, oc: vacina.ocorrenciaId, em: vacina.createdAt })
       .from(vacina)
       .leftJoin(user, eq(user.id, vacina.criadoPorId))
       .where(eq(vacina.animalId, id))
@@ -76,13 +76,13 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
       .where(eq(anotacaoAnimal.animalId, id))
       .orderBy(desc(anotacaoAnimal.createdAt)),
     db
-      .select({ id: tratamento.id, inicio: tratamento.inicio, fim: tratamento.fim, remedio: tratamento.remedio, dose: tratamento.dose, carencia: tratamento.carenciaDias, por: user.name, oc: tratamento.ocorrenciaId })
+      .select({ id: tratamento.id, inicio: tratamento.inicio, fim: tratamento.fim, remedio: tratamento.remedio, dose: tratamento.dose, carencia: tratamento.carenciaDias, por: user.name, oc: tratamento.ocorrenciaId, em: tratamento.createdAt })
       .from(tratamento)
       .leftJoin(user, eq(user.id, tratamento.criadoPorId))
       .where(eq(tratamento.animalId, id))
       .orderBy(desc(tratamento.inicio)),
     db
-      .select({ id: parto.id, data: parto.data, crias: parto.crias, obs: parto.observacoes, por: user.name, oc: parto.ocorrenciaId })
+      .select({ id: parto.id, data: parto.data, crias: parto.crias, obs: parto.observacoes, por: user.name, oc: parto.ocorrenciaId, em: parto.createdAt })
       .from(parto)
       .leftJoin(user, eq(user.id, parto.criadoPorId))
       .where(eq(parto.animalId, id))
@@ -94,6 +94,9 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
   ]);
 
   const hoje = diaSP(new Date());
+  const limiteNovo = Date.now() - 48 * 3600 * 1000;
+  /** Salvo de um áudio há pouco: a ficha destaca como "Novo". */
+  const novo = (oc: string | null, em: Date) => !!oc && em.getTime() > limiteNovo;
   const historico: Evento[] = [];
   const proximos: Evento[] = [];
   const pendencias: Pendencia[] = [];
@@ -109,12 +112,13 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
       detalhe: dif === null || dif === 0 ? null : `${dif > 0 ? "+" : "−"}${kg(Math.abs(dif))} desde ${dm(anterior!.data)}`,
       por: p.por,
       ocorrenciaId: p.oc,
+      novo: novo(p.oc, p.em),
     });
   });
 
   const vacinaMaisRecente = new Map<string, string>(); // nome → última data
   for (const v of vacinas) {
-    historico.push({ id: v.id, tipo: "vacina", data: v.data, titulo: `Vacina ${v.vacina}`, detalhe: v.dose, por: v.por, ocorrenciaId: v.oc });
+    historico.push({ id: v.id, tipo: "vacina", data: v.data, titulo: `Vacina ${v.vacina}`, detalhe: v.dose, por: v.por, ocorrenciaId: v.oc, novo: novo(v.oc, v.em) });
     const chave = v.vacina.toLowerCase();
     if (!vacinaMaisRecente.has(chave)) {
       vacinaMaisRecente.set(chave, v.data);
@@ -122,7 +126,7 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
       if (v.proxima && v.proxima >= hoje) {
         proximos.push({ id: `prox-${v.id}`, tipo: "vacina", data: v.proxima, titulo: `Reforço: ${v.vacina}`, detalhe: v.dose ? `última: ${v.dose}` : null });
       } else if (v.proxima) {
-        pendencias.push({ id: `venc-${v.id}`, texto: `Vacina ${v.vacina} venceu em ${dm(v.proxima)}.` });
+        pendencias.push({ id: `venc-${v.id}`, texto: `A vacina ${v.vacina} venceu em ${v.proxima.slice(8, 10)}/${v.proxima.slice(5, 7)}/${v.proxima.slice(0, 4)}.` });
       }
     }
   }
@@ -145,14 +149,14 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
   }
 
   for (const n of anotacoes) {
-    historico.push({ id: n.id, tipo: "anotacao", data: diaSP(n.em), titulo: "Anotação", detalhe: n.texto, por: n.por, ocorrenciaId: n.oc });
+    historico.push({ id: n.id, tipo: "anotacao", data: diaSP(n.em), titulo: "Anotação", detalhe: n.texto, por: n.por, ocorrenciaId: n.oc, novo: novo(n.oc, n.em) });
   }
 
   for (const t of tratamentos) {
     const detalhe = [t.dose, t.fim ? `até ${dm(t.fim)}` : null, t.carencia ? `carência de ${t.carencia} dias` : null]
       .filter(Boolean)
       .join(" · ");
-    historico.push({ id: t.id, tipo: "tratamento", data: t.inicio, titulo: `Remédio: ${t.remedio}`, detalhe: detalhe || null, por: t.por, ocorrenciaId: t.oc });
+    historico.push({ id: t.id, tipo: "tratamento", data: t.inicio, titulo: `Remédio: ${t.remedio}`, detalhe: detalhe || null, por: t.por, ocorrenciaId: t.oc, novo: novo(t.oc, t.em) });
     if (t.fim && t.fim >= hoje) {
       proximos.push({ id: `trat-${t.id}`, tipo: "tratamento", data: t.fim, titulo: `Fim do tratamento: ${t.remedio}`, detalhe: t.dose });
     }
@@ -160,29 +164,32 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
 
   for (const p of partos) {
     const crias = p.crias == null ? null : `${p.crias} ${p.crias === 1 ? "cria" : "crias"}`;
-    historico.push({ id: p.id, tipo: "parto", data: p.data, titulo: "Parto", detalhe: [crias, p.obs].filter(Boolean).join(" · ") || null, por: p.por, ocorrenciaId: p.oc });
+    historico.push({ id: p.id, tipo: "parto", data: p.data, titulo: "Parto", detalhe: [crias, p.obs].filter(Boolean).join(" · ") || null, por: p.por, ocorrenciaId: p.oc, novo: novo(p.oc, p.em) });
   }
 
   // Ocorrências para conferir que falam deste animal (ou de um grupo dele).
   const meusGrupos = new Set(grupos.map((g) => g.id));
+  let ocorrenciasPendentes = 0;
   for (const oc of pendentes) {
     const ops = z.array(z.unknown()).catch([]).parse(oc.operacoes).flatMap((o) => {
       const r = operacaoSchema.safeParse(o);
       return r.success ? [r.data] : [];
     });
     const n = ops.filter((op) => op.animalId === id || (op.grupoId && meusGrupos.has(op.grupoId))).length;
-    if (n > 0) {
-      pendencias.push({
-        id: `oc-${oc.id}`,
-        texto: `${n} ${n === 1 ? "ação" : "ações"} de um áudio esperando conferência.`,
-        link: "/ocorrencias",
-      });
-    }
+    if (n > 0) ocorrenciasPendentes += 1;
   }
 
   historico.sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : 0));
   proximos.sort((x, y) => (x.data < y.data ? -1 : x.data > y.data ? 1 : 0));
 
-  const ficha: FichaAnimal = { animal: paraContrato(a), grupos, historico, proximos, pendencias };
+  const emTratamento = tratamentos.some((t) => !t.fim || t.fim >= hoje);
+  const ficha: FichaAnimal = {
+    animal: paraContrato(a, emTratamento),
+    grupos,
+    historico,
+    proximos,
+    pendencias,
+    ocorrenciasPendentes,
+  };
   return c.json(ficha);
 });
