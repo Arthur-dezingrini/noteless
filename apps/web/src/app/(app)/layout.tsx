@@ -23,7 +23,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const member = org ? await getMemberRole(org.id) : null;
 
   return (
-    <div className="flex min-h-svh bg-surface">
+    <div className="flex min-h-svh bg-page">
       <Sidebar organizacoes={organizations} ativaId={org?.id ?? null} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header user={user} papel={rotuloPapel(member?.role)} />

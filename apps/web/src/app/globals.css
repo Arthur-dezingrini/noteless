@@ -1,28 +1,47 @@
 @import "tailwindcss";
 
 /*
- * Design tokens do VOCare.
- * A cor de marca vive SÓ aqui — se o hex do Figma for outro, troque --color-brand
- * e as duas variações abaixo, e o app inteiro acompanha.
+ * Design tokens do VOCare — redesign.
+ * Os NOMES são os mesmos de antes, de propósito: as classes que já existem
+ * (bg-brand, text-ink, border-line, bg-surface…) passam a usar a nova paleta
+ * sem mexer em nenhum componente. Os tokens novos ficam no fim.
  */
 @theme {
-  --color-brand: #00a651;
-  --color-brand-hover: #009449;
-  --color-brand-active: #00833f;
+  /* Verde mais escuro que o antigo #00a651: passa em contraste com texto branco. */
+  --color-brand: #0e8a4b;
+  --color-brand-hover: #0b7a42;
+  --color-brand-active: #096a39;
+  --color-brand-ink: #0a6e3b;      /* verde para TEXTO (links, "Salva") */
+  --color-brand-soft: #e3efe6;
 
-  --color-ink: #16233f;
-  --color-ink-muted: #7b8494;
+  --color-ink: #1f2622;            /* texto principal */
+  --color-ink-soft: #3f4742;       /* texto secundário */
+  --color-ink-muted: #5e6661;      /* legendas, datas */
 
-  --color-field-border: #e2e5ea;
-  --color-field-border-focus: #00a651;
+  --color-field-border: #dcd8cf;
+  --color-field-border-focus: #0e8a4b;
+  --color-button-border: #d6d2c8;
 
-  --color-surface: #f7f8fa;
-  --color-line: #eceef2;
-  --color-brand-soft: #e8f7ee;
+  --color-page: #fcfbf8;           /* fundo da área logada */
+  --color-surface: #f1efe9;        /* item ativo no menu, abas, blocos neutros */
+  --color-hover: #f3f1ec;
+  --color-line: #ebe8e1;           /* bordas de cartão e divisórias */
+  --color-line-soft: #f0ede7;      /* linhas entre itens de lista */
+  --color-detail: #faf9f6;         /* caixa de "Detalhes" da ocorrência */
 
-  --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+  --color-warn: #8a5a00;
+  --color-warn-dot: #d69a1c;
+  --color-warn-bg: #fbf6ea;
+  --color-warn-border: #efe3c4;
+  --color-danger: #a8321f;
+  --color-danger-bg: #fbf0ed;
+  --color-notify: #c7371f;         /* bolinha de não lida no sino */
 
-  --radius-field: 0.5rem;
+  --font-sans: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-field: 0.625rem;        /* 10px — botões e campos */
+  --radius-card: 0.875rem;         /* 14px — cartões e tabelas */
+  --radius-dialog: 1.125rem;       /* 18px — janelas */
 }
 
 html {
@@ -30,8 +49,18 @@ html {
 }
 
 body {
-  background: #ffffff;
+  background: var(--color-page);
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--color-brand-ink);
+}
+
+/* Foco visível só no teclado, em tudo que é clicável. */
+:where(button, a, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
 }
