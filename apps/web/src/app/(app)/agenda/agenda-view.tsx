@@ -22,6 +22,7 @@ import { Card, CardHeader } from "@/components/app/card";
 import { Modal } from "@/components/app/modal";
 import { PageHeader } from "@/components/app/page-header";
 import { Select } from "@/components/app/select";
+import { btn, campo } from "@/components/app/ui";
 import { chamarApi } from "@/lib/api-client";
 import { adicionarDias, dataExtenso, formatar, inicioDaSemana } from "@/lib/datas";
 
@@ -43,8 +44,7 @@ const ESTILO_STATUS: Record<StatusConsulta, { tone: Tone; barra: string }> = {
   cancelada: { tone: "gray", barra: "bg-line" },
 };
 
-const inputClasses =
-  "w-full rounded-lg border border-field-border bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-muted/60 focus:border-brand focus:ring-2 focus:ring-brand/20";
+const inputClasses = campo;
 
 function capitalizar(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
@@ -128,7 +128,7 @@ export function AgendaView({ orgId, hoje, consultas, animais, veterinarios }: Pr
             <button
               type="button"
               onClick={() => setDialogo({ tipo: "nova" })}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-brand-hover"
+              className={btn.primario}
             >
               <Plus className="size-4" /> Nova consulta
             </button>
@@ -440,7 +440,7 @@ function ConsultaModal({
               </Campo>
             )}
             <Campo label="Observações" className="sm:col-span-2">
-              <textarea name="observacoes" rows={2} className={inputClasses} defaultValue={consulta?.observacoes ?? ""} />
+              <textarea name="observacoes" rows={2} className={`${inputClasses} h-auto py-2.5`} defaultValue={consulta?.observacoes ?? ""} />
             </Campo>
           </div>
 
@@ -451,13 +451,13 @@ function ConsultaModal({
           )}
 
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-ink-muted hover:bg-surface">
+            <button type="button" onClick={onClose} className={btn.secundario}>
               Cancelar
             </button>
             <button
               type="submit"
               disabled={pending}
-              className="inline-flex items-center gap-2 rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-70"
+              className={btn.primario}
             >
               {pending && <Loader2 className="size-4 animate-spin" />}
               {editando ? "Salvar" : "Agendar"}
@@ -511,14 +511,14 @@ function ExcluirModal({
             </p>
           )}
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="rounded-lg px-3.5 py-2 text-sm font-medium text-ink-muted hover:bg-surface">
+            <button type="button" onClick={onClose} className={btn.secundario}>
               Cancelar
             </button>
             <button
               type="button"
               onClick={excluir}
               disabled={pending}
-              className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-70"
+              className={btn.perigoSolido}
             >
               {pending && <Loader2 className="size-4 animate-spin" />}
               Excluir

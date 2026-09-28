@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 
 import { Card, CardHeader } from "@/components/app/card";
+import { btn, campo } from "@/components/app/ui";
 import { authClient } from "@/lib/auth/client";
 
-const inputClasses =
-  "w-full rounded-lg border border-field-border bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-muted/60 focus:border-brand focus:ring-2 focus:ring-brand/20";
+const inputClasses = campo;
 
 function Campo({
   label,
@@ -128,7 +128,7 @@ export function ClinicaForm({ org }: { org: Organization }) {
         <button
           type="submit"
           disabled={pending}
-          className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-70"
+          className={btn.primario}
         >
           {pending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
           {pending ? "Salvando..." : "Salvar alterações"}

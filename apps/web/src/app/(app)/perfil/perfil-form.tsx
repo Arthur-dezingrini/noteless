@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { Session } from "@vocare/shared";
 
 import { Avatar } from "@/components/app/avatar";
+import { btn } from "@/components/app/ui";
 
 const TAMANHO_MAXIMO = 2 * 1024 * 1024;
 
@@ -76,7 +77,7 @@ export function PerfilForm({ user, papel }: { user: Session["user"]; papel: stri
         <div className="min-w-0">
           <h2 className="text-lg font-semibold text-ink">{user.name}</h2>
           <p className="mt-0.5 text-sm text-ink-muted">{papel || "Membro"}</p>
-          <button type="button" onClick={() => inputRef.current?.click()} className="mt-3 inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-ink transition hover:bg-surface">
+          <button type="button" onClick={() => inputRef.current?.click()} className={`${btn.secundario} mt-3`}>
             <Upload className="size-4" /> Escolher foto
           </button>
           <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => { void selecionarImagem(event.target.files?.[0]); event.currentTarget.value = ""; }} />
@@ -92,7 +93,7 @@ export function PerfilForm({ user, papel }: { user: Session["user"]; papel: stri
       {(erro || sucesso || alterada) && <div className="mt-7 flex flex-wrap items-center gap-3 border-t border-line pt-5">
         {erro && <p role="alert" className="text-sm text-red-600">{erro}</p>}
         {sucesso && <p role="status" className="text-sm text-brand">{sucesso}</p>}
-        {alterada && <button type="button" onClick={() => void salvar()} disabled={salvando} className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-hover disabled:cursor-wait disabled:opacity-70">{salvando && <LoaderCircle className="size-4 animate-spin" />}{salvando ? "Salvando..." : "Salvar foto"}</button>}
+        {alterada && <button type="button" onClick={() => void salvar()} disabled={salvando} className={btn.primario}>{salvando && <LoaderCircle className="size-4 animate-spin" />}{salvando ? "Salvando..." : "Salvar foto"}</button>}
       </div>}
     </div>
   );

@@ -13,7 +13,7 @@ export function Select({
     <span className={`relative block ${className}`}>
       <select
         {...props}
-        className="w-full appearance-none rounded-lg border border-field-border bg-white py-2.5 pr-10 pl-3.5 text-sm text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:bg-surface disabled:text-ink-muted"
+        className="h-11 w-full appearance-none rounded-field border border-field-border bg-white pr-10 pl-3.5 text-[15px] text-ink outline-none transition focus:border-field-border-focus focus:ring-2 focus:ring-brand/20 disabled:bg-surface disabled:text-ink-muted"
       />
       <ChevronDown
         aria-hidden="true"

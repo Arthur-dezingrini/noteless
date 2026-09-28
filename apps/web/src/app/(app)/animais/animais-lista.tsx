@@ -22,23 +22,9 @@ import { Card } from "@/components/app/card";
 import { Modal } from "@/components/app/modal";
 import { PageHeader } from "@/components/app/page-header";
 import { Select } from "@/components/app/select";
+import { btn, campo } from "@/components/app/ui";
 
-const inputClasses =
-  "w-full rounded-lg border border-field-border bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-muted/60 focus:border-brand focus:ring-2 focus:ring-brand/20";
-
-const TOM_ESPECIE: Record<Especie, Tone> = {
-  cao: "yellow",
-  gato: "purple",
-  coelho: "pink",
-  ave: "blue",
-  roedor: "gray",
-  bovino: "green",
-  equino: "yellow",
-  ovino: "gray",
-  caprino: "gray",
-  suino: "pink",
-  outro: "gray",
-};
+const inputClasses = campo;
 
 const TOM_STATUS: Record<StatusAnimal, Tone> = { ativo: "green", inativo: "gray" };
 
@@ -132,7 +118,7 @@ export function AnimaisLista({ orgId, animais, possoRemover }: Props) {
           <button
             type="button"
             onClick={() => setCadastrando(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-hover"
+            className={btn.primario}
           >
             <Plus className="size-4" /> Cadastrar animal
           </button>
@@ -214,7 +200,7 @@ export function AnimaisLista({ orgId, animais, possoRemover }: Props) {
                     </div>
                   </td>
                   <td className="px-3 py-4">
-                    <Badge tone={TOM_ESPECIE[a.especie]}>{ROTULO_ESPECIE[a.especie]}</Badge>
+                    <span className="text-sm text-ink-soft">{ROTULO_ESPECIE[a.especie]}</span>
                     {a.raca && <p className="mt-1 text-xs text-ink-muted">{a.raca}</p>}
                   </td>
                   <td className="px-3 py-4 text-ink">{a.tutor || "—"}</td>
@@ -431,10 +417,10 @@ function AnimalModal({
             <span />
           )}
           <div className="flex gap-2">
-            <button type="button" onClick={fechar} className="rounded-lg px-3.5 py-2 text-sm font-medium text-ink-muted hover:bg-surface">
+            <button type="button" onClick={fechar} className={btn.secundario}>
               Cancelar
             </button>
-            <button type="submit" disabled={pending} className="inline-flex items-center gap-2 rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-hover disabled:opacity-70">
+            <button type="submit" disabled={pending} className={btn.primario}>
               {pending && <Loader2 className="size-4 animate-spin" />}
               {animal ? "Salvar" : "Cadastrar"}
             </button>

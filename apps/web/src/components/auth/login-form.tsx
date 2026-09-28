@@ -8,11 +8,12 @@ import { useId, useState, useTransition, type FormEvent } from "react";
 import { z } from "zod";
 
 import { authClient } from "@/lib/auth/client";
+import { btn } from "@/components/app/ui";
 
 type FieldErrors = { email?: string; password?: string };
 
 const fieldClasses =
-  "w-full rounded-field border bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-muted/60 focus:border-brand focus:ring-2 focus:ring-brand/20";
+  "h-11 w-full rounded-field border bg-white px-3.5 text-[15px] text-ink outline-none transition placeholder:text-ink-muted/70 focus:border-field-border-focus focus:ring-2 focus:ring-brand/20";
 
 /**
  * Só aceita caminho interno. Sem isso, `?next=https://site-falso` transformaria
@@ -159,7 +160,7 @@ export function LoginForm({ next }: { next?: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-field bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-hover active:bg-brand-active disabled:cursor-not-allowed disabled:opacity-70"
+        className={`${btn.primario} w-full`}
       >
         {pending && <Loader2 className="size-4 animate-spin" />}
         {pending ? "Entrando..." : "Entrar"}

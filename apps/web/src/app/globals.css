@@ -39,6 +39,10 @@
 
   --font-sans: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
 
+  /* Texto nunca abaixo de 13px: o menor tamanho do Tailwind passa de 12 para 13. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: calc(1.125 / 0.8125);
+
   --radius-field: 0.625rem;        /* 10px — botões e campos */
   --radius-card: 0.875rem;         /* 14px — cartões e tabelas */
   --radius-dialog: 1.125rem;       /* 18px — janelas */

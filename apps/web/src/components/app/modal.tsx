@@ -38,20 +38,20 @@ export function Modal({
         // Clique no backdrop (fora do conteúdo) fecha.
         if (e.target === ref.current) onClose();
       }}
-      className={`m-auto w-full ${wide ? "max-w-2xl" : "max-w-md"} rounded-xl border border-line bg-white p-0 shadow-xl backdrop:bg-ink/40`}
+      className={`m-auto w-full ${wide ? "max-w-2xl" : "max-w-md"} rounded-dialog border border-line bg-white p-0 shadow-xl backdrop:bg-ink/40`}
     >
-      <div className="flex items-center justify-between border-b border-line px-5 py-4">
-        <h2 className="text-base font-semibold text-ink">{title}</h2>
+      <div className="flex items-center justify-between border-b border-line px-6 py-4">
+        <h2 className="text-lg font-semibold text-ink">{title}</h2>
         <button
           type="button"
           onClick={onClose}
           aria-label="Fechar"
-          className="rounded-lg p-1.5 text-ink-muted transition hover:bg-surface hover:text-ink"
+          className="grid size-9 place-items-center rounded-field text-ink-muted transition hover:bg-surface hover:text-ink"
         >
           <X className="size-4" />
         </button>
       </div>
-      <div className="p-5">{children}</div>
+      <div className="p-6">{children}</div>
     </dialog>
   );
 }

@@ -26,10 +26,8 @@ export function ConfigNav() {
               key={aba.href}
               href={aba.href}
               aria-current={ativa ? "page" : undefined}
-              className={`block whitespace-nowrap rounded-lg px-4 py-2.5 text-sm transition ${
-                ativa
-                  ? "bg-brand-soft font-medium text-brand"
-                  : "text-ink-muted hover:bg-surface hover:text-ink"
+              className={`block whitespace-nowrap rounded-field px-4 py-2 text-[15px] no-underline transition ${
+                ativa ? "bg-surface font-semibold text-ink" : "text-ink-soft hover:bg-hover hover:text-ink"
               }`}
             >
               {aba.label}
