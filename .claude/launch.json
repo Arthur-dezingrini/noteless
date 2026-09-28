@@ -18,6 +18,18 @@
         "dev:hom"
       ],
       "port": 3000
+    },
+    {
+      "name": "prototipo-design",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--directory",
+        "/tmp/claude-1000/-home-arthur-Documentos-Trabalhos-VOCare/4c39d188-6b51-4332-8aff-f25f49dd396c/scratchpad/design"
+      ],
+      "port": 8765
     }
   ]
 }

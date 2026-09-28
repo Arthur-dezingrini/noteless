@@ -1,52 +1,32 @@
 import { BRAND_NAME } from "@/lib/brand";
 
 type LogoProps = {
-  /** "light" para fundo escuro/verde, "dark" para fundo branco. */
+  /** "light" para fundo verde, "dark" para fundo claro. */
   tone?: "light" | "dark";
-  /** Linha secundária, ex.: nome da organização ativa. */
-  subtitle?: string;
   className?: string;
 };
 
-/** Marca do VOCare: as barras representam a onda de voz, que é o eixo do produto. */
-export function Logo({ tone = "light", subtitle, className = "" }: LogoProps) {
-  const isLight = tone === "light";
-
+/** Marca do Taiplan: brinco de gado com um check — o animal identificado e o registro feito. */
+export function Logo({ tone = "dark", className = "" }: LogoProps) {
+  const claro = tone === "light";
   return (
-    <div className={`flex items-center gap-3 ${className}`}>
-      <span
-        className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${
-          isLight ? "bg-white" : "bg-brand"
-        }`}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-          className={`size-4 ${isLight ? "text-brand" : "text-white"}`}
-          fill="currentColor"
-        >
-          <rect x="6" y="5" width="4" height="14" rx="2" />
-          <rect x="14" y="5" width="4" height="14" rx="2" />
-        </svg>
-      </span>
-      <span className="min-w-0 leading-tight">
-        <span
-          className={`block truncate text-base font-semibold tracking-tight ${
-            isLight ? "text-white" : "text-ink"
-          }`}
-        >
-          {BRAND_NAME}
-        </span>
-        {subtitle && (
-          <span
-            className={`block truncate text-xs ${
-              isLight ? "text-white/75" : "text-ink-muted"
-            }`}
-          >
-            {subtitle}
-          </span>
-        )}
-      </span>
+    <div className={`flex items-center gap-2 ${className}`}>
+      <svg viewBox="0 0 32 32" aria-hidden="true" className="size-7 shrink-0">
+        <path
+          className={claro ? "fill-white" : "fill-brand"}
+          fillRule="evenodd"
+          d="M16 2.5c2.2 0 4 1.8 4 4v1l5.3 3.4c1.1.7 1.7 1.9 1.7 3.1V24c0 3-2.5 5.5-5.5 5.5h-11C7.5 29.5 5 27 5 24V14c0-1.2.6-2.4 1.7-3.1L12 7.5v-1c0-2.2 1.8-4 4-4Zm0 2.4a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4Z"
+        />
+        <path
+          className={claro ? "stroke-brand" : "stroke-white"}
+          d="M10.5 18l4.5 5.2L22 14.5"
+          fill="none"
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span className={`text-[19px] font-bold tracking-tight ${claro ? "text-white" : "text-ink"}`}>{BRAND_NAME}</span>
     </div>
   );
 }

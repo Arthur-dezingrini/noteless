@@ -1,9 +1,9 @@
 /**
  * Identidade e conteúdo do painel de apresentação do login.
- * O protótipo do Figma usa "VetCare Pro"; o repositório é VOCare. Troque aqui
- * quando o nome final estiver decidido — é o único lugar onde ele aparece.
+ * O repositório ainda se chama VOCare, mas o produto é Taiplan. Este é o
+ * único lugar onde o nome aparece na interface.
  */
-export const BRAND_NAME = "VOCare";
+export const BRAND_NAME = "Taiplan";
 
 export type ShowcaseSlide = {
   quote: string;

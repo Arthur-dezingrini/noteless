@@ -28,7 +28,7 @@ export function BrandShowcase() {
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      <Logo />
+      <Logo tone="light" />
 
       {/* aria-live para que a troca automática seja anunciada por leitor de tela */}
       <div className="max-w-lg py-16" aria-live="polite">
