@@ -65,3 +65,17 @@ export function duracaoCurta(seg: number): string {
   const s = Math.max(0, Math.round(seg));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
+
+/** "3 anos", "8 meses", "menos de 1 mês" — a partir de "AAAA-MM-DD". */
+export function idade(nascimento: string | null | undefined, hoje = hojeISO()): string | null {
+  if (!nascimento) return null;
+  const [a, m, d] = nascimento.split("-").map(Number);
+  const [ha, hm, hd] = hoje.split("-").map(Number);
+  let meses = (ha! - a!) * 12 + (hm! - m!);
+  if (hd! < d!) meses -= 1;
+  if (meses < 0) return null;
+  const anos = Math.floor(meses / 12);
+  if (anos >= 1) return `${anos} ${anos === 1 ? "ano" : "anos"}`;
+  if (meses >= 1) return `${meses} ${meses === 1 ? "mês" : "meses"}`;
+  return "menos de 1 mês";
+}

@@ -1,6 +1,7 @@
 import {
   animalListaSchema,
   consultaListaSchema,
+  fichaAnimalSchema,
   grupoListaSchema,
   memberRoleSchema,
   ocorrenciaListaSchema,
@@ -9,6 +10,7 @@ import {
   usuarioListaSchema,
   type Animal,
   type Consulta,
+  type FichaAnimal,
   type Grupo,
   type MemberRole,
   type Ocorrencia,
@@ -123,6 +125,17 @@ export const getConsultas = cache(
     return parsed.success ? parsed.data : [];
   },
 );
+
+/** Ficha do animal (cadastro + histórico + próximos + pendências); null se não existe. */
+export const getFicha = cache(async (organizationId: string, animalId: string): Promise<FichaAnimal | null> => {
+  const res = await apiFetch(
+    `/api/org/${encodeURIComponent(organizationId)}/animais/${encodeURIComponent(animalId)}/ficha`,
+  );
+  if (!res.ok) return null;
+
+  const parsed = fichaAnimalSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : null;
+});
 
 /** Grupos de animais da organização, com os ids dos membros. */
 export const getGrupos = cache(async (organizationId: string): Promise<Grupo[]> => {

@@ -11,3 +11,4 @@ export * from "./animais";
 export * from "./consultas";
 export * from "./ocorrencias";
 export * from "./grupos";
+export * from "./ficha";

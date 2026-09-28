@@ -14,6 +14,7 @@ import {
   type StatusAnimal,
 } from "@vocare/shared";
 import { Loader2, MoreHorizontal, Plus, Search, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition, type FormEvent } from "react";
 
@@ -23,6 +24,7 @@ import { Modal } from "@/components/app/modal";
 import { PageHeader } from "@/components/app/page-header";
 import { Select } from "@/components/app/select";
 import { btn, campo } from "@/components/app/ui";
+import { idade } from "@/lib/datas";
 
 const inputClasses = campo;
 
@@ -50,19 +52,6 @@ function formatarData(iso: string | null | undefined): string {
   if (!iso) return "—";
   const [a, m, d] = iso.split("-");
   return `${d}/${m}/${a}`;
-}
-
-function formatarIdade(nascimento: string | null | undefined): string | null {
-  if (!nascimento) return null;
-  const [a, m, d] = nascimento.split("-").map(Number);
-  const hoje = new Date();
-  let meses = (hoje.getFullYear() - a!) * 12 + (hoje.getMonth() + 1 - m!);
-  if (hoje.getDate() < d!) meses -= 1;
-  if (meses < 0) return null;
-  const anos = Math.floor(meses / 12);
-  if (anos >= 1) return `${anos} ${anos === 1 ? "ano" : "anos"}`;
-  if (meses >= 1) return `${meses} ${meses === 1 ? "mês" : "meses"}`;
-  return "menos de 1 mês";
 }
 
 function formatarPeso(kg: number | null | undefined): string {
@@ -182,7 +171,7 @@ export function AnimaisLista({ orgId, animais, possoRemover }: Props) {
           </thead>
           <tbody className="divide-y divide-line">
             {filtrados.map((a) => {
-              const idade = formatarIdade(a.nascimento);
+              const anos = idade(a.nascimento);
               return (
                 <tr key={a.id} className="transition hover:bg-surface/60">
                   <td className="px-5 py-4">
@@ -194,8 +183,10 @@ export function AnimaisLista({ orgId, animais, possoRemover }: Props) {
                         {a.nome[0]?.toUpperCase()}
                       </span>
                       <div className="min-w-0">
-                        <p className="font-semibold text-ink">{a.nome}</p>
-                        {idade && <p className="text-xs text-ink-muted">{idade}</p>}
+                        <Link href={`/animais/${a.id}`} className="font-semibold text-ink hover:underline">
+                          {a.nome}
+                        </Link>
+                        {anos && <p className="text-xs text-ink-muted">{anos}</p>}
                       </div>
                     </div>
                   </td>

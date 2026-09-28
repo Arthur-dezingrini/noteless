@@ -23,7 +23,7 @@ export const animaisRoutes = new Hono();
 const PODE_REMOVER: Papel[] = ["owner", "admin"];
 
 /** Linha do banco → contrato. Texto livre no banco vira enum validado aqui. */
-function paraContrato(r: typeof animal.$inferSelect): Animal {
+export function paraContrato(r: typeof animal.$inferSelect): Animal {
   return {
     id: r.id,
     nome: r.nome,
