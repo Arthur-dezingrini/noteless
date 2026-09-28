@@ -79,3 +79,10 @@ export const vincularUsuarioSchema = z.object({
   role: z.enum(["admin", "member"]),
 });
 export type VincularUsuarioInput = z.infer<typeof vincularUsuarioSchema>;
+
+/** "Meu perfil": a pessoa muda o próprio nome e e-mail. */
+export const atualizarPerfilSchema = z.object({
+  name: z.string().trim().min(2, "Informe seu nome.").max(80, "No máximo 80 caracteres."),
+  email: z.string().trim().toLowerCase().email("E-mail inválido."),
+});
+export type AtualizarPerfilInput = z.infer<typeof atualizarPerfilSchema>;

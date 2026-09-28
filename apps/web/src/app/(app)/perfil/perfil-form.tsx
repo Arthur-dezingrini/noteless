@@ -1,12 +1,13 @@
 "use client";
 
-import { Camera, LoaderCircle, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { atualizarPerfilSchema, type Session } from "@vocare/shared";
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { Session } from "@vocare/shared";
+import { useRef, useState, useTransition } from "react";
 
-import { Avatar } from "@/components/app/avatar";
-import { btn } from "@/components/app/ui";
+import { initials } from "@/components/app/avatar";
+import { btn, campo } from "@/components/app/ui";
+import { chamarApi } from "@/lib/api-client";
 
 const TAMANHO_MAXIMO = 2 * 1024 * 1024;
 
@@ -20,81 +21,115 @@ function lerArquivo(file: File): Promise<string> {
 }
 
 export function PerfilForm({ user, papel }: { user: Session["user"]; papel: string }) {
-  const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [imagem, setImagem] = useState(user.image ?? "");
-  const [alterada, setAlterada] = useState(false);
-  const [erro, setErro] = useState("");
-  const [salvando, setSalvando] = useState(false);
-  const [sucesso, setSucesso] = useState("");
+  const [fotoNova, setFotoNova] = useState(false);
+  const [nome, setNome] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
+  const [aviso, setAviso] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [pending, start] = useTransition();
+  const alterado = fotoNova || nome.trim() !== user.name || email.trim().toLowerCase() !== user.email.toLowerCase();
 
-  async function selecionarImagem(file?: File) {
-    setErro("");
-    setSucesso("");
+  async function escolherFoto(file?: File) {
+    setAviso(null);
     if (!file) return;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      setErro("Escolha uma imagem PNG, JPEG ou WebP.");
-      return;
-    }
-    if (file.size > TAMANHO_MAXIMO) {
-      setErro("A imagem deve ter no máximo 2 MB.");
-      return;
-    }
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) return setAviso({ ok: false, msg: "Escolha uma imagem PNG, JPEG ou WebP." });
+    if (file.size > TAMANHO_MAXIMO) return setAviso({ ok: false, msg: "A imagem deve ter no máximo 2 MB." });
     setImagem(await lerArquivo(file));
-    setAlterada(true);
+    setFotoNova(true);
   }
 
-  async function salvar() {
-    if (!imagem) return;
-    setSalvando(true);
-    setErro("");
-    setSucesso("");
-    try {
-      const resposta = await fetch("/api/perfil/avatar", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: imagem }),
-      });
-      const dados = await resposta.json().catch(() => null);
-      if (!resposta.ok) throw new Error(dados?.error ?? "Não foi possível salvar a foto.");
-      setAlterada(false);
-      setSucesso("Foto de perfil atualizada.");
+  function salvar() {
+    setAviso(null);
+    const parsed = atualizarPerfilSchema.safeParse({ name: nome, email });
+    if (!parsed.success) return setAviso({ ok: false, msg: parsed.error.issues[0]?.message ?? "Dados inválidos." });
+    start(async () => {
+      if (fotoNova && imagem) {
+        const err = await chamarApi("/api/perfil/avatar", { method: "PATCH", body: JSON.stringify({ image: imagem }) });
+        if (err) return setAviso({ ok: false, msg: err });
+        setFotoNova(false);
+      }
+      const err = await chamarApi("/api/perfil", { method: "PATCH", body: JSON.stringify(parsed.data) });
+      if (err) return setAviso({ ok: false, msg: err });
+      setAviso({ ok: true, msg: "Perfil salvo." });
       router.refresh();
-    } catch (error) {
-      setErro(error instanceof Error ? error.message : "Não foi possível salvar a foto.");
-    } finally {
-      setSalvando(false);
-    }
+    });
   }
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center gap-5 border-b border-line pb-7">
-        <div className="relative">
-          <Avatar name={user.name || user.email} image={imagem} className="size-24 text-2xl" />
-          <span className="absolute right-0 bottom-0 flex size-8 items-center justify-center rounded-full border-2 border-white bg-brand text-white shadow-sm"><Camera className="size-4" /></span>
-        </div>
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold text-ink">{user.name}</h2>
-          <p className="mt-0.5 text-sm text-ink-muted">{papel || "Membro"}</p>
-          <button type="button" onClick={() => inputRef.current?.click()} className={`${btn.secundario} mt-3`}>
-            <Upload className="size-4" /> Escolher foto
-          </button>
-          <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => { void selecionarImagem(event.target.files?.[0]); event.currentTarget.value = ""; }} />
-          <p className="mt-2 text-xs text-ink-muted">PNG, JPEG ou WebP de até 2 MB.</p>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        salvar();
+      }}
+      className="flex max-w-[560px] flex-col gap-5"
+    >
+      <div className="flex items-center gap-4">
+        {imagem ? (
+          // eslint-disable-next-line @next/next/no-img-element -- data URL local, sem otimização possível
+          <img src={imagem} alt="" className="size-[72px] rounded-full object-cover" />
+        ) : (
+          <span aria-hidden="true" className="grid size-[72px] place-items-center rounded-full bg-[#e9e5dc] text-xl font-semibold text-ink">
+            {initials(nome || user.email)}
+          </span>
+        )}
+        <button type="button" onClick={() => inputRef.current?.click()} className={btn.secundario}>
+          Trocar foto
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="sr-only"
+          aria-label="Escolher foto"
+          onChange={(e) => {
+            void escolherFoto(e.target.files?.[0]);
+            e.currentTarget.value = "";
+          }}
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold text-ink">Nome</span>
+          <input value={nome} onChange={(e) => setNome(e.target.value)} className={campo} autoComplete="name" />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold text-ink">E-mail</span>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={campo} autoComplete="email" />
+        </label>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold text-ink">Papel</span>
+          <span className="text-[15px] text-ink-soft">{papel}</span>
         </div>
       </div>
 
-      <dl className="mt-7 grid gap-5 sm:grid-cols-2">
-        <div><dt className="text-xs font-medium tracking-wide text-ink-muted uppercase">Nome</dt><dd className="mt-1 text-sm text-ink">{user.name}</dd></div>
-        <div><dt className="text-xs font-medium tracking-wide text-ink-muted uppercase">E-mail</dt><dd className="mt-1 break-all text-sm text-ink">{user.email}</dd></div>
-      </dl>
+      <div className="flex items-center justify-end gap-4">
+        {aviso && (
+          <p role="status" className={`text-sm ${aviso.ok ? "text-brand-ink" : "text-danger"}`}>
+            {aviso.msg}
+          </p>
+        )}
+        <button type="submit" disabled={pending || !alterado} className={btn.primario}>
+          {pending && <Loader2 className="size-4 animate-spin" />}
+          Salvar
+        </button>
+      </div>
 
-      {(erro || sucesso || alterada) && <div className="mt-7 flex flex-wrap items-center gap-3 border-t border-line pt-5">
-        {erro && <p role="alert" className="text-sm text-red-600">{erro}</p>}
-        {sucesso && <p role="status" className="text-sm text-brand">{sucesso}</p>}
-        {alterada && <button type="button" onClick={() => void salvar()} disabled={salvando} className={btn.primario}>{salvando && <LoaderCircle className="size-4 animate-spin" />}{salvando ? "Salvando..." : "Salvar foto"}</button>}
-      </div>}
-    </div>
+      <section className="flex flex-col gap-3 border-t border-line pt-5">
+        <h2 className="text-base font-semibold text-ink">Atalhos de teclado</h2>
+        <dl className="grid grid-cols-[max-content_1fr] items-center gap-x-3 gap-y-2 text-[15px] text-ink-soft">
+          <dt>
+            <kbd className="rounded-md border border-button-border bg-white px-2 py-0.5 text-[13px] font-semibold text-ink">Esc</kbd>
+          </dt>
+          <dd>Fechar janelas, menus e notificações</dd>
+          <dt>
+            <kbd className="rounded-md border border-button-border bg-white px-2 py-0.5 text-[13px] font-semibold text-ink">Tab</kbd>
+          </dt>
+          <dd>Andar pelos botões e listas. Enter abre.</dd>
+        </dl>
+      </section>
+    </form>
   );
 }
