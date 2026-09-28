@@ -1,5 +1,6 @@
 import {
   confirmarOcorrenciaSchema,
+  corrigirOperacao,
   operacaoSchema,
   statusOcorrenciaSchema,
   textoOcorrenciaSchema,
@@ -259,10 +260,19 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/confirmar", async (c) => {
   if (!alvo) return c.json({ error: "Ocorrência não encontrada." }, 404);
   if (alvo.status !== "pendente") return c.json({ error: "Esta ocorrência já foi revisada." }, 409);
 
+  // Correções de quem conferiu entram antes de aplicar; o valor da IA fica
+  // em `original` de cada operação (trilha de auditoria).
+  const corrigidas: Operacao[] = [];
+  for (const [i, op] of alvo.operacoes.entries()) {
+    const r = corrigirOperacao(op, body.data.correcoes?.[String(i)]);
+    if (!r.ok) return c.json({ error: `${r.error} (ação ${i + 1})` }, 400);
+    corrigidas.push(r.op);
+  }
+
   const indices = new Set(body.data.operacoes);
-  const escolhidas = alvo.operacoes.filter((_, i) => indices.has(i));
-  // Fica registrado o que foi proposto e o que de fato entrou.
-  const marcadas = alvo.operacoes.map((op, i) => ({ ...op, aplicada: indices.has(i) }));
+  const escolhidas = corrigidas.filter((_, i) => indices.has(i));
+  // Fica registrado o que foi proposto, o que foi corrigido e o que de fato entrou.
+  const marcadas = corrigidas.map((op, i) => ({ ...op, aplicada: indices.has(i) }));
 
   // Tudo ou nada: se uma operação falha, nenhuma é gravada e a ocorrência
   // continua pendente para o revisor ajustar.

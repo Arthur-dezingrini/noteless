@@ -1,10 +1,14 @@
 "use client";
 
 import {
+  CAMPOS_CORRIGIVEIS,
   DESTINO_OPERACAO,
   ROTULO_STATUS_OCORRENCIA,
   ROTULO_TIPO_CONSULTA,
+  TIPOS_CONSULTA,
+  corrigirOperacao,
   ocorrenciaSchema,
+  type CampoCorrigivel,
   type Ocorrencia,
   type Operacao,
   type Sexo,
@@ -13,12 +17,13 @@ import {
 } from "@vocare/shared";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type FormEvent } from "react";
+import { useState, useTransition, type FormEvent, type KeyboardEvent } from "react";
 
 import { Avatar } from "@/components/app/avatar";
 import { Badge, type Tone } from "@/components/app/badge";
 import { Card } from "@/components/app/card";
 import { PageHeader } from "@/components/app/page-header";
+import { Select } from "@/components/app/select";
 import { btn, campo } from "@/components/app/ui";
 import { chamarApiJson } from "@/lib/api-client";
 import { duracaoCurta, formatar, haQuantoTempo } from "@/lib/datas";
@@ -81,40 +86,198 @@ function descrever(op: Operacao): string {
   }
 }
 
-/** Os campos da operação, como o revisor lê. */
-function campos(op: Operacao, nomeAnimal: string): { rotulo: string; valor: string }[] {
-  const animal = { rotulo: "Animal", valor: nomeAnimal };
-  switch (op.tipo) {
-    case "registrar_peso":
-      return [animal, { rotulo: "Peso", valor: `${op.pesoKg.toLocaleString("pt-BR")} kg` }];
-    case "registrar_anotacao":
-      return [animal, { rotulo: "Anotação", valor: op.texto }];
-    case "agendar_consulta":
-      return [
-        animal,
-        { rotulo: "Tipo", valor: ROTULO_TIPO_CONSULTA[op.tipoConsulta] },
-        { rotulo: "Data", valor: op.data ? formatar(op.data, { weekday: "short", day: "numeric", month: "long" }) : "Não dita" },
-        { rotulo: "Hora", valor: op.hora ?? "Não dita" },
-        { rotulo: "Observações", valor: op.observacoes || "—" },
-      ];
+type Correcao = Partial<Record<CampoCorrigivel, unknown>>;
+
+/** Campo de correção, um pouco mais baixo que o padrão para caber na linha. */
+const CAMPO_INPUT = `${campo} h-10`;
+
+const ROTULO_CAMPO: Record<CampoCorrigivel, string> = {
+  animalId: "Animal",
+  pesoKg: "Peso",
+  texto: "Anotação",
+  tipoConsulta: "Tipo",
+  data: "Data",
+  hora: "Hora",
+  observacoes: "Observações",
+};
+
+/** Valor de um campo como o revisor lê. */
+function formatarCampo(campo: CampoCorrigivel, valor: unknown, animais: Map<string, AnimalRef>, alvo: string): string {
+  if (valor === null || valor === undefined || valor === "") {
+    return campo === "animalId" ? `“${alvo}” (não cadastrado)` : campo === "data" || campo === "hora" ? "Não dita" : "—";
   }
+  switch (campo) {
+    case "animalId":
+      return animais.get(String(valor))?.nome ?? "Animal removido";
+    case "pesoKg":
+      return `${Number(valor).toLocaleString("pt-BR")} kg`;
+    case "tipoConsulta":
+      return ROTULO_TIPO_CONSULTA[valor as TipoConsulta] ?? String(valor);
+    case "data":
+      return formatar(String(valor), { weekday: "short", day: "numeric", month: "long" });
+    default:
+      return String(valor);
+  }
+}
+
+/**
+ * Uma linha por campo, com "Corrigir". Enter confirma, Esc cancela; o valor
+ * que a IA tinha proposto continua à vista ("corrigido, era 480 kg").
+ */
+function CamposEditaveis({
+  op,
+  animais,
+  editavel,
+  onCorrigir,
+  onDesfazer,
+}: {
+  op: Operacao;
+  animais: Map<string, AnimalRef>;
+  editavel: boolean;
+  onCorrigir: (campo: CampoCorrigivel, valor: unknown) => void;
+  onDesfazer: (campo: CampoCorrigivel) => void;
+}) {
+  const [editando, setEditando] = useState<CampoCorrigivel | null>(null);
+  const [rascunho, setRascunho] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const atual = op as Record<string, unknown>;
+  const original = op.original ?? {};
+
+  function abrir(campo: CampoCorrigivel) {
+    setErro(null);
+    setEditando(campo);
+    setRascunho(atual[campo] == null ? "" : String(atual[campo]));
+  }
+
+  function confirmar(campo: CampoCorrigivel, bruto = rascunho) {
+    let valor: unknown = bruto.trim();
+    if (campo === "pesoKg") {
+      valor = Number(bruto.replace(",", "."));
+      if (!Number.isFinite(valor) || (valor as number) <= 0) return setErro("Informe um peso maior que zero.");
+    } else if ((campo === "data" || campo === "hora" || campo === "observacoes") && valor === "") {
+      valor = null;
+    } else if ((campo === "texto" || campo === "animalId") && valor === "") {
+      return setErro("Este campo não pode ficar vazio.");
+    }
+    onCorrigir(campo, valor);
+    setEditando(null);
+  }
+
+  function teclas(e: KeyboardEvent, campo: CampoCorrigivel) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      confirmar(campo);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      setEditando(null);
+    }
+  }
+
+  function entrada(campo: CampoCorrigivel) {
+    const comum = {
+      autoFocus: true,
+      "aria-label": `Corrigir ${ROTULO_CAMPO[campo].toLowerCase()}`,
+      onKeyDown: (e: KeyboardEvent) => teclas(e, campo),
+    };
+    if (campo === "animalId" || campo === "tipoConsulta") {
+      const opcoes =
+        campo === "animalId"
+          ? [...animais.values()].map((a) => ({ v: a.id, r: a.nome }))
+          : TIPOS_CONSULTA.map((t) => ({ v: t, r: ROTULO_TIPO_CONSULTA[t] }));
+      return (
+        <Select {...comum} value={rascunho} onChange={(e) => confirmar(campo, e.target.value)}>
+          {campo === "animalId" && <option value="">Escolha o animal…</option>}
+          {opcoes.map((o) => (
+            <option key={o.v} value={o.v}>
+              {o.r}
+            </option>
+          ))}
+        </Select>
+      );
+    }
+    const tipo = campo === "data" ? "date" : campo === "hora" ? "time" : "text";
+    return (
+      <input
+        {...comum}
+        type={tipo}
+        inputMode={campo === "pesoKg" ? "decimal" : undefined}
+        value={rascunho}
+        onChange={(e) => setRascunho(e.target.value)}
+        className={campo === "pesoKg" ? `${CAMPO_INPUT} max-w-40` : CAMPO_INPUT}
+      />
+    );
+  }
+
+  return (
+    <dl className="grid grid-cols-[max-content_1fr] items-baseline gap-x-5 gap-y-2.5 rounded-field border border-line-soft bg-detail px-4 py-3 text-[15px]">
+      {CAMPOS_CORRIGIVEIS[op.tipo].map((campo) => {
+        const corrigido = campo in original;
+        return (
+          <div key={campo} className="contents">
+            <dt className="text-ink-muted">{ROTULO_CAMPO[campo]}</dt>
+            <dd className="min-w-0">
+              {editando === campo ? (
+                <div className="flex flex-col gap-1.5">
+                  {entrada(campo)}
+                  <span className="text-[13px] text-ink-muted">
+                    {campo === "animalId" || campo === "tipoConsulta" ? "Escolha para confirmar" : "Enter confirma"} · Esc cancela
+                  </span>
+                  {erro && <span className="text-sm text-danger">{erro}</span>}
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <span className="min-w-0 text-ink">
+                    {formatarCampo(campo, atual[campo], animais, op.alvo)}
+                    {corrigido && (
+                      <span className="ml-2 text-sm text-ink-muted">
+                        corrigido, era {formatarCampo(campo, original[campo], animais, op.alvo)}
+                      </span>
+                    )}
+                  </span>
+                  {editavel && (
+                    <span className="flex shrink-0 gap-3">
+                      {corrigido && (
+                        <button type="button" onClick={() => onDesfazer(campo)} className="cursor-pointer text-sm font-semibold text-ink-muted hover:text-ink">
+                          Desfazer
+                        </button>
+                      )}
+                      <button type="button" onClick={() => abrir(campo)} className="cursor-pointer text-sm font-semibold text-brand-ink hover:underline">
+                        Corrigir
+                      </button>
+                    </span>
+                  )}
+                </div>
+              )}
+            </dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
 }
 
 function LinhaOperacao({
   op,
-  animal,
+  animais,
   editavel,
   marcada,
   onToggle,
+  onCorrigir,
+  onDesfazer,
 }: {
   op: Operacao;
-  animal: AnimalRef | undefined;
+  animais: Map<string, AnimalRef>;
   editavel: boolean;
   marcada: boolean;
   onToggle: () => void;
+  onCorrigir: (campo: CampoCorrigivel, valor: unknown) => void;
+  onDesfazer: (campo: CampoCorrigivel) => void;
 }) {
+  const animal = op.animalId ? animais.get(op.animalId) : undefined;
   const semAnimal = op.animalId === null;
-  const incerta = op.confianca < LIMIAR_ATENCAO;
+  // Corrigido por quem confere = deixa de ser dúvida da IA.
+  const incerta = op.confianca < LIMIAR_ATENCAO && !op.original;
   const [aberta, setAberta] = useState(editavel && (incerta || semAnimal));
   const d = DESTINO_OPERACAO[op.tipo];
   const salva = !editavel && op.aplicada === true;
@@ -168,14 +331,7 @@ function LinhaOperacao({
 
         {aberta && (
           <>
-            <dl className="grid grid-cols-[max-content_1fr] gap-x-5 gap-y-2 rounded-field border border-line-soft bg-detail px-4 py-3 text-[15px]">
-              {campos(op, nome).map((c) => (
-                <div key={c.rotulo} className="contents">
-                  <dt className="text-ink-muted">{c.rotulo}</dt>
-                  <dd className="min-w-0 text-ink">{c.valor}</dd>
-                </div>
-              ))}
-            </dl>
+            <CamposEditaveis op={op} animais={animais} editavel={editavel} onCorrigir={onCorrigir} onDesfazer={onDesfazer} />
             {op.trecho && <p className="text-sm text-ink-muted">você disse “{op.trecho}”</p>}
           </>
         )}
@@ -184,7 +340,9 @@ function LinhaOperacao({
           <p className="text-sm text-warn">Confira: não temos certeza deste dado.</p>
         )}
         {editavel && semAnimal && (
-          <p className="text-sm text-danger">Não achamos “{op.alvo}” no cadastro de animais.</p>
+          <p className="text-sm text-danger">
+            Não achamos “{op.alvo}” no cadastro de animais. Abra os detalhes e corrija o animal para poder salvar.
+          </p>
         )}
         {naoSalva && <p className="text-sm text-ink-muted">Não foi salva.</p>}
       </div>
@@ -280,15 +438,43 @@ function Detalhe({
   const [marcadas, setMarcadas] = useState<Set<number>>(
     () => new Set(oc.operacoes.flatMap((op, i) => (op.animalId && op.confianca >= LIMIAR_ATENCAO ? [i] : []))),
   );
+  const [correcoes, setCorrecoes] = useState<Record<number, Correcao>>({});
   const [pending, start] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
+
+  // A operação como vai ser salva: a proposta da IA com as correções por cima.
+  const efetivas = oc.operacoes.map((op, i) => {
+    const r = corrigirOperacao(op, correcoes[i]);
+    return r.ok ? r.op : op;
+  });
+
+  function corrigir(i: number, campo: CampoCorrigivel, valor: unknown) {
+    setCorrecoes((c) => ({ ...c, [i]: { ...c[i], [campo]: valor } }));
+    // Escolher o animal que faltava libera a ação: já deixa marcada.
+    if (campo === "animalId" && valor) setMarcadas((s) => new Set(s).add(i));
+  }
+
+  function desfazer(i: number, campo: CampoCorrigivel) {
+    setCorrecoes((c) => {
+      const resto = { ...c[i] };
+      delete resto[campo];
+      return { ...c, [i]: resto };
+    });
+    if (campo === "animalId" && !oc.operacoes[i]?.animalId) {
+      setMarcadas((s) => {
+        const novo = new Set(s);
+        novo.delete(i);
+        return novo;
+      });
+    }
+  }
 
   function agir(acao: "confirmar" | "descartar" | "encaminhar") {
     setErro(null);
     start(async () => {
       const r = await chamarApiJson<unknown>(`/api/org/${orgId}/ocorrencias/${oc.id}/${acao}`, {
         method: "POST",
-        body: JSON.stringify(acao === "confirmar" ? { operacoes: [...marcadas] } : {}),
+        body: JSON.stringify(acao === "confirmar" ? { operacoes: [...marcadas], correcoes } : {}),
       });
       if (!r.ok) return setErro(r.error);
       const parsed = ocorrenciaSchema.safeParse(r.data);
@@ -296,7 +482,7 @@ function Detalhe({
     });
   }
 
-  const escolhidas = oc.operacoes.filter((_, i) => marcadas.has(i));
+  const escolhidas = efetivas.filter((_, i) => marcadas.has(i));
   const n = escolhidas.length;
 
   return (
@@ -336,11 +522,13 @@ function Detalhe({
               <p className="py-2 text-[15px] text-ink-muted">Nenhuma ação encontrada neste áudio.</p>
             ) : (
               <ul className="-mx-3 flex flex-col">
-                {oc.operacoes.map((op, i) => (
+                {efetivas.map((op, i) => (
                   <LinhaOperacao
                     key={i}
                     op={op}
-                    animal={op.animalId ? animais.get(op.animalId) : undefined}
+                    animais={animais}
+                    onCorrigir={(campo, valor) => corrigir(i, campo, valor)}
+                    onDesfazer={(campo) => desfazer(i, campo)}
                     editavel={pendente}
                     marcada={marcadas.has(i)}
                     onToggle={() =>
