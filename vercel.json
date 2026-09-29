@@ -9,8 +9,7 @@
     "api": {
       "root": "apps/api/",
       "framework": "hono",
-      "buildCommand": "npm run build",
-      "entrypoint": "./vercel.js"
+      "entrypoint": "src/vercel.ts"
     }
   },
   "rewrites": [
