@@ -314,3 +314,8 @@ Dentro de um workspace, `npm run test:watch` roda a cada mudança.
   Better Auth? `npm run auth:generate` e depois `npm run db:generate`.
 - A cor de marca vive só em `apps/web/src/app/globals.css` (`--color-brand`).
 - O nome do produto vive só em `apps/web/src/lib/brand.ts` (`BRAND_NAME`).
+- **Toda funcionalidade nova vem com teste, no mesmo commit.** Na api, teste
+  da rota em `apps/api/test/` — o que pode e quem não pode (outro papel, outra
+  organização). Schema ou função pura: `x.test.ts` ao lado do arquivo. Bug
+  corrigido ganha um teste que falhava antes. `npm test` verde antes do commit;
+  o CI roda os testes em todo push e pull request.

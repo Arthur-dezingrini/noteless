@@ -19,6 +19,12 @@ aplicações separadas, com deploy independente:
 - `apps/api/src/db/schema.ts` é gerado (`npm run auth:generate`); não edite à mão.
 - Cor de marca em `apps/web/src/app/globals.css`; nome do produto em
   `apps/web/src/lib/brand.ts`. Um lugar cada.
+- **Toda funcionalidade nova vem com teste, no mesmo commit.** Rota nova ou
+  regra nova na api → teste em `apps/api/test/`, cobrindo o caminho feliz e
+  quem NÃO pode (outro papel, outra organização). Schema ou função pura →
+  `x.test.ts` ao lado. Correção de bug → teste que falhava antes da correção.
+  Tela (componente React) fica de fora por enquanto; a regra por trás dela não.
+  `npm test` verde antes de commitar — o CI barra se não estiver.
 
 ## Comandos (na raiz)
 
