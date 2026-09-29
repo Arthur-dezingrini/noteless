@@ -24,4 +24,5 @@ aplicações separadas, com deploy independente:
 
 - `npm run dev` — sobe web (:3000) e api (:4000) juntos via Turborepo
 - `npm run build` / `npm run lint` / `npm run typecheck`
+- `npm test` — testes de unidade (Vitest), ao lado do arquivo: `x.ts` → `x.test.ts`
 - `npm run db:migrate` / `npm run seed -- "<org>" <email> <senha>`

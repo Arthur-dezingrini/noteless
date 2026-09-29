@@ -288,10 +288,15 @@ Cada módulo tem contrato em `packages/shared` (schemas Zod), rotas em
 | `npm run build`          | build dos dois                                   |
 | `npm run typecheck`      | `tsc` em todos os workspaces                     |
 | `npm run lint`           | eslint no web                                    |
+| `npm test`               | testes de unidade (Vitest) no shared e no web    |
 | `npm run db:migrate`     | aplica migrações no principal (`:hom` p/ homolog.)|
 | `npm run db:generate`    | gera migração a partir do schema                 |
 | `npm run auth:generate`  | regenera `schema.ts` a partir da config do auth  |
 | `npm run seed -- …`      | cria organização + primeiro usuário (`seed:hom`) |
+
+Testes ficam ao lado do arquivo testado (`datas.ts` → `datas.test.ts`). Hoje
+cobrem as funções puras: schemas do contrato, correção de operações da IA e
+datas. Dentro de um workspace, `npm run test:watch` roda a cada mudança.
 
 ## Convenções
 
