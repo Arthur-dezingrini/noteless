@@ -5,7 +5,7 @@ import { asc, eq } from "drizzle-orm";
 
 import { db } from "./db";
 import * as schema from "./db/schema";
-import { env } from "./env";
+import { env, origensConfiaveis } from "./env";
 
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
@@ -13,7 +13,7 @@ export const auth = betterAuth({
 
   // O front roda em outra origem. Sem isso o Better Auth rejeita o POST de
   // login como possível CSRF.
-  trustedOrigins: [env.WEB_URL],
+  trustedOrigins: origensConfiaveis,
 
   database: drizzleAdapter(db, { provider: "pg", schema }),
 

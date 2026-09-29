@@ -23,6 +23,21 @@ const schema = z.object({
   TRANSCRICAO_MODELO: z.string().optional(),
 });
 
+/**
+ * Na Vercel, o endereço público sai das variáveis que a plataforma injeta:
+ * web e api ficam no mesmo domínio (vercel.json), então BETTER_AUTH_URL e
+ * WEB_URL são a mesma URL. Definidas no painel (domínio próprio), elas vencem.
+ */
+const { VERCEL_ENV, VERCEL_PROJECT_PRODUCTION_URL, VERCEL_BRANCH_URL, VERCEL_URL } = process.env;
+const https = (host: string | undefined) => (host ? `https://${host}` : undefined);
+const hostsVercel = [VERCEL_PROJECT_PRODUCTION_URL, VERCEL_BRANCH_URL, VERCEL_URL].map(https).filter((u): u is string => !!u);
+// Produção atende no domínio do projeto; preview, no endereço da branch.
+const urlVercel = VERCEL_ENV === "production" ? https(VERCEL_PROJECT_PRODUCTION_URL) : https(VERCEL_BRANCH_URL ?? VERCEL_URL);
+if (urlVercel) {
+  process.env.BETTER_AUTH_URL ||= urlVercel;
+  process.env.WEB_URL ||= urlVercel;
+}
+
 const parsed = schema.safeParse(process.env);
 
 if (!parsed.success) {
@@ -36,3 +51,9 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+/**
+ * Quem pode fazer login e chamar a api pelo navegador: o front e, na Vercel,
+ * também os endereços de preview (cada pull request tem o seu).
+ */
+export const origensConfiaveis = [...new Set([env.WEB_URL, ...hostsVercel])];

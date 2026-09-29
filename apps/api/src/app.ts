@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
 import { auth } from "./auth";
-import { env } from "./env";
+import { origensConfiaveis } from "./env";
 import { animaisRoutes } from "./routes/animais";
 import { consultasRoutes } from "./routes/consultas";
 import { fichaRoutes } from "./routes/ficha";
@@ -25,7 +25,7 @@ app.use(logger());
 app.use(
   "/api/*",
   cors({
-    origin: env.WEB_URL,
+    origin: origensConfiaveis,
     credentials: true,
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

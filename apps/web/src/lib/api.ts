@@ -2,8 +2,6 @@ import "server-only";
 
 import { headers } from "next/headers";
 
-const API_URL = process.env.API_URL ?? "http://localhost:4000";
-
 /**
  * Chamada servidor→api com a identidade do usuário atual.
  *
@@ -13,8 +11,11 @@ const API_URL = process.env.API_URL ?? "http://localhost:4000";
  */
 export async function apiFetch(path: string, init: RequestInit = {}) {
   const cookie = (await headers()).get("cookie") ?? "";
+  // Lido a cada chamada: na Vercel o API_URL é o endereço interno da api,
+  // injetado só em tempo de execução (binding no vercel.json).
+  const base = (process.env.API_URL ?? "http://localhost:4000").replace(/\/+$/, "");
 
-  return fetch(`${API_URL}${path}`, {
+  return fetch(`${base}${path}`, {
     ...init,
     headers: { ...init.headers, cookie },
     // Sessão nunca pode vir de cache.
