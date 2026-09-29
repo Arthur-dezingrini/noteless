@@ -403,7 +403,7 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/confirmar", async (c) => {
   const corrigidas: Operacao[] = [];
   for (const [i, op] of alvo.operacoes.entries()) {
     const r = corrigirOperacao(op, body.data.correcoes?.[String(i)]);
-    if (!r.ok) return c.json({ error: `${r.error} (ação ${i + 1})` }, 400);
+    if (r.ok === false) return c.json({ error: `${r.error} (ação ${i + 1})` }, 400);
     corrigidas.push(r.op);
   }
 
