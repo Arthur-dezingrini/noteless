@@ -288,15 +288,23 @@ Cada módulo tem contrato em `packages/shared` (schemas Zod), rotas em
 | `npm run build`          | build dos dois                                   |
 | `npm run typecheck`      | `tsc` em todos os workspaces                     |
 | `npm run lint`           | eslint no web                                    |
-| `npm test`               | testes de unidade (Vitest) no shared e no web    |
+| `npm test`               | testes (Vitest): shared, web e rotas da api      |
 | `npm run db:migrate`     | aplica migrações no principal (`:hom` p/ homolog.)|
 | `npm run db:generate`    | gera migração a partir do schema                 |
 | `npm run auth:generate`  | regenera `schema.ts` a partir da config do auth  |
 | `npm run seed -- …`      | cria organização + primeiro usuário (`seed:hom`) |
 
-Testes ficam ao lado do arquivo testado (`datas.ts` → `datas.test.ts`). Hoje
-cobrem as funções puras: schemas do contrato, correção de operações da IA e
-datas. Dentro de um workspace, `npm run test:watch` roda a cada mudança.
+Testes de funções puras ficam ao lado do arquivo testado (`datas.ts` →
+`datas.test.ts`): schemas do contrato, correção de operações da IA, datas.
+
+Testes das rotas da api ficam em `apps/api/test/` e rodam contra um Postgres
+em memória (PGlite) com as mesmas migrações: `test/setup.ts` troca o `db` da
+api por ele, então rotas e Better Auth funcionam de verdade, sem Neon, sem
+internet e sem chave de IA — o `.env` nem é lido. `test/ajuda.ts` cria uma
+fazenda com dono, admin e membro já logados. Cobrem permissões por papel e
+por organização, conferência de ocorrências e prontuários.
+
+Dentro de um workspace, `npm run test:watch` roda a cada mudança.
 
 ## Convenções
 

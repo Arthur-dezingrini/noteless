@@ -24,5 +24,7 @@ aplicações separadas, com deploy independente:
 
 - `npm run dev` — sobe web (:3000) e api (:4000) juntos via Turborepo
 - `npm run build` / `npm run lint` / `npm run typecheck`
-- `npm test` — testes de unidade (Vitest), ao lado do arquivo: `x.ts` → `x.test.ts`
+- `npm test` — Vitest. Função pura: `x.ts` → `x.test.ts` ao lado. Rota da api:
+  `apps/api/test/`, contra Postgres em memória (PGlite); use `criarFazenda` e
+  `chamar` de `test/ajuda.ts`.
 - `npm run db:migrate` / `npm run seed -- "<org>" <email> <senha>`
