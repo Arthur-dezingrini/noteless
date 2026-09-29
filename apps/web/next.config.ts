@@ -6,7 +6,10 @@ const nextConfig: NextConfig = {
   // O navegador fala só com o web; /api/* é repassado para a api. Assim o
   // cookie de sessão é same-origin e não existe CORS no caminho do usuário.
   async rewrites() {
-    return [{ source: "/api/:path*", destination: `${API_URL}/api/:path*` }];
+    return [
+      { source: "/api/:path*", destination: `${process.env.API_URL}/api/:path*` },
+      { source: "/health", destination: `${process.env.API_URL}/health` },
+    ];
   },
 };
 
