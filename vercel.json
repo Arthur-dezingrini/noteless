@@ -10,7 +10,7 @@
       "root": "apps/api/",
       "framework": "hono",
       "buildCommand": "npm run build",
-      "entrypoint": "src/vercel.js"
+      "entrypoint": "./vercel.js"
     }
   },
   "rewrites": [
