@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-/** Carrega env.ts do zero com as variáveis que a Vercel injetaria. */
+/** Carrega env.ts do zero com estas variáveis. */
 async function carregar(vars: Record<string, string>) {
   vi.resetModules();
   for (const [k, v] of Object.entries(vars)) vi.stubEnv(k, v);
@@ -9,48 +9,46 @@ async function carregar(vars: Record<string, string>) {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
 
-describe("endereço público na Vercel", () => {
-  const vercel = {
-    VERCEL_PROJECT_PRODUCTION_URL: "vocare.vercel.app",
-    VERCEL_BRANCH_URL: "vocare-git-nova-tela-taiplan.vercel.app",
-    VERCEL_URL: "vocare-abc123-taiplan.vercel.app",
-    // Sem valor definido no painel: vem da Vercel.
-    BETTER_AUTH_URL: "",
-    WEB_URL: "",
-  };
-
-  it("produção usa o domínio do projeto", async () => {
-    const { env } = await carregar({ ...vercel, VERCEL_ENV: "production" });
-    expect(env.BETTER_AUTH_URL).toBe("https://vocare.vercel.app");
-    expect(env.WEB_URL).toBe("https://vocare.vercel.app");
+describe("variáveis da api", () => {
+  it("aceita login só do front", async () => {
+    const { origensConfiaveis } = await carregar({ WEB_URL: "https://vocare-web.vercel.app" });
+    expect(origensConfiaveis).toEqual(["https://vocare-web.vercel.app"]);
   });
 
-  it("preview usa o endereço da branch e aceita login de qualquer endereço do deploy", async () => {
-    const { env, origensConfiaveis } = await carregar({ ...vercel, VERCEL_ENV: "preview" });
-    expect(env.WEB_URL).toBe("https://vocare-git-nova-tela-taiplan.vercel.app");
+  it("ORIGENS_EXTRAS libera mais endereços (domínio próprio, preview)", async () => {
+    const { origensConfiaveis } = await carregar({
+      WEB_URL: "https://vocare-web.vercel.app",
+      ORIGENS_EXTRAS: " https://app.vocare.com.br , https://vocare-web-git-teste.vercel.app,",
+    });
     expect(origensConfiaveis).toEqual([
-      "https://vocare-git-nova-tela-taiplan.vercel.app",
-      "https://vocare.vercel.app",
-      "https://vocare-abc123-taiplan.vercel.app",
+      "https://vocare-web.vercel.app",
+      "https://app.vocare.com.br",
+      "https://vocare-web-git-teste.vercel.app",
     ]);
   });
 
-  it("URL definida no painel (domínio próprio) vence", async () => {
-    const { env, origensConfiaveis } = await carregar({
-      ...vercel,
-      VERCEL_ENV: "production",
-      BETTER_AUTH_URL: "https://app.vocare.com.br",
-      WEB_URL: "https://app.vocare.com.br",
-    });
-    expect(env.WEB_URL).toBe("https://app.vocare.com.br");
-    expect(origensConfiaveis[0]).toBe("https://app.vocare.com.br");
-    expect(origensConfiaveis).toContain("https://vocare.vercel.app");
+  it("na Vercel não inventa a URL do front: sem WEB_URL a api não sobe e diz o que falta", async () => {
+    const erros: string[] = [];
+    vi.spyOn(console, "error").mockImplementation((m: string) => void erros.push(m));
+    vi.spyOn(process, "exit").mockImplementation(((codigo: number) => {
+      throw new Error(`exit ${codigo}`);
+    }) as never);
+
+    await expect(
+      carregar({ VERCEL: "1", VERCEL_URL: "vocare-api-abc.vercel.app", WEB_URL: "", BETTER_AUTH_URL: "" }),
+    ).rejects.toThrow("exit 1");
+    expect(erros.join("\n")).toMatch(/WEB_URL/);
+    expect(erros.join("\n")).toMatch(/BETTER_AUTH_URL/);
   });
 
-  it("fora da Vercel não mexe em nada", async () => {
-    const { origensConfiaveis } = await carregar({});
-    expect(origensConfiaveis).toEqual(["http://localhost:3000"]);
+  it("ORIGENS_EXTRAS com algo que não é URL também não sobe", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(process, "exit").mockImplementation(((codigo: number) => {
+      throw new Error(`exit ${codigo}`);
+    }) as never);
+    await expect(carregar({ ORIGENS_EXTRAS: "vocare.com.br" })).rejects.toThrow("exit 1");
   });
 });

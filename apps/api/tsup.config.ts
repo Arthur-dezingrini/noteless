@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  // index: servidor Node comum (npm start). Na Vercel, ela usa src/index.ts direto.
+  // index: servidor Node comum (npm start) e, pelo server.js, a função na Vercel.
   entry: ["src/index.ts"],
   format: ["esm"],
   target: "node24",

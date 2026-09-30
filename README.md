@@ -231,6 +231,32 @@ no Windows). A api imprime na subida qual arquivo carregou e o host do banco —
 Migração e seed têm a variante `:hom`: `db:migrate:hom`, `seed:hom`,
 `db:studio:hom`.
 
+## Deploy (Vercel)
+
+Dois projetos na Vercel, do mesmo repositório — na importação, "Import single
+project" em cada app:
+
+| | api | web |
+| --- | --- | --- |
+| Root Directory | `apps/api` | `apps/web` |
+| Preset | Hono | Next.js |
+| Variáveis | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `GROQ_API_KEY`, `WEB_URL` e `BETTER_AUTH_URL` (as duas = URL do web) | `API_URL` (URL da api) |
+
+O navegador só fala com o web; o `next.config.ts` repassa `/api/*` para a api,
+então o cookie de sessão é do domínio do web. Por isso, na api, `WEB_URL` e
+`BETTER_AUTH_URL` são a URL do web — sem elas a api não sobe e diz o que falta.
+`API_URL` precisa existir no projeto do web antes do build (sem ela, o build na
+Vercel para com uma mensagem). Login de outro endereço (domínio próprio,
+preview): liste em `ORIGENS_EXTRAS` na api.
+
+A entrada da api na Vercel é `apps/api/server.js`, que reexporta o
+`dist/index.js` do tsup (um arquivo só, com o `@vocare/shared` dentro). Sem
+ele a Vercel pegaria `src/app.ts` arquivo a arquivo, e o Node não carrega.
+
+Ordem na primeira vez: crie a api, crie o web com a URL dela, volte na api
+para pôr a URL do web e faça Redeploy. Nos dois, Settings → Functions →
+região São Paulo (gru1) — o banco está em `sa-east-1`.
+
 ## Domínio
 
 Tabelas de negócio ficam em `apps/api/src/db/*.ts` (uma por módulo), separadas
