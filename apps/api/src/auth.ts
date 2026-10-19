@@ -59,6 +59,10 @@ export const auth = betterAuth({
 
   plugins: [
     // Multi-tenant: cada fazenda/clínica é uma organization; usuários são members.
-    organization(),
+    organization({
+      // Organização nova só pelo servidor (seed). Quem cria vira dono, e dono
+      // vincula qualquer conta pelo e-mail — não pode ficar aberto a quem loga.
+      allowUserToCreateOrganization: false,
+    }),
   ],
 });

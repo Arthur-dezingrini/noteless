@@ -6,7 +6,7 @@ import {
   type Papel,
   type Usuario,
 } from "@vocare/shared";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, ne } from "drizzle-orm";
 import { Hono } from "hono";
 
 import { auth } from "../auth";
@@ -26,6 +26,30 @@ import { criarUsuario, UsuarioJaExiste } from "../usuarios/criar-usuario";
 export const usuariosRoutes = new Hono();
 
 const PODE_GERENCIAR: Papel[] = ["owner", "admin"];
+
+/** O Better Auth guarda mais de um papel separado por vírgula ("admin,owner"). */
+function ehDono(role: string) {
+  return role.split(",").some((r) => r.trim() === "owner");
+}
+
+/**
+ * Senha e e-mail são da conta, não do vínculo: valem em todas as organizações
+ * da pessoa. Por isso o administrador só troca os de quem está apenas nesta
+ * organização e não é o dono — senão bastaria vincular alguém pelo e-mail para
+ * tomar a conta dele na outra fazenda. Devolve por que não pode, ou `null`.
+ */
+async function motivoParaNaoTrocarAcesso(alvoId: string, orgId: string, role: string) {
+  if (ehDono(role)) return "Senha e e-mail do dono da organização só podem ser trocados pelo próprio dono.";
+
+  const [outra] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.userId, alvoId), ne(member.organizationId, orgId)))
+    .limit(1);
+  if (outra) return "Essa pessoa também participa de outra organização; só ela pode trocar a senha e o e-mail.";
+
+  return null;
+}
 
 async function listar(organizationId: string): Promise<Usuario[]> {
   const rows = await db
@@ -142,24 +166,33 @@ usuariosRoutes.patch("/:orgId/usuarios/:userId", async (c) => {
   if (!alvo) return c.json({ error: "Usuário não encontrado nesta organização." }, 404);
 
   // O papel do dono não se mexe por aqui — evita a organização ficar sem dono.
-  if (body.data.role && alvo.role === "owner") {
+  if (body.data.role && ehDono(alvo.role)) {
     return c.json({ error: "O papel do dono da organização não pode ser alterado." }, 400);
   }
 
-  const ctx = await auth.$context;
+  // A tela sempre manda o e-mail de volta; só conta como troca se mudou.
   const email = body.data.email?.trim().toLowerCase();
-  if (email && email !== alvo.email) {
+  const mudouEmail = email !== undefined && email !== alvo.email.toLowerCase();
+
+  // Antes de gravar qualquer coisa: recusado é recusado inteiro.
+  if ((mudouEmail || body.data.password) && alvoId !== eu.userId) {
+    const motivo = await motivoParaNaoTrocarAcesso(alvoId, orgId, alvo.role);
+    if (motivo) return c.json({ error: motivo }, 403);
+  }
+
+  const ctx = await auth.$context;
+  if (mudouEmail) {
     const existente = await ctx.internalAdapter.findUserByEmail(email);
     if (existente && existente.user.id !== alvoId) {
       return c.json({ error: `Já existe um usuário com o e-mail ${email}.` }, 409);
     }
   }
 
-  if (body.data.name !== undefined || body.data.cargo !== undefined || email) {
+  if (body.data.name !== undefined || body.data.cargo !== undefined || mudouEmail) {
     await ctx.internalAdapter.updateUser(alvoId, {
       ...(body.data.name !== undefined && { name: body.data.name }),
       ...(body.data.cargo !== undefined && { cargo: body.data.cargo }),
-      ...(email && email !== alvo.email && { email, emailVerified: false }),
+      ...(mudouEmail && { email, emailVerified: false }),
     });
   }
 
@@ -169,6 +202,13 @@ usuariosRoutes.patch("/:orgId/usuarios/:userId", async (c) => {
     await ctx.internalAdapter.updateAccount(conta.id, {
       password: await ctx.password.hash(body.data.password),
     });
+    // Senha nova encerra as sessões abertas: se a troca foi por celular perdido
+    // ou senha vazada, quem estava dentro sai. Quem troca a própria fica nesta.
+    if (alvoId === eu.userId) {
+      await auth.api.revokeOtherSessions({ headers: c.req.raw.headers });
+    } else {
+      await ctx.internalAdapter.deleteUserSessions(alvoId);
+    }
   }
 
   if (body.data.role && body.data.role !== alvo.role) {
@@ -198,7 +238,7 @@ usuariosRoutes.delete("/:orgId/usuarios/:userId", async (c) => {
     .where(and(eq(member.userId, alvoId), eq(member.organizationId, orgId)))
     .limit(1);
   if (!alvo) return c.json({ error: "Usuário não encontrado nesta organização." }, 404);
-  if (alvo.role === "owner") {
+  if (ehDono(alvo.role)) {
     return c.json({ error: "O dono da organização não pode ser removido." }, 400);
   }
 
