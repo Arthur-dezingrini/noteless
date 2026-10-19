@@ -10,6 +10,7 @@ import {
   type Relatorio,
   type TipoRelatorio,
 } from "@vocare/shared";
+import type { Route } from "next";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition, type ReactNode } from "react";
@@ -72,7 +73,7 @@ export function RelatoriosView({ tipo, periodo, relatorio: r }: { tipo: TipoRela
   function ir(m: { tipo?: TipoRelatorio; periodo?: Periodo; animal?: string }) {
     const q = new URLSearchParams({ tipo: m.tipo ?? tipo, periodo: m.periodo ?? periodo });
     if (m.animal) q.set("animal", m.animal);
-    start(() => router.push(`${pathname}?${q}`, { scroll: false }));
+    start(() => router.push(`${pathname}?${q}` as Route, { scroll: false }));
   }
 
   function baixar() {

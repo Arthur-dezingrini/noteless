@@ -2,6 +2,7 @@
 
 import type { Notificacao } from "@vocare/shared";
 import { Bell } from "lucide-react";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -44,7 +45,7 @@ export function Header({ orgId, notificacoes }: { orgId: string | null; notifica
       setLista((l) => l.map((x) => (x.id === n.id ? { ...x, lida: true } : x)));
       void chamarApi(`/api/org/${orgId}/notificacoes/${n.id}/lida`, { method: "POST" });
     }
-    if (n.link) router.push(n.link);
+    if (n.link) router.push(n.link as Route);
   }
 
   function lerTodas() {

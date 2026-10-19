@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const ABAS = [
+import type { NavItem } from "@/lib/navigation";
+
+const ABAS: NavItem[] = [
   { href: "/configuracoes", label: "Conta" },
   { href: "/configuracoes/usuarios", label: "Usuários" },
 ];

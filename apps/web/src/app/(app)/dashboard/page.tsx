@@ -1,4 +1,5 @@
 import { ROTULO_STATUS_CONSULTA, ROTULO_TIPO_CONSULTA, rotuloAnimal, type StatusConsulta } from "@vocare/shared";
+import type { Route } from "next";
 import Link from "next/link";
 
 import { getAvisos, getConsultas, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
@@ -105,7 +106,7 @@ export default async function InicioPage() {
               {avisos.map((a) => (
                 <li key={a.id}>
                   <Link
-                    href={a.link}
+                    href={a.link as Route}
                     className="flex gap-2.5 border-b border-line py-3.5 text-[15px] leading-relaxed text-ink no-underline hover:text-brand-ink"
                   >
                     <span aria-hidden="true" className={`mt-2 size-1.5 shrink-0 rounded-full ${a.tom === "danger" ? "bg-danger" : "bg-warn-dot"}`} />

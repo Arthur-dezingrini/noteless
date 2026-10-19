@@ -1,6 +1,7 @@
 "use client";
 
 import type { Organization } from "@vocare/shared";
+import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -33,7 +34,7 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
 
-  const item = (href: string, label: string, count?: number) => {
+  const item = (href: Route, label: string, count?: number) => {
     const active = pathname === href || pathname.startsWith(`${href}/`);
     return (
       <Link

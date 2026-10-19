@@ -1,4 +1,6 @@
-export type NavItem = { href: string; label: string };
+import type { Route } from "next";
+
+export type NavItem = { href: Route; label: string };
 
 /**
  * Fonte única do menu lateral. Ordem aqui = ordem na tela. Sem ícones: o menu

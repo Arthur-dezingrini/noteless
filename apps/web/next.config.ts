@@ -8,6 +8,12 @@ if (process.env.VERCEL && !process.env.API_URL) {
 const API_URL = process.env.API_URL ?? "http://localhost:4000";
 
 const nextConfig: NextConfig = {
+  // Link e router.push só aceitam rota que existe em src/app: um href para
+  // página que não existe vira erro no typecheck, não um 404 em produção.
+  // Endereço que só se conhece em execução (link vindo da api, ?next=) entra
+  // com `as Route`.
+  typedRoutes: true,
+
   // O navegador fala só com o web; /api/* é repassado para a api. Assim o
   // cookie de sessão é same-origin e não existe CORS no caminho do usuário.
   async rewrites() {

@@ -401,7 +401,7 @@ function LinhaOperacao({
     .join(" · ");
   const linkHistorico =
     salva && op.aplicada && op.animalId && cad.animais.has(op.animalId)
-      ? { href: `/animais/${op.animalId}`, rotulo: `Ver no histórico${op.tipo === "agendar_consulta" ? " e na agenda" : ""}` }
+      ? { href: `/animais/${op.animalId}` as const, rotulo: `Ver no histórico${op.tipo === "agendar_consulta" ? " e na agenda" : ""}` }
       : null;
 
   return (
