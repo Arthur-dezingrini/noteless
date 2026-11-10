@@ -1,5 +1,7 @@
 import {
+  CAMPOS_APONTAMENTO,
   ESPECIES,
+  ROTULO_CAMPO_APONTAMENTO,
   ROTULO_ESPECIE,
   ROTULO_TIPO_CONSULTA,
   SEXOS,
@@ -23,6 +25,17 @@ export type AnimalParaIa = {
 
 export type GrupoParaIa = { id: string; nome: string; animais: number };
 
+/** Galpão com lote alojado hoje — o contexto para a IA ligar "galpão 3" e "lote 7" a ids. */
+export type GalpaoParaIa = {
+  instalacaoId: string;
+  nome: string;
+  loteId: string;
+  loteCodigo: string;
+  semana: number;
+  femeas: number;
+  machos: number;
+};
+
 export type Analise = {
   resumo: string;
   operacoes: Operacao[];
@@ -38,6 +51,9 @@ const TIPOS_OPERACAO = [
   "cadastrar_animal",
 ] as const;
 
+/** Só entram na ferramenta e nas instruções quando a organização tem galpão com lote. */
+const TIPOS_AVIARIO_IA = ["apontar_galpao", "pesar_lote", "vacinar_lote"] as const;
+
 const textoOuNulo = (description: string) => ({ type: ["string", "null"], description });
 const inteiroOuNulo = (description: string) => ({ type: ["integer", "null"], description });
 
@@ -47,7 +63,49 @@ const inteiroOuNulo = (description: string) => ({ type: ["integer", "null"], des
  * campos específicos de cada tipo ficam todos no mesmo objeto; a
  * normalização abaixo pega só os que o tipo usa.
  */
-const FERRAMENTA = {
+type Ferramenta = { name: string; description: string; input_schema: unknown };
+
+function ferramenta(comAviario: boolean) {
+  const base = FERRAMENTA_BASE;
+  if (!comAviario) return base;
+  const item = base.input_schema.properties.operacoes.items;
+  const contagens = Object.fromEntries(
+    CAMPOS_APONTAMENTO.map((c) => [
+      c,
+      c === "racaoKg" || c === "aguaL"
+        ? { type: ["number", "null"], description: `apontar_galpao: ${ROTULO_CAMPO_APONTAMENTO[c]} no dia.` }
+        : inteiroOuNulo(`apontar_galpao: ${ROTULO_CAMPO_APONTAMENTO[c]} no dia.`),
+    ]),
+  );
+  return {
+    ...base,
+    input_schema: {
+      ...base.input_schema,
+      properties: {
+        ...base.input_schema.properties,
+        operacoes: {
+          ...base.input_schema.properties.operacoes,
+          items: {
+            ...item,
+            properties: {
+              ...item.properties,
+              tipo: { type: "string", enum: [...TIPOS_OPERACAO, ...TIPOS_AVIARIO_IA] },
+              instalacaoId: textoOuNulo("apontar_galpao: id do galpão da lista; null se nenhum bate."),
+              loteId: textoOuNulo("pesar_lote/vacinar_lote: id do lote da lista; null se nenhum bate."),
+              ...contagens,
+              pesoMedioG: { type: "number", description: "pesar_lote: peso médio das aves em gramas." },
+              uniformidadePct: { type: ["number", "null"], description: "pesar_lote: uniformidade em %, se dita." },
+              amostra: inteiroOuNulo("pesar_lote: quantas aves foram pesadas, se dito."),
+              via: textoOuNulo("vacinar_lote: via de aplicação (ocular, spray, água, injetável), se dita."),
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
+const FERRAMENTA_BASE = {
   name: "registrar_ocorrencia",
   description:
     "Registra a interpretação de um áudio do campo: resumo e lista de operações propostas para o revisor humano confirmar.",
@@ -103,7 +161,7 @@ const FERRAMENTA = {
   },
 } as const;
 
-function instrucoes(hoje: string, animais: AnimalParaIa[], grupos: GrupoParaIa[]) {
+export function instrucoes(hoje: string, animais: AnimalParaIa[], grupos: GrupoParaIa[], galpoes: GalpaoParaIa[] = []) {
   const listaAnimais = animais.length
     ? animais
         .map(
@@ -115,6 +173,21 @@ function instrucoes(hoje: string, animais: AnimalParaIa[], grupos: GrupoParaIa[]
   const listaGrupos = grupos.length
     ? grupos.map((g) => `- id=${g.id} · ${g.nome} (${g.animais} animais)`).join("\n")
     : "(nenhum grupo)";
+
+  const num = (n: number) => n.toLocaleString("pt-BR");
+  const blocoAviario = galpoes.length
+    ? `
+
+Galpões com lote alojado hoje (aviário de matrizes):
+${galpoes
+  .map((g) => `- ${g.nome} (id ${g.instalacaoId}): lote ${g.loteCodigo}, semana ${g.semana}, ${num(g.femeas)} fêmeas e ${num(g.machos)} machos`)
+  .join("\n")}
+
+Operações do aviário (animalId = null e grupoId = null sempre):
+- apontar_galpao: números do dia de um galpão (mortas, eliminadas, ovos por classe, ração em kg, água em L). instalacaoId = id do galpão da lista; data = null se for hoje. Só preencha o que foi dito.
+- pesar_lote: pesagem de aves do lote (loteId, sexo, pesoMedioG em gramas, uniformidadePct e amostra se ditos).
+- vacinar_lote: vacina aplicada no lote inteiro (loteId, vacina, via, data, proximaData). Use esta, e não aplicar_vacina, quando o alvo é um lote de aves.`
+    : "";
 
   const tipos = TIPOS_CONSULTA.map((t) => `${t} = ${ROTULO_TIPO_CONSULTA[t]}`).join("; ");
 
@@ -135,7 +208,7 @@ Tipos de operação:
 - registrar_remedio: remédio/tratamento iniciado (nome, dose, por quantos dias, carência).
 - registrar_parto: um animal da lista pariu (mãe = animalId; data; quantas crias).
 - cadastrar_animal: um animal NOVO, que não está na lista (nome, espécie, sexo, raça, nascimento). animalId = null.
-- registrar_anotacao: qualquer outra observação clínica ou de manejo sobre um animal.
+- registrar_anotacao: qualquer outra observação clínica ou de manejo sobre um animal.${blocoAviario}
 
 Regras:
 - Ligue cada operação a um animal da lista pelo id quando nome/apelido/brinco bater com razoável certeza. Se não bater, animalId = null e confiança baixa.
@@ -161,8 +234,14 @@ const inteiro = (v: unknown) => (v === null || v === undefined || v === "" ? nul
  * Aqui tudo vira uma `Operacao` válida ou é descartado — a tela nunca vê
  * dado fora do contrato.
  */
-function normalizar(bruta: Record<string, unknown>, idsAnimais: Set<string>, idsGrupos: Set<string>): Operacao | null {
+export function normalizar(
+  bruta: Record<string, unknown>,
+  idsAnimais: Set<string>,
+  idsGrupos: Set<string>,
+  galpoes: GalpaoParaIa[] = [],
+): Operacao | null {
   const tipo = String(bruta.tipo);
+  if ((TIPOS_AVIARIO_IA as readonly string[]).includes(tipo)) return normalizarAviario(tipo, bruta, galpoes);
   const animalId = typeof bruta.animalId === "string" && idsAnimais.has(bruta.animalId) ? bruta.animalId : null;
   const aceitaGrupo = (TIPOS_COM_GRUPO as readonly string[]).includes(tipo);
   const grupoId =
@@ -229,6 +308,67 @@ function normalizar(bruta: Record<string, unknown>, idsAnimais: Set<string>, ids
   return parsed.success ? parsed.data : null;
 }
 
+const numeroOuNulo = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v));
+
+/** Operações do aviário miram galpão ou lote da lista, nunca animal; id fora da lista = sem alvo. */
+function normalizarAviario(tipo: string, bruta: Record<string, unknown>, galpoes: GalpaoParaIa[]): Operacao | null {
+  if (galpoes.length === 0) return null;
+  const instalacaoId =
+    typeof bruta.instalacaoId === "string" && galpoes.some((g) => g.instalacaoId === bruta.instalacaoId) ? bruta.instalacaoId : null;
+  const loteId = typeof bruta.loteId === "string" && galpoes.some((g) => g.loteId === bruta.loteId) ? bruta.loteId : null;
+  const semAlvo = tipo === "apontar_galpao" ? !instalacaoId : !loteId;
+  const confianca = Math.max(0, Math.min(100, Math.round(Number(bruta.confianca) || 0)));
+  const base = {
+    titulo: String(bruta.titulo ?? ""),
+    alvo: String(bruta.alvo ?? ""),
+    animalId: null,
+    grupoId: null,
+    detalhe: String(bruta.detalhe ?? ""),
+    confianca: semAlvo ? Math.min(confianca, 60) : confianca,
+    trecho: String(bruta.trecho ?? ""),
+  };
+
+  let candidata: unknown;
+  switch (tipo) {
+    case "apontar_galpao":
+      candidata = {
+        ...base,
+        tipo,
+        instalacaoId,
+        data: nulo(bruta.data),
+        ...Object.fromEntries(
+          CAMPOS_APONTAMENTO.map((c) => [c, c === "racaoKg" || c === "aguaL" ? numeroOuNulo(bruta[c]) : inteiro(bruta[c])]),
+        ),
+        observacoes: nulo(bruta.observacoes),
+      };
+      break;
+    case "pesar_lote":
+      candidata = {
+        ...base,
+        tipo,
+        loteId,
+        data: nulo(bruta.data),
+        sexo: bruta.sexo,
+        pesoMedioG: Number(bruta.pesoMedioG),
+        uniformidadePct: numeroOuNulo(bruta.uniformidadePct),
+        amostra: inteiro(bruta.amostra),
+      };
+      break;
+    default:
+      candidata = {
+        ...base,
+        tipo,
+        loteId,
+        vacina: bruta.vacina,
+        via: nulo(bruta.via),
+        data: nulo(bruta.data),
+        proximaData: nulo(bruta.proximaData),
+      };
+  }
+  const parsed = operacaoSchema.safeParse(candidata);
+  return parsed.success ? parsed.data : null;
+}
+
 function mensagemUsuario(transcricao: string) {
   return `Transcrição do áudio:\n"""${transcricao}"""`;
 }
@@ -239,7 +379,7 @@ async function lerErro(res: Response) {
 }
 
 /** Claude: a ferramenta vai como `tool` e a resposta vem num bloco `tool_use`. */
-async function chamarAnthropic(cfg: Extract<Interpretacao, { tipo: "anthropic" }>, sistema: string, transcricao: string) {
+async function chamarAnthropic(cfg: Extract<Interpretacao, { tipo: "anthropic" }>, sistema: string, transcricao: string, ferr: Ferramenta) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": cfg.apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
@@ -247,22 +387,22 @@ async function chamarAnthropic(cfg: Extract<Interpretacao, { tipo: "anthropic" }
       model: cfg.modelo,
       max_tokens: 3000,
       system: sistema,
-      tools: [FERRAMENTA],
-      tool_choice: { type: "tool", name: FERRAMENTA.name },
+      tools: [ferr],
+      tool_choice: { type: "tool", name: ferr.name },
       messages: [{ role: "user", content: mensagemUsuario(transcricao) }],
     }),
   });
   if (!res.ok) throw await lerErro(res);
 
   const msg = (await res.json()) as { content: Array<{ type: string; name?: string; input?: unknown }> };
-  return msg.content.find((b) => b.type === "tool_use" && b.name === FERRAMENTA.name)?.input;
+  return msg.content.find((b) => b.type === "tool_use" && b.name === ferr.name)?.input;
 }
 
 /**
  * API compatível com a OpenAI (Groq e afins): a mesma ferramenta vira uma
  * `function`, e os argumentos voltam como string JSON em `tool_calls`.
  */
-async function chamarOpenAi(cfg: Extract<Interpretacao, { tipo: "openai" }>, sistema: string, transcricao: string) {
+async function chamarOpenAi(cfg: Extract<Interpretacao, { tipo: "openai" }>, sistema: string, transcricao: string, ferr: Ferramenta) {
   const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${cfg.apiKey}`, "content-type": "application/json" },
@@ -277,10 +417,10 @@ async function chamarOpenAi(cfg: Extract<Interpretacao, { tipo: "openai" }>, sis
       tools: [
         {
           type: "function",
-          function: { name: FERRAMENTA.name, description: FERRAMENTA.description, parameters: FERRAMENTA.input_schema },
+          function: { name: ferr.name, description: ferr.description, parameters: ferr.input_schema },
         },
       ],
-      tool_choice: { type: "function", function: { name: FERRAMENTA.name } },
+      tool_choice: { type: "function", function: { name: ferr.name } },
     }),
   });
   if (!res.ok) throw await lerErro(res);
@@ -288,7 +428,7 @@ async function chamarOpenAi(cfg: Extract<Interpretacao, { tipo: "openai" }>, sis
   const msg = (await res.json()) as {
     choices?: Array<{ message?: { tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }>;
   };
-  const chamada = msg.choices?.[0]?.message?.tool_calls?.find((t) => t.function?.name === FERRAMENTA.name);
+  const chamada = msg.choices?.[0]?.message?.tool_calls?.find((t) => t.function?.name === ferr.name);
   if (!chamada?.function?.arguments) return undefined;
   try {
     return JSON.parse(chamada.function.arguments) as unknown;
@@ -303,15 +443,17 @@ export async function analisar(
   hoje: string,
   animais: AnimalParaIa[],
   grupos: GrupoParaIa[] = [],
+  galpoes: GalpaoParaIa[] = [],
 ): Promise<Analise> {
   const cfg = interpretacao();
   if (!cfg) throw new IaNaoConfigurada("A interpretação por IA (GROQ_API_KEY)");
 
-  const sistema = instrucoes(hoje, animais, grupos);
+  const sistema = instrucoes(hoje, animais, grupos, galpoes);
+  const ferr = ferramenta(galpoes.length > 0);
   const bruto =
     cfg.tipo === "anthropic"
-      ? await chamarAnthropic(cfg, sistema, transcricao)
-      : await chamarOpenAi(cfg, sistema, transcricao);
+      ? await chamarAnthropic(cfg, sistema, transcricao, ferr)
+      : await chamarOpenAi(cfg, sistema, transcricao, ferr);
 
   const saida = saidaSchema.safeParse(bruto);
   if (!saida.success) throw new Error("A IA respondeu fora do formato esperado.");
@@ -321,7 +463,7 @@ export async function analisar(
   return {
     resumo: saida.data.resumo.trim(),
     operacoes: saida.data.operacoes
-      .map((op) => normalizar(op, idsAnimais, idsGrupos))
+      .map((op) => normalizar(op, idsAnimais, idsGrupos, galpoes))
       .filter((op): op is Operacao => op !== null),
   };
 }

@@ -101,8 +101,8 @@ export type EditarInstalacaoInput = z.infer<typeof editarInstalacaoSchema>;
 const contagem = z.number().int("Use um número inteiro.").min(0, "Não pode ser negativo.").nullish();
 const quantidade = z.number().min(0, "Não pode ser negativo.").nullish();
 
-export const valoresApontamentoSchema = z
-  .object({
+/** Os campos do apontamento, sem a regra da soma de ovos (para quem os reaproveita noutro schema). */
+export const valoresApontamentoBase = z.object({
     mortasFemeas: contagem,
     mortasMachos: contagem,
     eliminadasFemeas: contagem,
@@ -116,7 +116,9 @@ export const valoresApontamentoSchema = z
     racaoKg: quantidade,
     aguaL: quantidade,
     observacoes: z.string().trim().max(500, "No máximo 500 caracteres.").nullish(),
-  })
+});
+
+export const valoresApontamentoSchema = valoresApontamentoBase
   .superRefine((v, ctx) => {
     if (v.ovosTotal == null) return;
     const soma = CLASSES_OVO.reduce((s, k) => s + (v[k] ?? 0), 0);

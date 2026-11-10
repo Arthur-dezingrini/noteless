@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { confirmarOcorrenciaSchema, corrigirOperacao, operacaoSchema, precisaAlvo, temAlvo, type Operacao } from "./ocorrencias";
+import { CAMPOS_CORRIGIVEIS, confirmarOcorrenciaSchema, corrigirOperacao, operacaoSchema, precisaAlvo, temAlvo, type Operacao } from "./ocorrencias";
 
 const base = { titulo: "", alvo: "Thor", detalhe: "", confianca: 90, trecho: "" };
 
@@ -113,5 +113,38 @@ describe("confirmarOcorrenciaSchema", () => {
 
   it("recusa chave de correção que não é índice", () => {
     expect(confirmarOcorrenciaSchema.safeParse({ operacoes: [0], correcoes: { abc: {} } }).success).toBe(false);
+  });
+});
+
+describe("operações do aviário", () => {
+  const apontamento = {
+    ...base,
+    tipo: "apontar_galpao" as const,
+    animalId: null,
+    instalacaoId: "g1",
+    data: null,
+    mortasFemeas: 12,
+    ovosTotal: 8400,
+    ovosTrincados: 310,
+  };
+
+  it("operacaoSchema aceita apontar_galpao com os valores ditos", () => {
+    expect(operacaoSchema.safeParse(apontamento).success).toBe(true);
+  });
+
+  it("temAlvo de apontar_galpao depende da instalação", () => {
+    expect(temAlvo(apontamento as Operacao)).toBe(true);
+    expect(temAlvo({ ...apontamento, instalacaoId: null } as Operacao)).toBe(false);
+  });
+
+  it("temAlvo de pesar_lote e vacinar_lote depende do lote", () => {
+    const pesar = { ...base, tipo: "pesar_lote", animalId: null, loteId: "l1", data: null, sexo: "femea", pesoMedioG: 500, uniformidadePct: null, amostra: null };
+    const vacinar = { ...base, tipo: "vacinar_lote", animalId: null, loteId: null, vacina: "Bouba", via: null, data: null, proximaData: null };
+    expect(temAlvo(operacaoSchema.parse(pesar))).toBe(true);
+    expect(temAlvo(operacaoSchema.parse(vacinar))).toBe(false);
+  });
+
+  it("pesar_lote permite corrigir o lote", () => {
+    expect(CAMPOS_CORRIGIVEIS.pesar_lote).toContain("loteId");
   });
 });

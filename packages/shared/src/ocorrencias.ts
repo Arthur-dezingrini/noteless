@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { especieSchema, sexoSchema } from "./animais";
 import { tipoConsultaSchema } from "./consultas";
+import { CAMPOS_APONTAMENTO, valoresApontamentoBase } from "./lotes";
 
 /**
  * Registro de ocorrência: um áudio do campo, sua transcrição e as operações
@@ -95,6 +96,30 @@ export const operacaoSchema = z.discriminatedUnion("tipo", [
     sexo: sexoSchema.nullable(),
     nascimento: dataIso.nullable(),
   }),
+  baseOperacao.extend({
+    ...valoresApontamentoBase.shape,
+    tipo: z.literal("apontar_galpao"),
+    instalacaoId: z.string().nullable(),
+    /** Dia do apontamento; null = hoje. */
+    data: dataIso.nullable(),
+  }),
+  baseOperacao.extend({
+    tipo: z.literal("pesar_lote"),
+    loteId: z.string().nullable(),
+    data: dataIso.nullable(),
+    sexo: sexoSchema,
+    pesoMedioG: z.number().positive("Informe um peso maior que zero.").max(10000, "Peso acima de 10.000 g."),
+    uniformidadePct: z.number().min(0).max(100, "Use de 0 a 100.").nullable(),
+    amostra: z.number().int().min(1, "Informe 1 ou mais.").nullable(),
+  }),
+  baseOperacao.extend({
+    tipo: z.literal("vacinar_lote"),
+    loteId: z.string().nullable(),
+    vacina: z.string().min(1, "Informe a vacina."),
+    via: textoOpcional,
+    data: dataIso.nullable(),
+    proximaData: dataIso.nullable(),
+  }),
 ]);
 export type Operacao = z.infer<typeof operacaoSchema>;
 export type TipoOperacao = Operacao["tipo"];
@@ -111,7 +136,13 @@ export const DESTINO_OPERACAO: Record<TipoOperacao, { acao: string; feito: strin
   registrar_remedio: { acao: "Registrar remédio", feito: "Remédio registrado", onde: "Histórico do animal › Tratamentos" },
   registrar_parto: { acao: "Registrar parto", feito: "Parto registrado", onde: "Histórico do animal › Partos" },
   cadastrar_animal: { acao: "Cadastrar animal", feito: "Animal cadastrado", onde: "Animais" },
+  apontar_galpao: { acao: "Registrar apontamento do galpão", feito: "Apontamento registrado", onde: "Lotes › Diário" },
+  pesar_lote: { acao: "Registrar pesagem do lote", feito: "Pesagem do lote registrada", onde: "Lotes › Pesagens" },
+  vacinar_lote: { acao: "Registrar vacina do lote", feito: "Vacina do lote registrada", onde: "Lotes › Vacinas" },
 };
+
+/** Operações do aviário: miram galpão ou lote, nunca animal. */
+export const TIPOS_AVIARIO: readonly TipoOperacao[] = ["apontar_galpao", "pesar_lote", "vacinar_lote"];
 
 /** Tipos que podem mirar um grupo inteiro em vez de um animal. */
 export const TIPOS_COM_GRUPO: readonly TipoOperacao[] = [
@@ -128,6 +159,8 @@ export function precisaAlvo(op: Operacao): boolean {
 
 /** Tem alvo resolvido — pode ser marcada para salvar. */
 export function temAlvo(op: Operacao): boolean {
+  if (op.tipo === "apontar_galpao") return !!op.instalacaoId;
+  if (op.tipo === "pesar_lote" || op.tipo === "vacinar_lote") return !!op.loteId;
   return !precisaAlvo(op) || op.animalId !== null || !!op.grupoId;
 }
 
@@ -163,6 +196,9 @@ export const CAMPOS_CORRIGIVEIS = {
   registrar_remedio: ["animalId", "grupoId", "remedio", "dose", "dias", "carenciaDias"],
   registrar_parto: ["animalId", "data", "crias", "observacoes"],
   cadastrar_animal: ["nome", "especie", "raca", "sexo", "nascimento"],
+  apontar_galpao: ["instalacaoId", "data", ...CAMPOS_APONTAMENTO, "observacoes"],
+  pesar_lote: ["loteId", "data", "sexo", "pesoMedioG", "uniformidadePct", "amostra"],
+  vacinar_lote: ["loteId", "vacina", "via", "data", "proximaData"],
 } as const satisfies Record<TipoOperacao, readonly string[]>;
 export type CampoCorrigivel = (typeof CAMPOS_CORRIGIVEIS)[TipoOperacao][number];
 

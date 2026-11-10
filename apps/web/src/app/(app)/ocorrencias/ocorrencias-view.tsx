@@ -2,8 +2,10 @@
 
 import {
   CAMPOS_CORRIGIVEIS,
+  CAMPOS_APONTAMENTO,
   DESTINO_OPERACAO,
   ESPECIES,
+  ROTULO_CAMPO_APONTAMENTO,
   ROTULO_ESPECIE,
   ROTULO_SEXO,
   ROTULO_TIPO_CONSULTA,
@@ -89,13 +91,26 @@ const ROTULO_CAMPO: Record<CampoCorrigivel, string> = {
   raca: "Raça",
   sexo: "Sexo",
   nascimento: "Nascimento",
+  ...ROTULO_CAMPO_APONTAMENTO,
+  instalacaoId: "Galpão",
+  loteId: "Lote",
+  pesoMedioG: "Peso médio (g)",
+  uniformidadePct: "Uniformidade (%)",
+  amostra: "Amostra",
+  via: "Via",
 };
 
 const CAMPOS_DATA: CampoCorrigivel[] = ["data", "proximaData", "nascimento"];
-const CAMPOS_INTEIROS: CampoCorrigivel[] = ["dias", "carenciaDias", "crias"];
+const CAMPOS_INTEIROS: CampoCorrigivel[] = [
+  "dias", "carenciaDias", "crias", "amostra",
+  ...CAMPOS_APONTAMENTO.filter((c) => c !== "racaoKg" && c !== "aguaL"),
+];
+/** Decimais das operações do aviário (editores próprios virão depois). */
+const CAMPOS_DECIMAIS: CampoCorrigivel[] = ["pesoMedioG", "uniformidadePct", "racaoKg", "aguaL"];
 /** Podem ficar vazios (null). */
 const CAMPOS_OPCIONAIS: CampoCorrigivel[] = [
   "data", "hora", "observacoes", "dose", "proximaData", "dias", "carenciaDias", "crias", "raca", "sexo", "nascimento",
+  "uniformidadePct", "amostra", "via", ...CAMPOS_APONTAMENTO,
 ];
 const CAMPOS_ESCOLHA: CampoCorrigivel[] = ["animalId", "grupoId", "tipoConsulta", "especie", "sexo"];
 /** O alvo aparece na linha "nº 07 Thor → …"; na tabela, só quando falta, foi corrigido ou é grupo. */
@@ -113,6 +128,9 @@ function rotulo(a: { numero: string | null; nome: string }) {
 /** Nome do alvo: animal do cadastro, grupo, animal novo, ou o que foi dito. */
 function nomeAlvo(op: Operacao, cad: Cadastro): string {
   if (op.tipo === "cadastrar_animal") return op.nome;
+  if (op.tipo === "apontar_galpao" || op.tipo === "pesar_lote" || op.tipo === "vacinar_lote") {
+    return temAlvo(op) ? op.alvo : `${op.alvo} (não encontrado)`;
+  }
   if (op.grupoId) {
     const g = cad.grupos.get(op.grupoId);
     return g ? `${g.nome} (${g.animais} ${g.animais === 1 ? "animal" : "animais"})` : op.alvo;
@@ -153,6 +171,10 @@ function efeito(op: Operacao, cad: Cadastro): string {
       return `o parto no histórico ${de}`;
     case "cadastrar_animal":
       return `${op.nome} no cadastro de animais`;
+    case "apontar_galpao":
+    case "pesar_lote":
+    case "vacinar_lote":
+      return `${DESTINO_OPERACAO[op.tipo].feito.toLowerCase()} em ${DESTINO_OPERACAO[op.tipo].onde}`;
   }
 }
 
@@ -171,6 +193,9 @@ function formatarCampo(c: CampoCorrigivel, valor: unknown, cad: Cadastro, alvo: 
     }
     case "grupoId":
       return cad.grupos.get(String(valor))?.nome ?? "Grupo removido";
+    case "instalacaoId":
+    case "loteId":
+      return alvo;
     case "pesoKg":
       return `${Number(valor).toLocaleString("pt-BR")} kg`;
     case "tipoConsulta":
@@ -213,7 +238,7 @@ function camposDe(op: Operacao): CampoCorrigivel[] {
   const todos = CAMPOS_CORRIGIVEIS[op.tipo] as readonly CampoCorrigivel[];
   const corrigido = op.original ?? {};
   return [
-    ...todos.filter((c) => !CAMPOS_ALVO.includes(c)),
+    ...todos.filter((c) => !CAMPOS_ALVO.includes(c) && c !== "instalacaoId" && c !== "loteId"),
     ...todos.filter((c) => {
       if (c === "grupoId") return !!op.grupoId;
       if (c === "animalId") return !op.grupoId && (!temAlvo(op) || "animalId" in corrigido);
@@ -261,6 +286,9 @@ function CamposEditaveis({
     } else if (c === "pesoKg") {
       valor = Number(bruto.replace(",", "."));
       if (!Number.isFinite(valor) || (valor as number) <= 0) return setErro("Informe um peso maior que zero.");
+    } else if (CAMPOS_DECIMAIS.includes(c)) {
+      valor = Number(bruto.replace(",", "."));
+      if (!Number.isFinite(valor) || (valor as number) < 0) return setErro("Informe um número válido.");
     } else if (CAMPOS_INTEIROS.includes(c)) {
       valor = Number(bruto);
       if (!Number.isInteger(valor) || (valor as number) < 0) return setErro("Informe um número inteiro.");
