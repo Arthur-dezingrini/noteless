@@ -13,6 +13,7 @@ export * from "./ocorrencias";
 export * from "./grupos";
 export * from "./ficha";
 export * from "./notificacoes";
+export * from "./novidades";
 export * from "./inicio";
 export * from "./relatorios";
 export * from "./prontuarios";

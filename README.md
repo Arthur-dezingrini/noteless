@@ -312,6 +312,16 @@ migração.
   resolução está em `apps/api/src/ia/provedor.ts`. A saída do modelo é sempre
   validada pelo contrato antes de virar nota. Sem chave nenhuma a api
   sobe normalmente e a gravação responde 503 dizendo o que falta.
+- **Tela ao vivo** — nota que chega do gravador e aviso novo aparecem
+  sem recarregar. Com a aba visível, o web pergunta
+  `GET /api/org/:orgId/novidades` a cada 5 s (30 s se ninguém mexe na tela há
+  3 min; nada com a aba escondida). A resposta é uma versão opaca — contagens
+  e datas das notas da organização e dos avisos de quem pergunta — e,
+  se mudou, `router.refresh()` busca a página de novo: sino, contador do
+  menu, Início e lista se atualizam sem perder o que está aberto. É polling
+  de propósito: a Vercel não segura WebSocket, e SSE deixaria uma função
+  aberta (memória cobrada) o tempo todo. Componente em
+  `apps/web/src/components/app/ao-vivo.tsx`, ritmo em `apps/web/src/lib/ao-vivo.ts`.
 
 Cada módulo tem contrato em `packages/shared` (schemas Zod), rotas em
 `apps/api/src/routes` e leitura no web via `apps/web/src/lib/auth/dal.ts`.

@@ -6,6 +6,7 @@ import {
   grupoListaSchema,
   memberRoleSchema,
   notificacaoListaSchema,
+  novidadesSchema,
   ocorrenciaListaSchema,
   organizationListSchema,
   prontuarioListaSchema,
@@ -197,6 +198,15 @@ export const getNotificacoes = cache(async (organizationId: string): Promise<Not
 
   const parsed = notificacaoListaSchema.safeParse(await corpoJson(res));
   return parsed.success ? parsed.data : [];
+});
+
+/** Versão de "mudou alguma coisa?" no momento em que a tela é montada (ver AoVivo). */
+export const getNovidades = cache(async (organizationId: string): Promise<string | null> => {
+  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/novidades`);
+  if (!res.ok) return null;
+
+  const parsed = novidadesSchema.safeParse(await corpoJson(res));
+  return parsed.success ? parsed.data.versao : null;
 });
 
 /** Registros de ocorrência da organização, mais recentes primeiro. */

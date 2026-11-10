@@ -855,12 +855,18 @@ export function NotasView({
   const router = useRouter();
   const [lista, setLista] = useState(iniciais);
   const [anteriores, setAnteriores] = useState(iniciais);
+  const [aba, setAba] = useState<StatusOcorrencia>(() => iniciais.find((o) => o.id === selecionarId)?.status ?? "pendente");
+  const [selecionadaId, setSelecionadaId] = useState<string | null>(selecionarId ?? null);
   if (anteriores !== iniciais) {
     setAnteriores(iniciais);
     setLista(iniciais);
+    // A lista nova pode trazer uma ocorrência que acabou de chegar, no topo.
+    // Quem estava aberta (mesmo sem clique, por ser a primeira) continua aberta.
+    if (!selecionadaId) {
+      const aberta = lista.find((o) => o.status === aba);
+      if (aberta) setSelecionadaId(aberta.id);
+    }
   }
-  const [aba, setAba] = useState<StatusOcorrencia>(() => iniciais.find((o) => o.id === selecionarId)?.status ?? "pendente");
-  const [selecionadaId, setSelecionadaId] = useState<string | null>(selecionarId ?? null);
   const cad: Cadastro = {
     animais: new Map(listaAnimais.map((a) => [a.id, a])),
     grupos: new Map(listaGrupos.map((g) => [g.id, g])),

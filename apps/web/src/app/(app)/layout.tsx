@@ -1,9 +1,11 @@
+import { AoVivo } from "@/components/app/ao-vivo";
 import { Header } from "@/components/app/header";
 import { Sidebar } from "@/components/app/sidebar";
 import {
   getAnimais,
   getMemberRole,
   getNotificacoes,
+  getNovidades,
   getOcorrencias,
   getOrgAtiva,
   getOrganizations,
@@ -23,9 +25,15 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     getOrgAtiva(),
   ]);
 
-  const [member, ocorrencias, animais, notificacoes] = org
-    ? await Promise.all([getMemberRole(org.id), getOcorrencias(org.id), getAnimais(org.id), getNotificacoes(org.id)])
-    : [null, [], [], []];
+  const [member, ocorrencias, animais, notificacoes, novidades] = org
+    ? await Promise.all([
+        getMemberRole(org.id),
+        getOcorrencias(org.id),
+        getAnimais(org.id),
+        getNotificacoes(org.id),
+        getNovidades(org.id),
+      ])
+    : [null, [], [], [], null];
   const pendentes = ocorrencias.filter((o) => o.status === "pendente").length;
   const admin = member?.role === "owner" || member?.role === "admin";
 
@@ -44,6 +52,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         <Header orgId={org?.id ?? null} notificacoes={notificacoes} />
         <main className="flex-1 px-6 py-7 lg:px-11">{children}</main>
       </div>
+      {/* Ocorrência do gravador, aviso novo: a tela se atualiza sozinha. */}
+      {org && <AoVivo orgId={org.id} versao={novidades} />}
     </div>
   );
 }
