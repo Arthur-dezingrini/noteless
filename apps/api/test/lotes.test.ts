@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { db } from "../src/db";
 import { alojamento, apontamentoAviario, instalacao, lote } from "../src/db/lotes";
 import { fichaLoteSchema } from "@vocare/shared";
-import { hojeISO } from "../src/datas";
+import { hojeISO, noDia } from "../src/datas";
 import { loteNaData } from "../src/lotes/alojamento";
 import { somarApontamento, validarApontamento } from "../src/lotes/apontamento";
 import { chamar, criarFazenda } from "./ajuda";
@@ -207,6 +207,38 @@ describe("rotas de lotes e alojamento", () => {
     expect((await chamar(f.dono, "POST", `${base}/${l1}/transferir`, { data: "2026-04-01", de: g2, para: g2, femeas: 1, machos: 1 })).status).toBe(422);
   });
 
+  it("data no futuro dá 422 ao alojar, transferir e encerrar", async () => {
+    const f = await criarFazenda("Granja Futuro");
+    const base = `/api/org/${f.orgId}/lotes`;
+    const [g1, g2] = await galpoes(f, "Galpão 1", "Galpão 2");
+    const amanha = noDia(hojeISO(), 1);
+    const criar = await chamar(f.dono, "POST", base, novo("L-F", amanha, [{ instalacaoId: g1!, femeas: 10, machos: 1 }]));
+    expect(criar.status).toBe(422);
+    expect(criar.json.error).toBe("Data no futuro.");
+    const id = (await chamar(f.dono, "POST", base, novo("L-01", "2026-01-05", [{ instalacaoId: g1!, femeas: 10, machos: 1 }]))).json.id;
+    const transf = await chamar(f.dono, "POST", `${base}/${id}/transferir`, { data: amanha, de: g1, para: g2, femeas: 10, machos: 1 });
+    expect(transf.status).toBe(422);
+    expect(transf.json.error).toBe("Data no futuro.");
+    const enc = await chamar(f.dono, "POST", `${base}/${id}/encerrar`, { data: amanha });
+    expect(enc.status).toBe(422);
+    expect(enc.json.error).toBe("Data no futuro.");
+    expect((await chamar(f.dono, "GET", `${base}?situacao=ativo`)).json).toHaveLength(1);
+  });
+
+  it("transferência não aceita mais aves do que as vivas no galpão de origem", async () => {
+    const f = await criarFazenda("Granja Transf Vivas");
+    const base = `/api/org/${f.orgId}/lotes`;
+    const [g1, g2] = await galpoes(f, "Galpão 1", "Galpão 2");
+    const id = (await chamar(f.dono, "POST", base, novo("L-01", "2026-01-05", [{ instalacaoId: g1!, femeas: 100, machos: 10 }]))).json.id;
+    await chamar(f.dono, "PUT", `${base}/${id}/apontamentos/${g1}/2026-02-01`, { mortasFemeas: 20, eliminadasMachos: 2 });
+    const demais = await chamar(f.dono, "POST", `${base}/${id}/transferir`, { data: "2026-03-10", de: g1, para: g2, femeas: 100, machos: 8 });
+    expect(demais.status).toBe(422);
+    expect(demais.json.error).toBe("O Galpão 1 tem 80 fêmeas e 8 machos vivos; não dá para transferir mais que isso.");
+    expect((await chamar(f.dono, "GET", `${base}?situacao=ativo`)).json[0].galpoes).toEqual([{ id: g1, nome: "Galpão 1" }]);
+    const ok = await chamar(f.dono, "POST", `${base}/${id}/transferir`, { data: "2026-03-10", de: g1, para: g2, femeas: 80, machos: 8 });
+    expect(ok.status).toBe(200);
+  });
+
   it("encerrar tira o lote de ativos, fecha os alojamentos e exige data depois do alojamento", async () => {
     const f = await criarFazenda("Granja Encerrar");
     const base = `/api/org/${f.orgId}/lotes`;
@@ -366,6 +398,15 @@ describe("apontamento manual, pesagem, vacinação e ficha", () => {
     expect((await chamar(outra.dono, "GET", `/api/org/${outra.orgId}/lotes/${id}`)).status).toBe(404);
     expect((await chamar(outra.dono, "POST", `/api/org/${outra.orgId}/lotes/${id}/pesagens`, { data: "2026-02-01", sexo: "femea", pesoMedioG: 2850 })).status).toBe(404);
     expect((await chamar(f.dono, "POST", `${base}/${id}/pesagens`, { data: "2026-02-01", sexo: "femea", pesoMedioG: -1 })).status).toBe(400);
+  });
+
+  it("vacinação com data no futuro dá 422; próxima data futura é aceita", async () => {
+    const { f, base, id } = await montar("Granja Vac Futura");
+    const amanha = noDia(hojeISO(), 1);
+    const r = await chamar(f.dono, "POST", `${base}/${id}/vacinacoes`, { data: amanha, vacina: "Newcastle" });
+    expect(r.status).toBe(422);
+    expect(r.json.error).toBe("Data no futuro.");
+    expect((await chamar(f.dono, "POST", `${base}/${id}/vacinacoes`, { data: "2026-02-01", vacina: "Newcastle", proximaData: amanha })).status).toBe(201);
   });
 
   it("pesagem de fêmeas aparece na semana; vacinação na ficha", async () => {

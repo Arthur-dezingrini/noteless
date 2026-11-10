@@ -128,6 +128,16 @@ describe("confirmar operações do aviário", () => {
     await db.delete(apontamentoAviario).where(eq(apontamentoAviario.instalacaoId, galpao3));
   });
 
+  it("vacina do lote com data explícita no futuro dá 400 e nada é gravado", async () => {
+    const id = await ocorrenciaDoMembro([
+      { ...base, tipo: "vacinar_lote", alvo: "L-07", animalId: null, loteId, vacina: "Bouba", via: null, data: noDia(hoje, 1), proximaData: null },
+    ] as unknown as Operacao[]);
+    const r = await confirmar(id, 1);
+    expect(r.status).toBe(400);
+    expect(r.json.error).toBe("Data no futuro.");
+    expect(await db.select().from(vacinacaoLote).where(eq(vacinacaoLote.ocorrenciaId, id))).toHaveLength(0);
+  });
+
   it("membro não confirma operações do aviário", async () => {
     const id = await ocorrenciaDoMembro([apontar(galpao3, { ovosTotal: 100 })]);
     expect((await confirmar(id, 1, f.membro)).status).toBe(403);

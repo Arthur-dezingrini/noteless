@@ -66,6 +66,7 @@ export async function aplicarAviario(
 
   if (op.tipo === "vacinar_lote") {
     const data = op.data ?? diaGravacao;
+    if (data > hoje) return "Data no futuro.";
     const erro = await loteAtivoNaData(tx, orgId, op.loteId, data);
     if (erro) return erro;
     await tx.insert(vacinacaoLote).values({

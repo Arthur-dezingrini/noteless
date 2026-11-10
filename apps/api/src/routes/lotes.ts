@@ -12,7 +12,7 @@ import {
   type Instalacao,
   type Papel,
 } from "@vocare/shared";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lt } from "drizzle-orm";
 import { Hono } from "hono";
 
 import { br, hojeISO, noDia } from "../datas";
@@ -205,6 +205,7 @@ lotesRoutes.post("/:orgId/lotes", async (c) => {
   const body = criarLoteSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
   const dados = body.data;
+  if (dados.dataAlojamento > hojeISO()) return c.json({ error: "Data no futuro." }, 422);
 
   try {
     const id = await db.transaction(async (tx) => {
@@ -268,6 +269,7 @@ lotesRoutes.post("/:orgId/lotes/:id/transferir", async (c) => {
 
   if (!(await acharLote(orgId, id))) return c.json({ error: "Lote não encontrado." }, 404);
   if (de === para) return c.json({ error: "Escolha um galpão de destino diferente do de origem." }, 422);
+  if (data > hojeISO()) return c.json({ error: "Data no futuro." }, 422);
 
   try {
     await db.transaction(async (tx) => {
@@ -283,6 +285,21 @@ lotesRoutes.post("/:orgId/lotes/:id/transferir", async (c) => {
       }
       if (await sobrepoe(tx, para, data, null)) {
         throw new FalhaLote(409, `O ${nomeDestino} já tem lote alojado nesse período.`);
+      }
+      // A transferência leva todas as aves do galpão: não passa do que está vivo lá.
+      const baixas = await tx
+        .select()
+        .from(apontamentoAviario)
+        .where(and(eq(apontamentoAviario.instalacaoId, de), gte(apontamentoAviario.data, aberto.inicio), lt(apontamentoAviario.data, data)));
+      const soma = (f: (l: (typeof baixas)[number]) => number | null) => baixas.reduce((t, l) => t + (f(l) ?? 0), 0);
+      const vivasF = aberto.femeas - soma((l) => (l.mortasFemeas ?? 0) + (l.eliminadasFemeas ?? 0));
+      const vivasM = aberto.machos - soma((l) => (l.mortasMachos ?? 0) + (l.eliminadasMachos ?? 0));
+      if (femeas > vivasF || machos > vivasM) {
+        const nomeOrigem = (await nomeDaInstalacao(tx, orgId, de)) ?? "galpão de origem";
+        throw new FalhaLote(
+          422,
+          `O ${nomeOrigem} tem ${vivasF} fêmeas e ${vivasM} machos vivos; não dá para transferir mais que isso.`,
+        );
       }
       await tx.update(alojamento).set({ fim: noDia(data, -1) }).where(eq(alojamento.id, aberto.id));
       await tx.insert(alojamento).values({
@@ -336,6 +353,7 @@ lotesRoutes.post("/:orgId/lotes/:id/encerrar", async (c) => {
 
   const alvo = await acharLote(orgId, id);
   if (!alvo) return c.json({ error: "Lote não encontrado." }, 404);
+  if (data > hojeISO()) return c.json({ error: "Data no futuro." }, 422);
   if (data < alvo.dataAlojamento) {
     return c.json({ error: "A data de encerramento não pode ser antes do alojamento do lote." }, 422);
   }
@@ -456,6 +474,7 @@ lotesRoutes.post("/:orgId/lotes/:id/vacinacoes", async (c) => {
 
   const alvo = await acharLote(orgId, id);
   if (!alvo) return c.json({ error: "Lote não encontrado." }, 404);
+  if (dados.data > hojeISO()) return c.json({ error: "Data no futuro." }, 422);
   if (alvo.dataEncerramento && dados.data > alvo.dataEncerramento) {
     return c.json({ error: `O lote ${alvo.codigo} foi encerrado em ${br(alvo.dataEncerramento)}.` }, 422);
   }
