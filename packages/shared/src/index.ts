@@ -16,3 +16,4 @@ export * from "./notificacoes";
 export * from "./inicio";
 export * from "./relatorios";
 export * from "./prontuarios";
+export * from "./lotes";
