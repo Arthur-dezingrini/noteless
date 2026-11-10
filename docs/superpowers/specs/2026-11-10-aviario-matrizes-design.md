@@ -98,7 +98,7 @@ Contratos (entrada e saída) em `packages/shared/src/lotes.ts`.
 
 ## Erros e regras
 
-- Galpão sem lote alojado na data da operação → **422** na confirmação, nada gravado, mensagem com galpão e data.
+- Galpão sem lote alojado na data da operação → na confirmação de ocorrência, **400** (padrão atual do `/confirmar` para qualquer falha de aplicação), nada gravado, mensagem com galpão e data; no lançamento manual, **422**.
 - Alojamento sobreposto na mesma instalação → **409**.
 - Lote encerrado → recusa apontamento, pesagem e vacinação com data depois do encerramento (**422**).
 - Valores negativos, data futura, uniformidade fora de 0–100 → **400** (Zod).
