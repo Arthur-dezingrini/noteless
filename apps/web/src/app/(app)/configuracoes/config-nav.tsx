@@ -9,6 +9,7 @@ import type { NavItem } from "@/lib/navigation";
 const ABAS: NavItem[] = [
   { href: "/configuracoes", label: "Conta" },
   { href: "/configuracoes/usuarios", label: "Usuários" },
+  { href: "/configuracoes/galpoes", label: "Galpões" },
 ];
 
 export function ConfigNav() {

@@ -20,6 +20,7 @@ export function Sidebar({
   subtitulo,
   pendentes,
   admin,
+  temInstalacao,
 }: {
   organizacoes: Organization[];
   ativaId: string | null;
@@ -31,6 +32,8 @@ export function Sidebar({
   pendentes: number;
   /** Configurações é só de administrador. */
   admin: boolean;
+  /** Organização com galpão/instalação cadastrada: libera os itens `soComInstalacao`. */
+  temInstalacao: boolean;
 }) {
   const pathname = usePathname();
 
@@ -63,7 +66,7 @@ export function Sidebar({
       <OrgSwitcher organizacoes={organizacoes} ativaId={ativaId} animais={animais} />
 
       <nav className="flex flex-col gap-0.5" aria-label="Principal">
-        {NAV_ITEMS.map((n) => item(n.href, n.label, n.href === "/ocorrencias" ? pendentes : undefined))}
+        {NAV_ITEMS.filter((n) => !n.soComInstalacao || temInstalacao).map((n) => item(n.href, n.label, n.href === "/ocorrencias" ? pendentes : undefined))}
       </nav>
 
       <div className="mt-auto flex flex-col gap-1.5">

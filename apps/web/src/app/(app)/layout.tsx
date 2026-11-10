@@ -2,6 +2,7 @@ import { Header } from "@/components/app/header";
 import { Sidebar } from "@/components/app/sidebar";
 import {
   getAnimais,
+  getInstalacoes,
   getMemberRole,
   getNotificacoes,
   getOcorrencias,
@@ -23,9 +24,15 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     getOrgAtiva(),
   ]);
 
-  const [member, ocorrencias, animais, notificacoes] = org
-    ? await Promise.all([getMemberRole(org.id), getOcorrencias(org.id), getAnimais(org.id), getNotificacoes(org.id)])
-    : [null, [], [], []];
+  const [member, ocorrencias, animais, notificacoes, instalacoes] = org
+    ? await Promise.all([
+        getMemberRole(org.id),
+        getOcorrencias(org.id),
+        getAnimais(org.id),
+        getNotificacoes(org.id),
+        getInstalacoes(org.id),
+      ])
+    : [null, [], [], [], []];
   const pendentes = ocorrencias.filter((o) => o.status === "pendente").length;
   const admin = member?.role === "owner" || member?.role === "admin";
 
@@ -39,6 +46,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         subtitulo={user.cargo || rotuloPapel(member?.role)}
         pendentes={pendentes}
         admin={admin}
+        temInstalacao={instalacoes.length > 0}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header orgId={org?.id ?? null} notificacoes={notificacoes} />
