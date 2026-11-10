@@ -1,16 +1,14 @@
 import {
-  avesVivas,
   confirmarOcorrenciaSchema,
   corrigirOperacao,
   operacaoSchema,
-  semanaDeVida,
   statusOcorrenciaSchema,
   textoOcorrenciaSchema,
   type Ocorrencia,
   type Operacao,
   type Papel,
 } from "@vocare/shared";
-import { and, asc, count, desc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -19,12 +17,12 @@ import { hojeISO } from "../datas";
 import { db } from "../db";
 import { animal } from "../db/animais";
 import { consulta } from "../db/consultas";
-import { alojamento, apontamentoAviario, instalacao, lote } from "../db/lotes";
 import { grupo, grupoAnimal, parto, pesagem, tratamento, vacina } from "../db/historico";
 import { anotacaoAnimal, ocorrencia, ocorrenciaAudio } from "../db/ocorrencias";
 import { user } from "../db/schema";
-import { analisar, type GalpaoParaIa } from "../ia/analisar";
+import { analisar } from "../ia/analisar";
 import { IaNaoConfigurada, transcrever } from "../ia/transcrever";
+import { galpoesDaOrg } from "../lotes/galpoes-ia";
 import { membroAtual } from "../membros/membro-atual";
 import { administradores, notificar } from "../notificacoes/notificar";
 
@@ -176,69 +174,6 @@ function gruposDaOrg(orgId: string) {
     .where(eq(grupo.organizationId, orgId))
     .groupBy(grupo.id)
     .orderBy(asc(grupo.nome));
-}
-
-/** Galpões com lote ativo alojado em `hoje` — o contexto para "apontei o galpão 3", "pesei o lote 7". */
-async function galpoesDaOrg(orgId: string, hoje: string): Promise<GalpaoParaIa[]> {
-  const aloj = await db
-    .select({
-      instalacaoId: alojamento.instalacaoId,
-      nome: instalacao.nome,
-      loteId: lote.id,
-      loteCodigo: lote.codigo,
-      dataAlojamento: lote.dataAlojamento,
-      idadeAlojamentoDias: lote.idadeAlojamentoDias,
-      inicio: alojamento.inicio,
-      femeas: alojamento.femeas,
-      machos: alojamento.machos,
-    })
-    .from(alojamento)
-    .innerJoin(lote, eq(lote.id, alojamento.loteId))
-    .innerJoin(instalacao, eq(instalacao.id, alojamento.instalacaoId))
-    .where(
-      and(
-        eq(alojamento.organizationId, orgId),
-        eq(lote.situacao, "ativo"),
-        lte(alojamento.inicio, hoje),
-        or(isNull(alojamento.fim), gte(alojamento.fim, hoje)),
-      ),
-    )
-    .orderBy(asc(instalacao.nome));
-  if (aloj.length === 0) return [];
-
-  const aps = await db
-    .select()
-    .from(apontamentoAviario)
-    .where(
-      and(
-        eq(apontamentoAviario.organizationId, orgId),
-        inArray(apontamentoAviario.instalacaoId, aloj.map((a) => a.instalacaoId)),
-        lte(apontamentoAviario.data, hoje),
-      ),
-    );
-
-  return aloj.map((a) => {
-    const baixas = aps
-      .filter((p) => p.instalacaoId === a.instalacaoId && p.loteId === a.loteId && p.data >= a.inicio)
-      .map((p) => ({
-        data: p.data,
-        instalacaoId: p.instalacaoId,
-        mortasFemeas: p.mortasFemeas,
-        mortasMachos: p.mortasMachos,
-        eliminadasFemeas: p.eliminadasFemeas,
-        eliminadasMachos: p.eliminadasMachos,
-      }));
-    const vivas = avesVivas({ femeas: a.femeas, machos: a.machos }, baixas, hoje);
-    return {
-      instalacaoId: a.instalacaoId,
-      nome: a.nome,
-      loteId: a.loteId,
-      loteCodigo: a.loteCodigo,
-      semana: semanaDeVida(a.dataAlojamento, a.idadeAlojamentoDias, hoje),
-      femeas: vivas.femeas,
-      machos: vivas.machos,
-    };
-  });
 }
 
 /** Animais ativos da organização — o contexto que a IA usa para ligar nomes a ids. */

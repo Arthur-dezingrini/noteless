@@ -65,7 +65,7 @@ const inteiroOuNulo = (description: string) => ({ type: ["integer", "null"], des
  */
 type Ferramenta = { name: string; description: string; input_schema: unknown };
 
-function ferramenta(comAviario: boolean) {
+export function ferramenta(comAviario: boolean) {
   const base = FERRAMENTA_BASE;
   if (!comAviario) return base;
   const item = base.input_schema.properties.operacoes.items;
@@ -184,7 +184,7 @@ ${galpoes
   .join("\n")}
 
 Operações do aviário (animalId = null e grupoId = null sempre):
-- apontar_galpao: números do dia de um galpão (mortas, eliminadas, ovos por classe, ração em kg, água em L). instalacaoId = id do galpão da lista; data = null se for hoje. Só preencha o que foi dito.
+- apontar_galpao: números do dia de um galpão (mortas, eliminadas, ovos por classe, ração em kg, água em L). instalacaoId = id do galpão da lista; data = null se for hoje. Só preencha o que foi dito. Se o áudio citar mais de um galpão, gere UM apontar_galpao por galpão citado.
 - pesar_lote: pesagem de aves do lote (loteId, sexo, pesoMedioG em gramas, uniformidadePct e amostra se ditos).
 - vacinar_lote: vacina aplicada no lote inteiro (loteId, vacina, via, data, proximaData). Use esta, e não aplicar_vacina, quando o alvo é um lote de aves.`
     : "";
