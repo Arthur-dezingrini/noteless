@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui";
-import { getAnimais, getGrupos, getMemberRole, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getAnimais, getGrupos, getInstalacoes, getLotes, getMemberRole, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 
 import { OcorrenciasView } from "./ocorrencias-view";
 
@@ -16,10 +16,12 @@ export default async function OcorrenciasPage({ searchParams }: PageProps<"/ocor
     );
   }
 
-  const [ocorrencias, animais, grupos, membro] = await Promise.all([
+  const [ocorrencias, animais, grupos, instalacoes, lotes, membro] = await Promise.all([
     getOcorrencias(org.id),
     getAnimais(org.id),
     getGrupos(org.id),
+    getInstalacoes(org.id),
+    getLotes(org.id, "ativo"),
     getMemberRole(org.id),
   ]);
 
@@ -29,6 +31,8 @@ export default async function OcorrenciasPage({ searchParams }: PageProps<"/ocor
       ocorrencias={ocorrencias}
       animais={animais.map((a) => ({ id: a.id, nome: a.nome, numero: a.numero ?? null, sexo: a.sexo ?? null }))}
       grupos={grupos.map((g) => ({ id: g.id, nome: g.nome, animais: g.animalIds.length }))}
+      galpoes={instalacoes.map((i) => ({ id: i.id, nome: i.nome }))}
+      lotes={lotes.map((l) => ({ id: l.id, codigo: l.codigo }))}
       podeSalvar={membro?.role === "owner" || membro?.role === "admin"}
       selecionarId={typeof busca.id === "string" ? busca.id : undefined}
     />

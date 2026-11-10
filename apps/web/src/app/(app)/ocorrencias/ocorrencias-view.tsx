@@ -10,6 +10,7 @@ import {
   ROTULO_SEXO,
   ROTULO_TIPO_CONSULTA,
   SEXOS,
+  TIPOS_AVIARIO,
   TIPOS_CONSULTA,
   corrigirOperacao,
   ocorrenciaSchema,
@@ -37,8 +38,16 @@ import { AnimalModal } from "../animais/animal-modal";
 export type AnimalRef = { id: string; nome: string; numero: string | null; sexo: Sexo | null };
 export type GrupoRef = { id: string; nome: string; animais: number };
 
-/** Animais e grupos da conta, para dar nome aos alvos. */
-type Cadastro = { animais: Map<string, AnimalRef>; grupos: Map<string, GrupoRef> };
+export type GalpaoRef = { id: string; nome: string };
+export type LoteRef = { id: string; codigo: string };
+
+/** Animais, grupos, galpões e lotes da conta, para dar nome aos alvos. */
+type Cadastro = {
+  animais: Map<string, AnimalRef>;
+  grupos: Map<string, GrupoRef>;
+  galpoes: Map<string, GalpaoRef>;
+  lotes: Map<string, LoteRef>;
+};
 type Correcao = Partial<Record<CampoCorrigivel, unknown>>;
 
 /** Abaixo disto a tela pede para conferir o dado. */
@@ -105,16 +114,30 @@ const CAMPOS_INTEIROS: CampoCorrigivel[] = [
   "dias", "carenciaDias", "crias", "amostra",
   ...CAMPOS_APONTAMENTO.filter((c) => c !== "racaoKg" && c !== "aguaL"),
 ];
-/** Decimais das operações do aviário (editores próprios virão depois). */
+/** Decimais das operações do aviário (aceitam vírgula). */
 const CAMPOS_DECIMAIS: CampoCorrigivel[] = ["pesoMedioG", "uniformidadePct", "racaoKg", "aguaL"];
 /** Podem ficar vazios (null). */
 const CAMPOS_OPCIONAIS: CampoCorrigivel[] = [
   "data", "hora", "observacoes", "dose", "proximaData", "dias", "carenciaDias", "crias", "raca", "sexo", "nascimento",
   "uniformidadePct", "amostra", "via", ...CAMPOS_APONTAMENTO,
 ];
-const CAMPOS_ESCOLHA: CampoCorrigivel[] = ["animalId", "grupoId", "tipoConsulta", "especie", "sexo"];
+const CAMPOS_ESCOLHA: CampoCorrigivel[] = ["animalId", "grupoId", "instalacaoId", "loteId", "tipoConsulta", "especie", "sexo"];
 /** O alvo aparece na linha "nº 07 Thor → …"; na tabela, só quando falta, foi corrigido ou é grupo. */
-const CAMPOS_ALVO: CampoCorrigivel[] = ["animalId", "grupoId"];
+const CAMPOS_ALVO: CampoCorrigivel[] = ["animalId", "grupoId", "instalacaoId", "loteId"];
+
+/** Pode ficar vazio nesta operação? (`sexo` é obrigatório na pesagem do lote.) */
+function opcional(tipo: Operacao["tipo"], c: CampoCorrigivel) {
+  if (c === "sexo" && tipo === "pesar_lote") return false;
+  return CAMPOS_OPCIONAIS.includes(c);
+}
+
+function ehAviario(op: Operacao) {
+  return TIPOS_AVIARIO.includes(op.tipo);
+}
+
+function diaMes(data: string | null) {
+  return data ? formatar(data, { day: "2-digit", month: "2-digit" }) : "hoje";
+}
 
 function naoEntendido(oc: Ocorrencia) {
   return oc.transcricao.trim() === "";
@@ -128,8 +151,11 @@ function rotulo(a: { numero: string | null; nome: string }) {
 /** Nome do alvo: animal do cadastro, grupo, animal novo, ou o que foi dito. */
 function nomeAlvo(op: Operacao, cad: Cadastro): string {
   if (op.tipo === "cadastrar_animal") return op.nome;
-  if (op.tipo === "apontar_galpao" || op.tipo === "pesar_lote" || op.tipo === "vacinar_lote") {
-    return temAlvo(op) ? op.alvo : `${op.alvo} (não encontrado)`;
+  if (op.tipo === "apontar_galpao") {
+    return (op.instalacaoId && cad.galpoes.get(op.instalacaoId)?.nome) || `${op.alvo} (não encontrado)`;
+  }
+  if (op.tipo === "pesar_lote" || op.tipo === "vacinar_lote") {
+    return (op.loteId && cad.lotes.get(op.loteId)?.codigo) || `${op.alvo} (não encontrado)`;
   }
   if (op.grupoId) {
     const g = cad.grupos.get(op.grupoId);
@@ -141,7 +167,7 @@ function nomeAlvo(op: Operacao, cad: Cadastro): string {
 }
 
 /** "da Mimosa", "do Thor", "de Rex" (sexo não cadastrado), "do Lote 4". */
-function deAlvo(op: Operacao, cad: Cadastro) {
+function deAlvo(op: Exclude<Operacao, { tipo: "apontar_galpao" | "pesar_lote" | "vacinar_lote" }>, cad: Cadastro) {
   if (op.grupoId) return `do ${cad.grupos.get(op.grupoId)?.nome ?? op.alvo}`;
   const a = op.animalId ? cad.animais.get(op.animalId) : undefined;
   const prep = a?.sexo === "femea" ? "da" : a?.sexo === "macho" ? "do" : "de";
@@ -155,6 +181,16 @@ function juntar(partes: string[]) {
 
 /** O que cada operação vira, dentro da frase do rodapé. */
 function efeito(op: Operacao, cad: Cadastro): string {
+  switch (op.tipo) {
+    case "apontar_galpao":
+      return `o apontamento do ${op.instalacaoId ? (cad.galpoes.get(op.instalacaoId)?.nome ?? op.alvo) : op.alvo} em ${diaMes(op.data)}`;
+    case "pesar_lote":
+      return `a pesagem ${op.sexo === "femea" ? "das fêmeas" : "dos machos"} do ${nomeAlvo(op, cad)}`;
+    case "vacinar_lote":
+      return `a vacina ${op.vacina} no ${nomeAlvo(op, cad)}`;
+    default:
+      break;
+  }
   const de = deAlvo(op, cad);
   switch (op.tipo) {
     case "registrar_peso":
@@ -171,10 +207,8 @@ function efeito(op: Operacao, cad: Cadastro): string {
       return `o parto no histórico ${de}`;
     case "cadastrar_animal":
       return `${op.nome} no cadastro de animais`;
-    case "apontar_galpao":
-    case "pesar_lote":
-    case "vacinar_lote":
-      return `${DESTINO_OPERACAO[op.tipo].feito.toLowerCase()} em ${DESTINO_OPERACAO[op.tipo].onde}`;
+    default:
+      return "";
   }
 }
 
@@ -194,8 +228,14 @@ function formatarCampo(c: CampoCorrigivel, valor: unknown, cad: Cadastro, alvo: 
     case "grupoId":
       return cad.grupos.get(String(valor))?.nome ?? "Grupo removido";
     case "instalacaoId":
+      return cad.galpoes.get(String(valor))?.nome ?? "Galpão removido";
     case "loteId":
-      return alvo;
+      return cad.lotes.get(String(valor))?.codigo ?? "Lote removido";
+    case "racaoKg":
+    case "aguaL":
+    case "pesoMedioG":
+    case "uniformidadePct":
+      return Number(valor).toLocaleString("pt-BR");
     case "pesoKg":
       return `${Number(valor).toLocaleString("pt-BR")} kg`;
     case "tipoConsulta":
@@ -222,6 +262,10 @@ function opcoesDe(c: CampoCorrigivel, cad: Cadastro): { v: string; r: string }[]
       return [...cad.animais.values()].map((a) => ({ v: a.id, r: rotulo(a) }));
     case "grupoId":
       return [...cad.grupos.values()].map((g) => ({ v: g.id, r: `${g.nome} (${g.animais})` }));
+    case "instalacaoId":
+      return [...cad.galpoes.values()].map((g) => ({ v: g.id, r: g.nome }));
+    case "loteId":
+      return [...cad.lotes.values()].map((l) => ({ v: l.id, r: l.codigo }));
     case "tipoConsulta":
       return TIPOS_CONSULTA.map((t) => ({ v: t, r: ROTULO_TIPO_CONSULTA[t] }));
     case "especie":
@@ -238,10 +282,13 @@ function camposDe(op: Operacao): CampoCorrigivel[] {
   const todos = CAMPOS_CORRIGIVEIS[op.tipo] as readonly CampoCorrigivel[];
   const corrigido = op.original ?? {};
   return [
-    ...todos.filter((c) => !CAMPOS_ALVO.includes(c) && c !== "instalacaoId" && c !== "loteId"),
+    ...todos.filter((c) => !CAMPOS_ALVO.includes(c)),
     ...todos.filter((c) => {
-      if (c === "grupoId") return !!op.grupoId;
-      if (c === "animalId") return !op.grupoId && (!temAlvo(op) || "animalId" in corrigido);
+      if (c === "instalacaoId" || c === "loteId") return !temAlvo(op) || c in corrigido;
+      if (ehAviario(op)) return false;
+      const m = op as { grupoId?: string | null };
+      if (c === "grupoId") return !!m.grupoId;
+      if (c === "animalId") return !m.grupoId && (!temAlvo(op) || "animalId" in corrigido);
       return false;
     }),
   ];
@@ -281,17 +328,18 @@ function CamposEditaveis({
   function confirmar(c: CampoCorrigivel, bruto = rascunho) {
     let valor: unknown = bruto.trim();
     if (valor === "") {
-      if (!CAMPOS_OPCIONAIS.includes(c)) return setErro("Este campo não pode ficar vazio.");
+      if (!opcional(op.tipo, c)) return setErro("Este campo não pode ficar vazio.");
       valor = null;
     } else if (c === "pesoKg") {
       valor = Number(bruto.replace(",", "."));
       if (!Number.isFinite(valor) || (valor as number) <= 0) return setErro("Informe um peso maior que zero.");
     } else if (CAMPOS_DECIMAIS.includes(c)) {
       valor = Number(bruto.replace(",", "."));
-      if (!Number.isFinite(valor) || (valor as number) < 0) return setErro("Informe um número válido.");
+      if (!Number.isFinite(valor) || (valor as number) < 0) return setErro("Informe um número válido, como 12,5.");
+      if (c === "pesoMedioG" && valor === 0) return setErro("Informe um peso maior que zero.");
     } else if (CAMPOS_INTEIROS.includes(c)) {
       valor = Number(bruto);
-      if (!Number.isInteger(valor) || (valor as number) < 0) return setErro("Informe um número inteiro.");
+      if (!Number.isInteger(valor) || (valor as number) < 0) return setErro("Informe um número inteiro, sem vírgula.");
     }
     onCorrigir(c, valor);
     setEditando(null);
@@ -313,7 +361,9 @@ function CamposEditaveis({
     if (CAMPOS_ESCOLHA.includes(c)) {
       return (
         <Select {...comum} value={rascunho} onChange={(e) => confirmar(c, e.target.value)} className="min-w-0 flex-[1_1_10rem]">
-          {(c === "animalId" || c === "grupoId" || c === "sexo") && <option value="">{c === "sexo" ? "Não informado" : "Escolha…"}</option>}
+          {(c === "animalId" || c === "grupoId" || c === "instalacaoId" || c === "loteId" || (c === "sexo" && opcional(op.tipo, c))) && (
+            <option value="">{c === "sexo" ? "Não informado" : "Escolha…"}</option>
+          )}
           {opcoesDe(c, cad).map((o) => (
             <option key={o.v} value={o.v}>
               {o.r}
@@ -326,7 +376,7 @@ function CamposEditaveis({
       <input
         {...comum}
         type={CAMPOS_DATA.includes(c) ? "date" : c === "hora" ? "time" : "text"}
-        inputMode={c === "pesoKg" ? "decimal" : CAMPOS_INTEIROS.includes(c) ? "numeric" : undefined}
+        inputMode={c === "pesoKg" || CAMPOS_DECIMAIS.includes(c) ? "decimal" : CAMPOS_INTEIROS.includes(c) ? "numeric" : undefined}
         value={rascunho}
         onChange={(e) => setRascunho(e.target.value)}
         className="h-[34px] min-w-0 flex-[1_1_10rem] rounded-lg border border-brand bg-white px-2.5 text-sm text-ink outline-none"
@@ -427,7 +477,7 @@ function LinhaOperacao({
     .map((c) => formatarCampo(c, atual[c], cad, op.alvo))
     .join(" · ");
   const linkHistorico =
-    salva && op.aplicada && op.animalId && cad.animais.has(op.animalId)
+    salva && op.aplicada && "animalId" in op && op.animalId && cad.animais.has(op.animalId)
       ? { href: `/animais/${op.animalId}` as const, rotulo: `Ver no histórico${op.tipo === "agendar_consulta" ? " e na agenda" : ""}` }
       : null;
 
@@ -479,10 +529,16 @@ function LinhaOperacao({
         )}
         {bloqueada && (
           <p className="flex flex-wrap items-baseline gap-3 text-sm">
-            <span className="text-danger">Não achamos “{op.alvo}” no cadastro.</span>
-            <button type="button" onClick={onCadastrarNovo} className="cursor-pointer font-semibold text-ink underline underline-offset-[3px]">
-              Cadastrar como animal novo
-            </button>
+            <span className="text-danger">
+              {ehAviario(op)
+                ? `Não achamos “${op.alvo}” entre os ${op.tipo === "apontar_galpao" ? "galpões" : "lotes"}. Abra os detalhes e escolha ${op.tipo === "apontar_galpao" ? "o galpão" : "o lote"}.`
+                : `Não achamos “${op.alvo}” no cadastro.`}
+            </span>
+            {!ehAviario(op) && (
+              <button type="button" onClick={onCadastrarNovo} className="cursor-pointer font-semibold text-ink underline underline-offset-[3px]">
+                Cadastrar como animal novo
+              </button>
+            )}
           </p>
         )}
         {linkHistorico && (
@@ -859,6 +915,8 @@ export function OcorrenciasView({
   ocorrencias: iniciais,
   animais: listaAnimais,
   grupos: listaGrupos,
+  galpoes: listaGalpoes,
+  lotes: listaLotes,
   podeSalvar,
   selecionarId,
 }: {
@@ -866,6 +924,8 @@ export function OcorrenciasView({
   ocorrencias: Ocorrencia[];
   animais: AnimalRef[];
   grupos: GrupoRef[];
+  galpoes: GalpaoRef[];
+  lotes: LoteRef[];
   podeSalvar: boolean;
   /** Vindo de uma notificação: abre esta ocorrência, na aba certa. */
   selecionarId?: string;
@@ -882,6 +942,8 @@ export function OcorrenciasView({
   const cad: Cadastro = {
     animais: new Map(listaAnimais.map((a) => [a.id, a])),
     grupos: new Map(listaGrupos.map((g) => [g.id, g])),
+    galpoes: new Map(listaGalpoes.map((g) => [g.id, g])),
+    lotes: new Map(listaLotes.map((l) => [l.id, l])),
   };
 
   function substituir(oc: Ocorrencia) {
