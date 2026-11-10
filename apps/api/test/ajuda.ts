@@ -2,7 +2,7 @@ import { app } from "../src/app";
 import { auth } from "../src/auth";
 import { db } from "../src/db";
 import { member } from "../src/db/schema";
-import { criarUsuario } from "../src/usuarios/criar-usuario";
+import { criarUsuario } from "../src/modulos/conta";
 
 const SENHA = "senha-de-teste-123";
 const ORIGEM = "http://localhost:3000";

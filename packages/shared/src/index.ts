@@ -5,8 +5,7 @@
  * schema Zod valida a entrada no front antes de enviar e a resposta do back
  * ao chegar. Se o contrato mudar, os dois lados quebram em tempo de compilação.
  */
-export * from "./auth";
-export * from "./usuarios";
+export * from "./conta";
 export * from "./animais";
 export * from "./saude";
 export * from "./notas";

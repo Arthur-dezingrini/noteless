@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/ui";
 import { getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 
-import { ConfigNav } from "./config-nav";
+import { ConfigNav } from "@/modulos/conta";
 
 /** Configurações: dados da conta e quem tem acesso. Só administrador entra. */
 export default async function ConfiguracoesLayout({ children }: LayoutProps<"/configuracoes">) {

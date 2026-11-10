@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui";
-import { getMemberRole, getOrgAtiva, getUsuarios, requireSession } from "@/lib/auth/dal";
+import { getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getUsuarios } from "@/modulos/conta/dados";
 import { getConsultas, getProntuarios } from "@/modulos/saude/dados";
 import { getAnimais } from "@/modulos/animais/dados";
 import { hojeISO } from "@/lib/datas";

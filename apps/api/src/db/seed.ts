@@ -10,7 +10,7 @@
 import { auth } from "../auth";
 import { db } from ".";
 import { member, organization } from "./schema";
-import { criarUsuario } from "../usuarios/criar-usuario";
+import { criarUsuario } from "../modulos/conta";
 import { eq } from "drizzle-orm";
 
 async function main() {

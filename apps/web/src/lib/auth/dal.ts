@@ -6,7 +6,6 @@ import {
   organizationListSchema,
   relatorioSchema,
   sessionSchema,
-  usuarioListaSchema,
   type Aviso,
   type MemberRole,
   type Notificacao,
@@ -14,7 +13,6 @@ import {
   type Relatorio,
   type TipoRelatorio,
   type Session,
-  type Usuario,
 } from "@vocare/shared";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -85,17 +83,6 @@ export function rotuloPapel(role: string | undefined): string {
       return "";
   }
 }
-
-/** Membros da organização com nome, e-mail, cargo e papel. */
-export const getUsuarios = cache(
-  async (organizationId: string): Promise<Usuario[]> => {
-    const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/usuarios`);
-    if (!res.ok) return [];
-
-    const parsed = usuarioListaSchema.safeParse(await corpoJson(res));
-    return parsed.success ? parsed.data : [];
-  },
-);
 
 /** "Fique de olho" do Início: vacinas vencidas, consultas sem confirmar… */
 export const getAvisos = cache(async (organizationId: string): Promise<Aviso[]> => {

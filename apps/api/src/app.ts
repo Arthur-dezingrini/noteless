@@ -10,10 +10,9 @@ import { novidadesRoutes } from "./routes/novidades";
 import { relatoriosRoutes } from "./routes/relatorios";
 import { aviarioRotas } from "./modulos/aviario";
 import { notasRotas } from "./modulos/notas";
-import { perfilRoutes } from "./routes/perfil";
-import { usuariosRoutes } from "./routes/usuarios";
 import { animaisRotas } from "./modulos/animais";
 import { saudeRotas } from "./modulos/saude";
+import { contaRotas, perfilRotas } from "./modulos/conta";
 
 export const app = new Hono();
 
@@ -38,7 +37,7 @@ app.get("/health", (c) => c.json({ ok: true }));
 app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
 // Rotas de negócio. Cada uma valida sessão e papel por conta própria.
-app.route("/api/org", usuariosRoutes);
+app.route("/api/org", contaRotas);
 app.route("/api/org", animaisRotas);
 app.route("/api/org", saudeRotas);
 app.route("/api/org", notasRotas);
@@ -47,4 +46,4 @@ app.route("/api/org", notificacoesRoutes);
 app.route("/api/org", novidadesRoutes);
 app.route("/api/org", inicioRoutes);
 app.route("/api/org", relatoriosRoutes);
-app.route("/api/perfil", perfilRoutes);
+app.route("/api/perfil", perfilRotas);

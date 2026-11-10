@@ -1,6 +1,6 @@
 import { getOrgAtiva } from "@/lib/auth/dal";
 
-import { ContaForm } from "./conta-form";
+import { ContaForm } from "@/modulos/conta";
 
 export const metadata = { title: "Configurações" };
 

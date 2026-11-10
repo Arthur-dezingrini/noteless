@@ -9,11 +9,11 @@ import {
 import { and, asc, eq, ne } from "drizzle-orm";
 import { Hono } from "hono";
 
-import { auth } from "../auth";
-import { db } from "../db";
-import { member, user } from "../db/schema";
-import { membroAtual } from "../base/membro-atual";
-import { criarUsuario, UsuarioJaExiste } from "../usuarios/criar-usuario";
+import { auth } from "../../../auth";
+import { db } from "../../../db";
+import { member, user } from "../../../db/schema";
+import { membroAtual } from "../../../base/membro-atual";
+import { criarUsuario, UsuarioJaExiste } from "../regras/criar-usuario";
 
 /**
  * Administração de usuários de uma organização.

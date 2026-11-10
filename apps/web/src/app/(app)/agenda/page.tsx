@@ -1,4 +1,5 @@
-import { getOrgAtiva, getUsuarios, requireSession } from "@/lib/auth/dal";
+import { getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getUsuarios } from "@/modulos/conta/dados";
 import { getConsultas } from "@/modulos/saude/dados";
 import { getAnimais } from "@/modulos/animais/dados";
 import { Card } from "@/components/ui";

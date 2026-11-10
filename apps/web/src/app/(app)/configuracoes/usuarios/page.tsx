@@ -1,8 +1,9 @@
-import { getMemberRole, getOrgAtiva, getUsuarios, requireSession } from "@/lib/auth/dal";
+import { getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getUsuarios } from "@/modulos/conta/dados";
 
 import { Card } from "@/components/ui";
 
-import { UsuariosLista } from "./usuarios-lista";
+import { UsuariosLista } from "@/modulos/conta";
 
 export const metadata = { title: "Usuários" };
 

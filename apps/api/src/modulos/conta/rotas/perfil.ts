@@ -3,9 +3,9 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { auth } from "../auth";
-import { db } from "../db";
-import { user } from "../db/schema";
+import { auth } from "../../../auth";
+import { db } from "../../../db";
+import { user } from "../../../db/schema";
 
 const imagemSchema = z.object({
   image: z

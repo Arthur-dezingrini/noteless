@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { auth } from "../src/auth";
-import { chamar, criarFazenda, entrar, type Pessoa } from "./ajuda";
+import { auth } from "../../src/auth";
+import { chamar, criarFazenda, entrar, type Pessoa } from "../ajuda";
 
 type Fazenda = Awaited<ReturnType<typeof criarFazenda>>;
 

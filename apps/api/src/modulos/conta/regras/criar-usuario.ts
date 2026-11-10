@@ -1,4 +1,4 @@
-import { auth } from "../auth";
+import { auth } from "../../../auth";
 
 /**
  * Cria um usuário com e-mail e senha SEM passar pelo sign-up público (que
