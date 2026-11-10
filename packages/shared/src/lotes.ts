@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { especieSchema, sexoSchema } from "./animais";
+import type { IndicadoresDia, IndicadoresLote, SemanaLote } from "./indicadores-lote";
 
 const dataIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.");
 
@@ -175,3 +176,122 @@ export const vacinacaoLoteInputSchema = z.object({
   proximaData: dataIso.nullish(),
 });
 export type VacinacaoLoteInput = z.infer<typeof vacinacaoLoteInputSchema>;
+
+// Respostas de lote (espelham os tipos de ./indicadores-lote)
+
+const pctOuNulo = z.number().nullable();
+
+export const indicadoresDiaSchema = z.object({
+  posturaPct: pctOuNulo,
+  incubaveisPct: pctOuNulo,
+  racaoGAveDia: pctOuNulo,
+  aguaRacao: pctOuNulo,
+  mortalidadeDiaPct: pctOuNulo,
+}) satisfies z.ZodType<IndicadoresDia>;
+
+const plantelSchema = z.object({ femeas: z.number(), machos: z.number() });
+
+export const indicadoresLoteSchema = z.object({
+  vivas: plantelSchema,
+  mortalidadeAcumuladaPct: pctOuNulo,
+  posturaSemanaPct: pctOuNulo,
+  incubaveisPorFemea: pctOuNulo,
+  racaoGAveDiaSemana: pctOuNulo,
+}) satisfies z.ZodType<IndicadoresLote>;
+
+export const semanaLoteSchema = z.object({
+  semana: z.number(),
+  inicio: dataIso,
+  fim: dataIso,
+  mortas: z.number(),
+  eliminadas: z.number(),
+  mortalidadePct: pctOuNulo,
+  posturaPct: pctOuNulo,
+  incubaveisPct: pctOuNulo,
+  racaoGAveDia: pctOuNulo,
+  pesoFemeaG: pctOuNulo,
+  pesoMachoG: pctOuNulo,
+  uniformidadeFemeaPct: pctOuNulo,
+  uniformidadeMachoPct: pctOuNulo,
+}) satisfies z.ZodType<SemanaLote>;
+
+export const diaGalpaoSchema = z.object({
+  data: dataIso,
+  instalacaoId: z.string(),
+  instalacaoNome: z.string(),
+  ocorrenciaId: z.string().nullable(),
+  valores: valoresApontamentoSchema,
+  indicadores: indicadoresDiaSchema,
+});
+export type DiaGalpao = z.infer<typeof diaGalpaoSchema>;
+
+export const loteResumoSchema = z.object({
+  id: z.string(),
+  codigo: z.string(),
+  linhagem: z.string().nullable(),
+  fase: faseLoteEnumSchema,
+  situacao: z.enum(SITUACOES_LOTE),
+  dataAlojamento: dataIso,
+  semana: z.number(),
+  galpoes: z.array(z.object({ id: z.string(), nome: z.string() })),
+  vivas: plantelSchema,
+  posturaOntemPct: z.number().nullable(),
+  mortalidadeSemanaPct: z.number().nullable(),
+  semApontamentoHoje: z.boolean(),
+  mortalidadeAltaHoje: z.boolean(),
+});
+export type LoteResumo = z.infer<typeof loteResumoSchema>;
+
+export const fichaLoteSchema = z.object({
+  lote: loteResumoSchema.extend({
+    idadeAlojamentoDias: z.number(),
+    femeasIniciais: z.number(),
+    machosIniciais: z.number(),
+    dataEncerramento: dataIso.nullable(),
+  }),
+  alojamentos: z.array(
+    z.object({
+      id: z.string(),
+      instalacaoId: z.string(),
+      instalacaoNome: z.string(),
+      inicio: dataIso,
+      fim: dataIso.nullable(),
+      femeas: z.number(),
+      machos: z.number(),
+    }),
+  ),
+  indicadores: indicadoresLoteSchema,
+  diario: z.array(diaGalpaoSchema),
+  semanal: z.array(semanaLoteSchema),
+  pesagens: z.array(
+    z.object({
+      id: z.string(),
+      data: dataIso,
+      sexo: sexoSchema,
+      pesoMedioG: z.number(),
+      uniformidadePct: z.number().nullable(),
+      amostra: z.number().nullable(),
+      ocorrenciaId: z.string().nullable(),
+    }),
+  ),
+  vacinacoes: z.array(
+    z.object({
+      id: z.string(),
+      data: dataIso,
+      vacina: z.string(),
+      via: z.string().nullable(),
+      proximaData: dataIso.nullable(),
+      ocorrenciaId: z.string().nullable(),
+    }),
+  ),
+});
+export type FichaLote = z.infer<typeof fichaLoteSchema>;
+
+export const galpaoHojeSchema = z.object({
+  instalacaoId: z.string(),
+  nome: z.string(),
+  loteId: z.string(),
+  loteCodigo: z.string(),
+  apontado: z.boolean(),
+});
+export type GalpaoHoje = z.infer<typeof galpaoHojeSchema>;

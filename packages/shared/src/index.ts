@@ -17,3 +17,4 @@ export * from "./inicio";
 export * from "./relatorios";
 export * from "./prontuarios";
 export * from "./lotes";
+export * from "./indicadores-lote";
