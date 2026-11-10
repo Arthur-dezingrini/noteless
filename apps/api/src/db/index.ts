@@ -5,6 +5,7 @@ import { env } from "../env";
 import * as animais from "./animais";
 import * as consultas from "./consultas";
 import * as historico from "./historico";
+import * as lotes from "./lotes";
 import * as ocorrencias from "./ocorrencias";
 import * as schema from "./schema";
 
@@ -20,4 +21,4 @@ import * as schema from "./schema";
  */
 const pool = new Pool({ connectionString: env.DATABASE_URL });
 
-export const db = drizzle(pool, { schema: { ...schema, ...animais, ...consultas, ...ocorrencias, ...historico } });
+export const db = drizzle(pool, { schema: { ...schema, ...animais, ...consultas, ...ocorrencias, ...historico, ...lotes } });

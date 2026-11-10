@@ -13,6 +13,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { hojeISO } from "../datas";
 import { db } from "../db";
 import { animal } from "../db/animais";
 import { consulta } from "../db/consultas";
@@ -38,11 +39,6 @@ const TAMANHO_MAXIMO = 25 * 1024 * 1024; // limite do Whisper
 const HORA_PADRAO = "08:00";
 
 class AplicacaoFalhou extends Error {}
-
-/** "AAAA-MM-DD" de hoje em São Paulo — a IA precisa saber que dia é. */
-function hojeISO() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-}
 
 const criador = alias(user, "criador");
 const revisor = alias(user, "revisor");
