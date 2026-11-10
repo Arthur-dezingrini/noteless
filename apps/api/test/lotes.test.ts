@@ -323,6 +323,12 @@ describe("apontamento manual, pesagem, vacinação e ficha", () => {
     const vac = await chamar(f.dono, "POST", `${base}/${id}/vacinacoes`, { data: "2026-03-02", vacina: "Newcastle" });
     expect(vac.status).toBe(422);
     expect(vac.json.error).toBe("O lote L-01 foi encerrado em 01/03.");
+    const pes = await chamar(f.dono, "POST", `${base}/${id}/pesagens`, { data: "2026-03-02", sexo: "femea", pesoMedioG: 2850 });
+    expect(pes.status).toBe(422);
+    expect(pes.json.error).toBe("O lote L-01 foi encerrado em 01/03.");
+    const falsa = await put(f.dono, "2026-02-30", { ovosTotal: 1 });
+    expect(falsa.status).toBe(400);
+    expect(falsa.json.error).toBe("Data inválida.");
     expect((await chamar(f.dono, "POST", `${base}/${id}/vacinacoes`, { data: "2026-03-01", vacina: "Newcastle", via: "ocular" })).status).toBe(201);
   });
 

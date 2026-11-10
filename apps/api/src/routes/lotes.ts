@@ -328,6 +328,7 @@ lotesRoutes.post("/:orgId/lotes/:id/encerrar", async (c) => {
 });
 
 const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+const dataReal = (d: string) => DATA_ISO.test(d) && noDia(d, 0) === d;
 
 lotesRoutes.get("/:orgId/lotes/:id", async (c) => {
   const orgId = c.req.param("orgId");
@@ -346,7 +347,7 @@ lotesRoutes.put("/:orgId/lotes/:id/apontamentos/:instalacaoId/:data", async (c) 
   if (!eu) return c.json({ error: SEM_ACESSO }, 403);
   if (!PODE_SALVAR.includes(eu.role)) return c.json({ error: SO_ADMIN_LANCA }, 403);
 
-  if (!DATA_ISO.test(data)) return c.json({ error: "Data inválida." }, 400);
+  if (!dataReal(data)) return c.json({ error: "Data inválida." }, 400);
   const body = valoresApontamentoSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
 
@@ -380,6 +381,7 @@ lotesRoutes.post("/:orgId/lotes/:id/pesagens", async (c) => {
 
   const body = pesagemLoteInputSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
+  if (!dataReal(body.data.data)) return c.json({ error: "Data inválida." }, 400);
   const dados = body.data;
 
   const alvo = await acharLote(orgId, id);
@@ -388,6 +390,9 @@ lotesRoutes.post("/:orgId/lotes/:id/pesagens", async (c) => {
     return c.json({ error: "Galpão não encontrado." }, 404);
   }
   if (dados.data > hojeISO()) return c.json({ error: "Data no futuro." }, 422);
+  if (alvo.dataEncerramento && dados.data > alvo.dataEncerramento) {
+    return c.json({ error: `O lote ${alvo.codigo} foi encerrado em ${br(alvo.dataEncerramento)}.` }, 422);
+  }
 
   await db.insert(pesagemLote).values({
     organizationId: orgId,
@@ -412,6 +417,9 @@ lotesRoutes.post("/:orgId/lotes/:id/vacinacoes", async (c) => {
 
   const body = vacinacaoLoteInputSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
+  if (!dataReal(body.data.data) || (body.data.proximaData && !dataReal(body.data.proximaData))) {
+    return c.json({ error: "Data inválida." }, 400);
+  }
   const dados = body.data;
 
   const alvo = await acharLote(orgId, id);
