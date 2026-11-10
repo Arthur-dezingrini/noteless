@@ -45,6 +45,12 @@ export function AlojarModal({
     setErro(null);
     const form = new FormData(e.currentTarget);
     const linhagem = String(form.get("linhagem") ?? "").trim();
+    // Confere antes do Zod: as mensagens dele para campo vazio ou inválido vêm em inglês.
+    if (linhas.some((l) => !l.instalacaoId)) return setErro("Escolha o galpão.");
+    const numeros = [String(form.get("idadeAlojamentoDias") ?? ""), ...linhas.flatMap((l) => [l.femeas, l.machos])];
+    if (numeros.some((n) => n.trim() !== "" && !Number.isInteger(Number(n)))) return setErro("Informe um número inteiro.");
+    if (!String(form.get("codigo") ?? "").trim()) return setErro("Informe o código do lote.");
+    if (!form.get("dataAlojamento")) return setErro("Informe a data do alojamento.");
     const parsed = criarLoteSchema.safeParse({
       codigo: form.get("codigo"),
       especie: "ave",

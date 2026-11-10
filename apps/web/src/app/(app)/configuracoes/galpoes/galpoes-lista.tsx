@@ -159,6 +159,10 @@ function GalpaoModal({
       capacidade: numeroOuNulo(form.get("capacidade")),
       areaM2: numeroOuNulo(form.get("areaM2")),
     };
+    if (Number.isNaN(dados.capacidade) || Number.isNaN(dados.areaM2)) {
+      setErro("Informe um número válido.");
+      return;
+    }
     const parsed = edicao
       ? editarInstalacaoSchema.safeParse({ ...dados, ativa: form.get("ativa") === "sim" })
       : criarInstalacaoSchema.safeParse(dados);
