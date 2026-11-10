@@ -3,7 +3,7 @@ import { and, eq, gte, isNull, lte, ne, or } from "drizzle-orm";
 import { db } from "../db";
 import { alojamento, instalacao, lote } from "../db/lotes";
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /** Lote alojado na instalação em `data` ("AAAA-MM-DD"), ou `null` se estava vazia. */
 export async function loteNaData(tx: Tx | typeof db, orgId: string, instalacaoId: string, data: string) {

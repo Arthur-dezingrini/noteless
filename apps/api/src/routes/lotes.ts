@@ -1,29 +1,26 @@
 import {
-  avesVivas,
-  consolidarSemanas,
   criarInstalacaoSchema,
   criarLoteSchema,
   editarInstalacaoSchema,
   encerrarLoteSchema,
   faseLoteSchema,
-  indicadoresDoDia,
-  mortalidadeAlta,
-  semanaDeVida,
+  pesagemLoteInputSchema,
   transferirLoteSchema,
-  type ApontamentoDia,
-  type FaseLote,
+  vacinacaoLoteInputSchema,
+  valoresApontamentoSchema,
   type Instalacao,
-  type LoteResumo,
   type Papel,
-  type SituacaoLote,
 } from "@vocare/shared";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 
+import { br, hojeISO, noDia } from "../datas";
 import { db } from "../db";
-import { alojamento, apontamentoAviario, instalacao, lote } from "../db/lotes";
-import { hojeISO } from "../datas";
+import { alojamento, instalacao, lote, pesagemLote, vacinacaoLote } from "../db/lotes";
 import { nomeDaInstalacao, sobrepoe } from "../lotes/alojamento";
+import { substituirApontamento, validarApontamento } from "../lotes/apontamento";
+import { montarFicha } from "../lotes/ficha";
+import { listarLotes } from "../lotes/resumo";
 import { membroAtual } from "../membros/membro-atual";
 
 /**
@@ -144,6 +141,7 @@ lotesRoutes.patch("/:orgId/instalacoes/:id", async (c) => {
 // Lotes
 
 const SO_ADMIN_LOTE = "Só o administrador cria ou altera lotes.";
+const SO_ADMIN_LANCA = "Só o administrador lança apontamentos, pesagens e vacinações.";
 const CODIGO_REPETIDO = "Já existe um lote com esse código.";
 
 /** Falha de regra dentro de uma transação: desfaz tudo e vira resposta HTTP. */
@@ -154,112 +152,6 @@ class FalhaLote extends Error {
   ) {
     super(message);
   }
-}
-
-const SOMAVEIS = [
-  "mortasFemeas",
-  "mortasMachos",
-  "eliminadasFemeas",
-  "eliminadasMachos",
-  "ovosTotal",
-  "ovosIncubaveis",
-  "racaoKg",
-] as const;
-
-function noDia(data: string, dias: number) {
-  const [a = 0, m = 1, d = 1] = data.split("-").map(Number);
-  return new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10);
-}
-
-function somarLinhas(data: string, linhas: ApontamentoDia[]): ApontamentoDia {
-  const soma: ApontamentoDia = { data, instalacaoId: "" };
-  for (const l of linhas) for (const k of SOMAVEIS) if (l[k] != null) soma[k] = (soma[k] ?? 0) + (l[k] as number);
-  return soma;
-}
-
-async function listarLotes(orgId: string, filtro: { situacao?: SituacaoLote; id?: string } = {}): Promise<LoteResumo[]> {
-  const filtros = [eq(lote.organizationId, orgId)];
-  if (filtro.situacao) filtros.push(eq(lote.situacao, filtro.situacao));
-  if (filtro.id) filtros.push(eq(lote.id, filtro.id));
-  const lotes = await db.select().from(lote).where(and(...filtros)).orderBy(asc(lote.codigo));
-  if (lotes.length === 0) return [];
-  const ids = lotes.map((l) => l.id);
-
-  const aloj = await db
-    .select({
-      loteId: alojamento.loteId,
-      instalacaoId: alojamento.instalacaoId,
-      nome: instalacao.nome,
-      inicio: alojamento.inicio,
-      fim: alojamento.fim,
-      femeas: alojamento.femeas,
-      machos: alojamento.machos,
-    })
-    .from(alojamento)
-    .innerJoin(instalacao, eq(instalacao.id, alojamento.instalacaoId))
-    .where(inArray(alojamento.loteId, ids))
-    .orderBy(asc(instalacao.nome));
-  const linhas = await db.select().from(apontamentoAviario).where(inArray(apontamentoAviario.loteId, ids));
-
-  const hoje = hojeISO();
-  const ontem = noDia(hoje, -1);
-  const num = (v: string | null) => (v === null ? null : Number(v));
-
-  return lotes.map((l) => {
-    const dele: ApontamentoDia[] = linhas
-      .filter((a) => a.loteId === l.id)
-      .map((a) => ({
-        data: a.data,
-        instalacaoId: a.instalacaoId,
-        mortasFemeas: a.mortasFemeas,
-        mortasMachos: a.mortasMachos,
-        eliminadasFemeas: a.eliminadasFemeas,
-        eliminadasMachos: a.eliminadasMachos,
-        ovosTotal: a.ovosTotal,
-        ovosIncubaveis: a.ovosIncubaveis,
-        racaoKg: num(a.racaoKg),
-      }));
-    const iniciais = { femeas: l.femeasIniciais, machos: l.machosIniciais };
-    const alojs = aloj.filter((a) => a.loteId === l.id);
-    const abertos = alojs.filter((a) => a.fim === null);
-    const galpoes = new Map((l.situacao === "ativo" ? abertos : alojs).map((a) => [a.instalacaoId, a.nome]));
-
-    const doOntem = dele.filter((a) => a.data === ontem);
-    const posturaOntemPct =
-      doOntem.length === 0 ? null : indicadoresDoDia(somarLinhas(ontem, doOntem), avesVivas(iniciais, dele, noDia(ontem, -1))).posturaPct;
-
-    const semana = semanaDeVida(l.dataAlojamento, l.idadeAlojamentoDias, hoje);
-    const mortalidadeSemanaPct = consolidarSemanas(l, dele, []).find((s) => s.semana === semana)?.mortalidadePct ?? null;
-
-    const doHoje = dele.filter((a) => a.data === hoje);
-    const semApontamentoHoje =
-      l.situacao === "ativo" &&
-      abertos.some((a) => a.inicio <= hoje && !doHoje.some((d) => d.instalacaoId === a.instalacaoId));
-
-    // Taxa de cada galpão sobre as aves dele no começo do dia.
-    const mortalidadeAltaHoje = doHoje.some((ap) => {
-      const a = alojs.find((x) => x.instalacaoId === ap.instalacaoId && x.inicio <= hoje && (x.fim === null || x.fim >= hoje));
-      if (!a) return false;
-      const antes = dele.filter((d) => d.instalacaoId === a.instalacaoId && d.data >= a.inicio && d.data < hoje);
-      return mortalidadeAlta(ap, avesVivas({ femeas: a.femeas, machos: a.machos }, antes, noDia(hoje, -1)));
-    });
-
-    return {
-      id: l.id,
-      codigo: l.codigo,
-      linhagem: l.linhagem,
-      fase: l.fase as FaseLote,
-      situacao: l.situacao as SituacaoLote,
-      dataAlojamento: l.dataAlojamento,
-      semana,
-      galpoes: [...galpoes].map(([id, nome]) => ({ id, nome })),
-      vivas: avesVivas(iniciais, dele, hoje),
-      posturaOntemPct,
-      mortalidadeSemanaPct,
-      semApontamentoHoje,
-      mortalidadeAltaHoje,
-    };
-  });
 }
 
 lotesRoutes.get("/:orgId/lotes", async (c) => {
@@ -415,7 +307,6 @@ lotesRoutes.post("/:orgId/lotes/:id/encerrar", async (c) => {
   if (data < alvo.dataAlojamento) {
     return c.json({ error: "A data de encerramento não pode ser antes do alojamento do lote." }, 422);
   }
-  const br = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
   if (alvo.situacao === "encerrado") {
     return c.json({ error: `Este lote já foi encerrado em ${br(alvo.dataEncerramento ?? alvo.dataAlojamento)}.` }, 422);
   }
@@ -434,4 +325,109 @@ lotesRoutes.post("/:orgId/lotes/:id/encerrar", async (c) => {
   });
   const [atualizado] = await listarLotes(orgId, { id });
   return c.json(atualizado);
+});
+
+const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+lotesRoutes.get("/:orgId/lotes/:id", async (c) => {
+  const orgId = c.req.param("orgId");
+  if (!(await membroAtual(c.req.raw.headers, orgId))) return c.json({ error: SEM_ACESSO }, 403);
+  const ficha = await montarFicha(orgId, c.req.param("id"));
+  if (!ficha) return c.json({ error: "Lote não encontrado." }, 404);
+  return c.json(ficha);
+});
+
+lotesRoutes.put("/:orgId/lotes/:id/apontamentos/:instalacaoId/:data", async (c) => {
+  const orgId = c.req.param("orgId");
+  const id = c.req.param("id");
+  const instalacaoId = c.req.param("instalacaoId");
+  const data = c.req.param("data");
+  const eu = await membroAtual(c.req.raw.headers, orgId);
+  if (!eu) return c.json({ error: SEM_ACESSO }, 403);
+  if (!PODE_SALVAR.includes(eu.role)) return c.json({ error: SO_ADMIN_LANCA }, 403);
+
+  if (!DATA_ISO.test(data)) return c.json({ error: "Data inválida." }, 400);
+  const body = valoresApontamentoSchema.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
+
+  const alvo = await acharLote(orgId, id);
+  if (!alvo) return c.json({ error: "Lote não encontrado." }, 404);
+  if (!(await nomeDaInstalacao(db, orgId, instalacaoId))) return c.json({ error: "Galpão não encontrado." }, 404);
+
+  try {
+    await db.transaction(async (tx) => {
+      const valida = await validarApontamento(tx, orgId, instalacaoId, data, body.data, "substituir");
+      if (typeof valida === "string") throw new FalhaLote(422, valida);
+      if (valida.loteId !== id) {
+        const nome = await nomeDaInstalacao(tx, orgId, instalacaoId);
+        throw new FalhaLote(422, `O ${nome} não tinha o lote ${alvo.codigo} em ${br(data)}. Confira o galpão e a data.`);
+      }
+      await substituirApontamento(tx, { organizationId: orgId, criadoPorId: eu.userId, ocorrenciaId: null }, instalacaoId, id, data, body.data);
+    });
+  } catch (e) {
+    if (e instanceof FalhaLote) return c.json({ error: e.message }, e.status);
+    throw e;
+  }
+  return c.json(await montarFicha(orgId, id));
+});
+
+lotesRoutes.post("/:orgId/lotes/:id/pesagens", async (c) => {
+  const orgId = c.req.param("orgId");
+  const id = c.req.param("id");
+  const eu = await membroAtual(c.req.raw.headers, orgId);
+  if (!eu) return c.json({ error: SEM_ACESSO }, 403);
+  if (!PODE_SALVAR.includes(eu.role)) return c.json({ error: SO_ADMIN_LANCA }, 403);
+
+  const body = pesagemLoteInputSchema.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
+  const dados = body.data;
+
+  const alvo = await acharLote(orgId, id);
+  if (!alvo) return c.json({ error: "Lote não encontrado." }, 404);
+  if (dados.instalacaoId && !(await nomeDaInstalacao(db, orgId, dados.instalacaoId))) {
+    return c.json({ error: "Galpão não encontrado." }, 404);
+  }
+  if (dados.data > hojeISO()) return c.json({ error: "Data no futuro." }, 422);
+
+  await db.insert(pesagemLote).values({
+    organizationId: orgId,
+    criadoPorId: eu.userId,
+    loteId: id,
+    instalacaoId: dados.instalacaoId ?? null,
+    data: dados.data,
+    sexo: dados.sexo,
+    pesoMedioG: String(dados.pesoMedioG),
+    uniformidadePct: dados.uniformidadePct == null ? null : String(dados.uniformidadePct),
+    amostra: dados.amostra ?? null,
+  });
+  return c.json(await montarFicha(orgId, id), 201);
+});
+
+lotesRoutes.post("/:orgId/lotes/:id/vacinacoes", async (c) => {
+  const orgId = c.req.param("orgId");
+  const id = c.req.param("id");
+  const eu = await membroAtual(c.req.raw.headers, orgId);
+  if (!eu) return c.json({ error: SEM_ACESSO }, 403);
+  if (!PODE_SALVAR.includes(eu.role)) return c.json({ error: SO_ADMIN_LANCA }, 403);
+
+  const body = vacinacaoLoteInputSchema.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
+  const dados = body.data;
+
+  const alvo = await acharLote(orgId, id);
+  if (!alvo) return c.json({ error: "Lote não encontrado." }, 404);
+  if (alvo.dataEncerramento && dados.data > alvo.dataEncerramento) {
+    return c.json({ error: `O lote ${alvo.codigo} foi encerrado em ${br(alvo.dataEncerramento)}.` }, 422);
+  }
+
+  await db.insert(vacinacaoLote).values({
+    organizationId: orgId,
+    criadoPorId: eu.userId,
+    loteId: id,
+    vacina: dados.vacina,
+    via: dados.via ?? null,
+    data: dados.data,
+    proximaData: dados.proximaData ?? null,
+  });
+  return c.json(await montarFicha(orgId, id), 201);
 });
