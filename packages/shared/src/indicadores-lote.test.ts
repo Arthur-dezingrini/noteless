@@ -65,7 +65,27 @@ describe("indicadoresDoLote", () => {
   });
 });
 
+describe("indicadoresDoLote, datas futuras", () => {
+  it("ignora apontamento depois de hoje nos incubáveis", () => {
+    const aps: ApontamentoDia[] = [
+      { data: "2026-01-02", instalacaoId: "a", ovosIncubaveis: 500 },
+      { data: "2026-01-05", instalacaoId: "a", ovosIncubaveis: 500 },
+    ];
+    expect(indicadoresDoLote(lote, aps, "2026-01-02").incubaveisPorFemea).toBe(0.5);
+  });
+});
+
 describe("consolidarSemanas", () => {
+  it("mortalidade semanal é sobre as aves iniciais", () => {
+    const aps: ApontamentoDia[] = [
+      { data: "2026-01-01", instalacaoId: "g", mortasFemeas: 50 },
+      { data: "2026-01-08", instalacaoId: "g", mortasFemeas: 11, eliminadasMachos: 0 },
+    ];
+    const s = consolidarSemanas(lote, aps, []);
+    expect(s[0]?.mortalidadePct).toBe(4.5); // 50 / 1100
+    expect(s[1]?.mortalidadePct).toBe(1); // 11 / 1100
+  });
+
   it("8 dias de apontamento viram 2 semanas", () => {
     const aps: ApontamentoDia[] = Array.from({ length: 8 }, (_, i) => ({
       data: `2026-01-0${i + 1}`,

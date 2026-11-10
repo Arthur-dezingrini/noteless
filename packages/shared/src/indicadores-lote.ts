@@ -184,7 +184,7 @@ export function indicadoresDoLote(lote: DadosLote, aps: ApontamentoDia[], hoje: 
     (d) => d.data <= hoje && semanaDeVida(lote.dataAlojamento, lote.idadeAlojamentoDias, d.data) === semana,
   );
   const acc = acumular(daSemana, lote, dias);
-  const incubaveis = dias.reduce((s, d) => s + n(d.ovosIncubaveis), 0);
+  const incubaveis = dias.filter((d) => d.data <= hoje).reduce((s, d) => s + n(d.ovosIncubaveis), 0);
   const incubPorFemea = razao(incubaveis, lote.femeasIniciais);
 
   return {
@@ -212,7 +212,6 @@ export function consolidarSemanas(lote: DadosLote, aps: ApontamentoDia[], pesage
       const acc = acumular(doPeriodo, lote, dias);
       const mortas = doPeriodo.reduce((s, d) => s + n(d.mortasFemeas) + n(d.mortasMachos), 0);
       const eliminadas = doPeriodo.reduce((s, d) => s + n(d.eliminadasFemeas) + n(d.eliminadasMachos), 0);
-      const vivasInicio = vivasAte(iniciais, dias, inicioReal, false);
       const ultima = (sexo: "femea" | "macho") =>
         pesagens
           .filter((p) => p.sexo === sexo && sem(p.data) === semana)
@@ -226,7 +225,7 @@ export function consolidarSemanas(lote: DadosLote, aps: ApontamentoDia[], pesage
         fim,
         mortas,
         eliminadas,
-        mortalidadePct: pct(mortas + eliminadas, vivasInicio.femeas + vivasInicio.machos),
+        mortalidadePct: pct(mortas + eliminadas, lote.femeasIniciais + lote.machosIniciais),
         posturaPct: umaCasa(razao(acc.ovos * 100, acc.femeasDia)),
         incubaveisPct: umaCasa(razao(acc.incub * 100, acc.ovosComIncub)),
         racaoGAveDia: umaCasa(razao(acc.racaoG, acc.avesDia)),
