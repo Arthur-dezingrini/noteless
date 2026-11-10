@@ -15,14 +15,14 @@ import {
 import { and, asc, eq, gte, isNull, lt } from "drizzle-orm";
 import { Hono } from "hono";
 
-import { br, hojeISO, noDia } from "../datas";
+import { br, hojeISO, noDia } from "../base/datas";
 import { db } from "../db";
-import { alojamento, apontamentoAviario, instalacao, lote, pesagemLote, vacinacaoLote } from "../db/lotes";
+import { alojamento, apontamentoAviario, instalacao, lote, pesagemLote, vacinacaoLote } from "../db/tabelas/aviario";
 import { nomeDaInstalacao, sobrepoe } from "../lotes/alojamento";
 import { substituirApontamento, validarApontamento } from "../lotes/apontamento";
 import { montarFicha } from "../lotes/ficha";
 import { listarLotes } from "../lotes/resumo";
-import { membroAtual } from "../membros/membro-atual";
+import { membroAtual } from "../base/membro-atual";
 
 /**
  * Aviário de matrizes. Qualquer membro lê; cadastrar e editar instalações é

@@ -2,7 +2,7 @@ import { avesVivas, semanaDeVida } from "@vocare/shared";
 import { and, asc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 
 import { db } from "../db";
-import { alojamento, apontamentoAviario, instalacao, lote } from "../db/lotes";
+import { alojamento, apontamentoAviario, instalacao, lote } from "../db/tabelas/aviario";
 import type { GalpaoParaIa } from "../ia/analisar";
 
 /** Galpões com lote ativo alojado em `hoje` — o contexto para "apontei o galpão 3", "pesei o lote 7". */

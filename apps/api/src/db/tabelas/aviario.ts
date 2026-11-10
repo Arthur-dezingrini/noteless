@@ -1,7 +1,7 @@
 import { boolean, date, index, integer, numeric, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
-import { ocorrencia } from "./ocorrencias";
-import { organization, user } from "./schema";
+import { ocorrencia } from "./notas";
+import { organization, user } from "../schema";
 
 /**
  * Aviário de matrizes: instalações (galpões), lotes de aves, onde cada lote

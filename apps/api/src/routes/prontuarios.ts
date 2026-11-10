@@ -15,10 +15,10 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { db } from "../db";
-import { animal } from "../db/animais";
-import { consulta, prontuario } from "../db/consultas";
+import { animal } from "../db/tabelas/animais";
+import { consulta, prontuario } from "../db/tabelas/saude";
 import { member, user } from "../db/schema";
-import { membroAtual } from "../membros/membro-atual";
+import { membroAtual } from "../base/membro-atual";
 
 /**
  * Prontuários: o registro de cada atendimento. Qualquer membro registra e

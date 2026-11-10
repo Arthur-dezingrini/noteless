@@ -10,11 +10,11 @@ import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { Hono } from "hono";
 
 import { db } from "../db";
-import { animal } from "../db/animais";
-import { consulta, prontuario } from "../db/consultas";
-import { grupo } from "../db/historico";
+import { animal } from "../db/tabelas/animais";
+import { consulta, prontuario } from "../db/tabelas/saude";
+import { grupo } from "../db/tabelas/historico";
 import { member, user } from "../db/schema";
-import { membroAtual } from "../membros/membro-atual";
+import { membroAtual } from "../base/membro-atual";
 
 /**
  * Agenda: consultas de uma organização. Qualquer membro agenda, edita e

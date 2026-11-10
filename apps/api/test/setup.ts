@@ -13,11 +13,12 @@ vi.mock("../src/db", async () => {
   const { migrate } = await import("drizzle-orm/pglite/migrator");
   const schema = {
     ...(await import("../src/db/schema")),
-    ...(await import("../src/db/animais")),
-    ...(await import("../src/db/consultas")),
-    ...(await import("../src/db/ocorrencias")),
-    ...(await import("../src/db/historico")),
-    ...(await import("../src/db/lotes")),
+    ...(await import("../src/db/tabelas/animais")),
+    ...(await import("../src/db/tabelas/saude")),
+    ...(await import("../src/db/tabelas/notas")),
+    ...(await import("../src/db/tabelas/historico")),
+    ...(await import("../src/db/tabelas/avisos")),
+    ...(await import("../src/db/tabelas/aviario")),
   };
 
   const db = drizzle(new PGlite(), { schema });

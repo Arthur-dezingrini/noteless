@@ -3,8 +3,9 @@ import { and, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "../src/db";
-import { notificacao, pesagem } from "../src/db/historico";
-import { ocorrencia } from "../src/db/ocorrencias";
+import { notificacao } from "../src/db/tabelas/avisos";
+import { pesagem } from "../src/db/tabelas/historico";
+import { ocorrencia } from "../src/db/tabelas/notas";
 import { chamar, criarFazenda } from "./ajuda";
 
 let f: Awaited<ReturnType<typeof criarFazenda>>;

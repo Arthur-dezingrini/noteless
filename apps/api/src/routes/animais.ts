@@ -12,9 +12,9 @@ import { and, asc, eq, gte, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
 
 import { db } from "../db";
-import { animal } from "../db/animais";
-import { tratamento } from "../db/historico";
-import { membroAtual } from "../membros/membro-atual";
+import { animal } from "../db/tabelas/animais";
+import { tratamento } from "../db/tabelas/historico";
+import { membroAtual } from "../base/membro-atual";
 
 /**
  * Cadastro de animais de uma organização. Qualquer membro cadastra e edita

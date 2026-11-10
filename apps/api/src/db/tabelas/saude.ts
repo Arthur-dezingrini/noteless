@@ -2,7 +2,7 @@ import { date, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-o
 
 import { animal } from "./animais";
 import { grupo } from "./historico";
-import { organization, user } from "./schema";
+import { organization, user } from "../schema";
 
 /**
  * Consultas/atendimentos agendados. Uma consulta pertence à organização e a

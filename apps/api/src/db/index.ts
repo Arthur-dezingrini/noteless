@@ -2,12 +2,13 @@ import { Pool } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-serverless";
 
 import { env } from "../env";
-import * as animais from "./animais";
-import * as consultas from "./consultas";
-import * as historico from "./historico";
-import * as lotes from "./lotes";
-import * as ocorrencias from "./ocorrencias";
 import * as schema from "./schema";
+import * as animais from "./tabelas/animais";
+import * as aviario from "./tabelas/aviario";
+import * as avisos from "./tabelas/avisos";
+import * as historico from "./tabelas/historico";
+import * as notas from "./tabelas/notas";
+import * as saude from "./tabelas/saude";
 
 /**
  * Driver do Neon em vez de `pg`: fala com o banco por WebSocket na porta 443.
@@ -21,4 +22,4 @@ import * as schema from "./schema";
  */
 const pool = new Pool({ connectionString: env.DATABASE_URL });
 
-export const db = drizzle(pool, { schema: { ...schema, ...animais, ...consultas, ...ocorrencias, ...historico, ...lotes } });
+export const db = drizzle(pool, { schema: { ...schema, ...animais, ...saude, ...notas, ...historico, ...avisos, ...aviario } });

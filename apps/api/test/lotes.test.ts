@@ -2,9 +2,9 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { db } from "../src/db";
-import { alojamento, apontamentoAviario, instalacao, lote } from "../src/db/lotes";
+import { alojamento, apontamentoAviario, instalacao, lote } from "../src/db/tabelas/aviario";
 import { fichaLoteSchema } from "@vocare/shared";
-import { hojeISO, noDia } from "../src/datas";
+import { hojeISO, noDia } from "../src/base/datas";
 import { loteNaData } from "../src/lotes/alojamento";
 import { somarApontamento, validarApontamento } from "../src/lotes/apontamento";
 import { chamar, criarFazenda } from "./ajuda";

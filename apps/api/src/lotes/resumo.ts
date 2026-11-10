@@ -12,8 +12,8 @@ import {
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "../db";
-import { alojamento, apontamentoAviario, instalacao, lote } from "../db/lotes";
-import { hojeISO, noDia } from "../datas";
+import { alojamento, apontamentoAviario, instalacao, lote } from "../db/tabelas/aviario";
+import { hojeISO, noDia } from "../base/datas";
 
 const SOMAVEIS = [
   "mortasFemeas",

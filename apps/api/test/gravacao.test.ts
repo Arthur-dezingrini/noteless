@@ -4,8 +4,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { app } from "../src/app";
 import { db } from "../src/db";
-import { pesagem } from "../src/db/historico";
-import { ocorrencia } from "../src/db/ocorrencias";
+import { pesagem } from "../src/db/tabelas/historico";
+import { ocorrencia } from "../src/db/tabelas/notas";
 import { chamar, criarFazenda, type Pessoa } from "./ajuda";
 
 // A IA fica de fora: o que está em teste é a data que ela recebe, não o que entende.

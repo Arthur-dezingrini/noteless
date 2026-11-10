@@ -3,10 +3,10 @@ import { and, asc, desc, eq, gte, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
 
 import { db } from "../db";
-import { animal } from "../db/animais";
-import { consulta } from "../db/consultas";
-import { grupo, grupoAnimal, tratamento, vacina } from "../db/historico";
-import { membroAtual } from "../membros/membro-atual";
+import { animal } from "../db/tabelas/animais";
+import { consulta } from "../db/tabelas/saude";
+import { grupo, grupoAnimal, tratamento, vacina } from "../db/tabelas/historico";
+import { membroAtual } from "../base/membro-atual";
 
 /**
  * Grupos de animais. Qualquer membro cria e edita (é manejo do dia a dia);

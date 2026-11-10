@@ -12,7 +12,7 @@ import { Hono } from "hono";
 import { auth } from "../auth";
 import { db } from "../db";
 import { member, user } from "../db/schema";
-import { membroAtual } from "../membros/membro-atual";
+import { membroAtual } from "../base/membro-atual";
 import { criarUsuario, UsuarioJaExiste } from "../usuarios/criar-usuario";
 
 /**

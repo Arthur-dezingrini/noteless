@@ -1,8 +1,8 @@
 import { CAMPOS_APONTAMENTO, type Operacao } from "@vocare/shared";
 import { and, eq } from "drizzle-orm";
 
-import { br } from "../datas";
-import { lote, pesagemLote, vacinacaoLote } from "../db/lotes";
+import { br } from "../base/datas";
+import { lote, pesagemLote, vacinacaoLote } from "../db/tabelas/aviario";
 import { nomeDaInstalacao, type Tx } from "./alojamento";
 import { somarApontamento, validarApontamento, type ValoresApontamento } from "./apontamento";
 

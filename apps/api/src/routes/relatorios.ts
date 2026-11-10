@@ -13,12 +13,12 @@ import { alias } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 
 import { db } from "../db";
-import { animal } from "../db/animais";
-import { consulta } from "../db/consultas";
-import { grupo, pesagem, tratamento, vacina } from "../db/historico";
-import { ocorrencia } from "../db/ocorrencias";
+import { animal } from "../db/tabelas/animais";
+import { consulta } from "../db/tabelas/saude";
+import { grupo, pesagem, tratamento, vacina } from "../db/tabelas/historico";
+import { ocorrencia } from "../db/tabelas/notas";
 import { user } from "../db/schema";
-import { membroAtual } from "../membros/membro-atual";
+import { membroAtual } from "../base/membro-atual";
 
 /** Os cinco relatórios da tela Relatórios. Tudo calculado na hora. */
 export const relatoriosRoutes = new Hono();

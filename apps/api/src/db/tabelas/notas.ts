@@ -1,7 +1,7 @@
 import { customType, index, integer, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 import { animal } from "./animais";
-import { organization, user } from "./schema";
+import { organization, user } from "../schema";
 
 /**
  * Registro de ocorrência: o áudio que chegou do campo, já transcrito e

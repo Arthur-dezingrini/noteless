@@ -1,7 +1,7 @@
 import { and, eq, gte, isNull, lte, ne, or } from "drizzle-orm";
 
 import { db } from "../db";
-import { alojamento, instalacao, lote } from "../db/lotes";
+import { alojamento, instalacao, lote } from "../db/tabelas/aviario";
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 

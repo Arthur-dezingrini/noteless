@@ -3,9 +3,9 @@ import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "../src/db";
-import { apontamentoAviario, pesagemLote, vacinacaoLote } from "../src/db/lotes";
-import { ocorrencia } from "../src/db/ocorrencias";
-import { hojeISO, noDia } from "../src/datas";
+import { apontamentoAviario, pesagemLote, vacinacaoLote } from "../src/db/tabelas/aviario";
+import { ocorrencia } from "../src/db/tabelas/notas";
+import { hojeISO, noDia } from "../src/base/datas";
 import { chamar, criarFazenda } from "./ajuda";
 
 let f: Awaited<ReturnType<typeof criarFazenda>>;

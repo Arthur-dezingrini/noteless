@@ -13,12 +13,12 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { db } from "../db";
-import { animal } from "../db/animais";
-import { consulta, prontuario } from "../db/consultas";
-import { grupo, grupoAnimal, parto, pesagem, tratamento, vacina } from "../db/historico";
-import { anotacaoAnimal, ocorrencia } from "../db/ocorrencias";
+import { animal } from "../db/tabelas/animais";
+import { consulta, prontuario } from "../db/tabelas/saude";
+import { grupo, grupoAnimal, parto, pesagem, tratamento, vacina } from "../db/tabelas/historico";
+import { anotacaoAnimal, ocorrencia } from "../db/tabelas/notas";
 import { user } from "../db/schema";
-import { membroAtual } from "../membros/membro-atual";
+import { membroAtual } from "../base/membro-atual";
 import { paraContrato } from "./animais";
 
 /**

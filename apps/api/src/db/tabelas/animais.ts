@@ -1,12 +1,12 @@
 import { date, index, numeric, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
-import { organization } from "./schema";
+import { organization } from "../schema";
 
 /**
  * Tabelas de negócio ficam aqui, separadas de `schema.ts` — aquele arquivo é
  * gerado pelo Better Auth e qualquer edição manual se perde no próximo
- * `auth:generate`. Novo arquivo de tabela? Registre em `drizzle.config.ts`
- * e em `db/index.ts`.
+ * `auth:generate`. Novo arquivo de tabela? Fica em `db/tabelas/<modulo>.ts` (o
+ * `drizzle.config.ts` já pega) e entra em `db/index.ts` e `test/setup.ts`.
  */
 export const animal = pgTable(
   "animal",

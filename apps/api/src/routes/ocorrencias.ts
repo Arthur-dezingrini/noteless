@@ -14,18 +14,18 @@ import { alias } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { hojeISO } from "../datas";
+import { hojeISO } from "../base/datas";
 import { db } from "../db";
-import { animal } from "../db/animais";
-import { consulta } from "../db/consultas";
-import { grupo, grupoAnimal, parto, pesagem, tratamento, vacina } from "../db/historico";
-import { anotacaoAnimal, ocorrencia, ocorrenciaAudio } from "../db/ocorrencias";
+import { animal } from "../db/tabelas/animais";
+import { consulta } from "../db/tabelas/saude";
+import { grupo, grupoAnimal, parto, pesagem, tratamento, vacina } from "../db/tabelas/historico";
+import { anotacaoAnimal, ocorrencia, ocorrenciaAudio } from "../db/tabelas/notas";
 import { user } from "../db/schema";
 import { analisar } from "../ia/analisar";
 import { IaNaoConfigurada, transcrever } from "../ia/transcrever";
 import { aplicarAviario } from "../lotes/aplicar";
 import { galpoesDaOrg } from "../lotes/galpoes-ia";
-import { membroAtual } from "../membros/membro-atual";
+import { membroAtual } from "../base/membro-atual";
 import { administradores, notificar } from "../notificacoes/notificar";
 
 /**
