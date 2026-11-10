@@ -3,14 +3,15 @@
 import type { Notificacao } from "@vocare/shared";
 import { Bell } from "lucide-react";
 import type { Route } from "next";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { chamarApi } from "@/lib/api-client";
 import { haQuantoTempo } from "@/lib/datas";
+import { acharAtivo } from "@/lib/navigation";
 
 /**
- * Topo da área logada: só o sino. O painel lista os avisos; cada um leva ao
+ * Topo da área logada: onde a pessoa está ("Animais › Grupos") e o sino. O painel lista os avisos; cada um leva ao
  * lugar certo e fica lido. Esc ou clique fora fecha.
  */
 export function Header({ orgId, notificacoes }: { orgId: string | null; notificacoes: Notificacao[] }) {
@@ -55,7 +56,8 @@ export function Header({ orgId, notificacoes }: { orgId: string | null; notifica
   }
 
   return (
-    <header className="print:hidden relative flex h-14 shrink-0 items-center justify-end border-b border-line px-6">
+    <header className="print:hidden relative flex h-14 shrink-0 items-center justify-between gap-4 border-b border-line px-6">
+      <Caminho />
       <div ref={caixa}>
         <button
           type="button"
@@ -118,5 +120,22 @@ export function Header({ orgId, notificacoes }: { orgId: string | null; notifica
         )}
       </div>
     </header>
+  );
+}
+
+/** "Módulo › Tela" do endereço atual; fora do menu (perfil), nada. */
+function Caminho() {
+  const ativo = acharAtivo(usePathname(), useSearchParams().get("tela"));
+  if (!ativo) return <span />;
+  return (
+    <p className="truncate text-[15px] text-ink-muted">
+      {ativo.tela ? (
+        <>
+          {ativo.modulo.rotulo} › <span className="font-semibold text-ink">{ativo.tela.rotulo}</span>
+        </>
+      ) : (
+        <span className="font-semibold text-ink">{ativo.modulo.rotulo}</span>
+      )}
+    </p>
   );
 }

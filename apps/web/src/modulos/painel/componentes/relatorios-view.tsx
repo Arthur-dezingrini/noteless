@@ -200,7 +200,7 @@ export function RelatoriosView({ tipo, periodo, relatorio: r }: { tipo: TipoRela
                     <td className={`${td} text-sm font-semibold ${s.cor}`}>{s.texto}</td>
                     <td className="px-[18px] py-2.5 text-right print:hidden">
                       <Link
-                        href={`/agenda?nova=${l.animalId}&tipo=vacinacao&obs=${encodeURIComponent(`Vacina ${l.vacina}`)}`}
+                        href={`/saude/agenda?nova=${l.animalId}&tipo=vacinacao&obs=${encodeURIComponent(`Vacina ${l.vacina}`)}`}
                         className={buttonClass("pequeno")}
                       >
                         Marcar na agenda

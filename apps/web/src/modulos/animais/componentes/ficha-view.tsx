@@ -208,7 +208,7 @@ function LinhaHistorico({ e }: { e: Evento }) {
           </span>
         )}
         {e.prontuarioId && (
-          <Link href={`/prontuarios?id=${e.prontuarioId}`} className="w-fit text-sm font-semibold text-brand-ink no-underline hover:underline">
+          <Link href={`/saude/prontuarios?id=${e.prontuarioId}`} className="w-fit text-sm font-semibold text-brand-ink no-underline hover:underline">
             Ver atendimento
           </Link>
         )}

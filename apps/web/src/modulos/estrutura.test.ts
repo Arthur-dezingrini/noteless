@@ -5,9 +5,10 @@ import { describe, expect, it } from "vitest";
 
 /**
  * Guarda o padrão de módulos (CLAUDE.md, "Estrutura por módulo"): fora do
- * próprio módulo, só se entra por `@/modulos/<m>` (componentes, tipos) ou
+ * próprio módulo, só se entra por `@/modulos/<m>` (componentes, tipos),
  * `@/modulos/<m>/dados` (busca server-only, que componente "use client"
- * nunca importa), e não há ciclo entre módulos.
+ * nunca importa) ou `@/modulos/<m>/menu` (dados do menu lateral), e não há
+ * ciclo entre módulos.
  */
 
 type Arquivo = { caminho: string; conteudo: string };
@@ -48,7 +49,7 @@ export function acharViolacoes(arquivos: Arquivo[]): string[] {
       if (!alvo) continue;
       const em = alvoEmModulo(alvo);
       if (!em) continue;
-      const entrada = em.resto === "" || em.resto === "index" || em.resto === "dados";
+      const entrada = em.resto === "" || em.resto === "index" || em.resto === "dados" || em.resto === "menu";
       if (cliente && em.resto === "dados") erros.push(`${caminho} → ${alvo} (componente client não busca dados)`);
       else if (em.modulo !== meu && !entrada) erros.push(`${caminho} → ${alvo}`);
       // Dentro do módulo, voltar pela porta de entrada fecha um ciclo na carga.
@@ -133,6 +134,12 @@ describe("estrutura por módulo", () => {
     expect(
       acharViolacoes([{ caminho: "src/app/(app)/lotes/page.tsx", conteudo: 'import { Lista } from "@/modulos/aviario/componentes/lista";' }]),
     ).toHaveLength(1);
+  });
+
+  it("o menu do módulo é porta de entrada (dado puro, seguro no cliente)", () => {
+    expect(
+      acharViolacoes([{ caminho: "src/lib/navigation.ts", conteudo: '"use client";\nimport { menu } from "@/modulos/animais/menu";' }]),
+    ).toEqual([]);
   });
 
   it("acusa componente client importando dados", () => {

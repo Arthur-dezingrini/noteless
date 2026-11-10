@@ -87,7 +87,7 @@ export function ProntuariosView({ orgId, hoje, prontuarios, animais, veterinario
   function fechar() {
     setModal(null);
     // Tira ?consulta= da barra para um F5 não abrir o formulário de novo.
-    if (nova) router.replace("/prontuarios");
+    if (nova) router.replace("/saude/prontuarios");
   }
 
   return (
@@ -246,7 +246,7 @@ function Detalhe({
                   <span className="text-ink-muted">Retorno: </span>
                   <b className="font-semibold text-ink">{quandoRetorno(p.retorno, hoje)}</b>
                 </span>
-                <Link href={`/agenda?dia=${p.retorno.data}`} className={buttonClass("link", "no-underline")}>
+                <Link href={`/saude/agenda?dia=${p.retorno.data}`} className={buttonClass("link", "no-underline")}>
                   Ver na agenda
                 </Link>
               </div>

@@ -65,7 +65,7 @@ export function Inicio({
           <SectionHeader
             title="Hoje"
             action={
-              <Link href="/agenda" className="text-[15px] font-semibold no-underline">
+              <Link href="/saude/agenda" className="text-[15px] font-semibold no-underline">
                 Ver agenda
               </Link>
             }

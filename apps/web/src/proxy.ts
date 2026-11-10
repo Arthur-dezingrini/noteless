@@ -16,10 +16,11 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 const ROTAS_PROTEGIDAS = [
   "/dashboard",
-  "/agenda",
   "/animais",
-  "/grupos",
-  "/prontuarios",
+  "/aviario",
+  "/saude",
+  "/em-breve",
+  "/kit",
   "/notas",
   "/relatorios",
   "/configuracoes",

@@ -9,7 +9,7 @@ import { ProntuariosView, type NovoAtendimento } from "@/modulos/saude";
 
 export const metadata = { title: "Prontuários" };
 
-export default async function ProntuariosPage({ searchParams }: PageProps<"/prontuarios">) {
+export default async function ProntuariosPage({ searchParams }: PageProps<"/saude/prontuarios">) {
   const [{ user }, org, q] = await Promise.all([requireSession(), getOrgAtiva(), searchParams]);
 
   if (!org) {

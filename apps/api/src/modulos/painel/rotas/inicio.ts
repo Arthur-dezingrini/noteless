@@ -81,13 +81,13 @@ inicioRoutes.get("/:orgId/inicio/avisos", async (c) => {
       id: `c-${x.id}`,
       texto: `${tipo(x.tipo)} ${de(x.sexo)} ${rotuloAnimal(x)} em ${dm(x.data)} não foi marcada como concluída`,
       tom: "warn" as const,
-      link: "/agenda",
+      link: "/saude/agenda",
     })),
     ...semConfirmar.map((x) => ({
       id: `a-${x.id}`,
       texto: `${tipo(x.tipo)} ${de(x.sexo)} ${rotuloAnimal(x)} ${x.data === hoje ? "hoje" : "amanhã"} ainda sem confirmação`,
       tom: "warn" as const,
-      link: "/agenda",
+      link: "/saude/agenda",
     })),
     ...vencendo,
   ];

@@ -58,7 +58,7 @@ export function FichaLote({
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/lotes" className="flex items-center gap-1.5 self-start text-[15px] font-semibold text-ink-soft no-underline hover:text-ink print:hidden">
+      <Link href="/aviario/lotes" className="flex items-center gap-1.5 self-start text-[15px] font-semibold text-ink-soft no-underline hover:text-ink print:hidden">
         <ChevronLeft className="size-4" /> Lotes
       </Link>
 

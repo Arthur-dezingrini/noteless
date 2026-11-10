@@ -25,8 +25,19 @@ const nextConfig: NextConfig = {
 
   // "Ocorrências" virou "Notas". Aviso antigo (o link fica salvo no banco) e
   // favorito continuam abrindo a nota certa: a query (?id=) vai junto.
+  //
+  // As telas passaram a morar no endereço do módulo (Aviário, Animais,
+  // Saúde). Endereço antigo redireciona, com a query junto.
   async redirects() {
-    return [{ source: "/ocorrencias", destination: "/notas", permanent: true }];
+    return [
+      { source: "/ocorrencias", destination: "/notas", permanent: true },
+      { source: "/lotes", destination: "/aviario/lotes", permanent: true },
+      { source: "/lotes/:id", destination: "/aviario/lotes/:id", permanent: true },
+      { source: "/configuracoes/galpoes", destination: "/aviario/galpoes", permanent: true },
+      { source: "/grupos", destination: "/animais/grupos", permanent: true },
+      { source: "/agenda", destination: "/saude/agenda", permanent: true },
+      { source: "/prontuarios", destination: "/saude/prontuarios", permanent: true },
+    ];
   },
 };
 

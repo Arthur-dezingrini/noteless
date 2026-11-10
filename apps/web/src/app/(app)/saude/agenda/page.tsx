@@ -9,7 +9,7 @@ import { AgendaView } from "@/modulos/saude";
 
 export const metadata = { title: "Agenda" };
 
-export default async function AgendaPage({ searchParams }: PageProps<"/agenda">) {
+export default async function AgendaPage({ searchParams }: PageProps<"/saude/agenda">) {
   const [, org, q] = await Promise.all([requireSession(), getOrgAtiva(), searchParams]);
 
   if (!org) {

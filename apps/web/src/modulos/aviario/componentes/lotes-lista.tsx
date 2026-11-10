@@ -34,11 +34,11 @@ export function LotesLista({ orgId, situacao, lotes, instalacoes, possoGerenciar
   const [alojando, setAlojando] = useState(false);
 
   function trocarAba(s: Situacao) {
-    start(() => router.push(`/lotes?situacao=${s}` as Route, { scroll: false }));
+    start(() => router.push(`/aviario/lotes?situacao=${s}` as Route, { scroll: false }));
   }
 
   function abrir(l: LoteResumo) {
-    router.push(`/lotes/${l.id}`);
+    router.push(`/aviario/lotes/${l.id}`);
   }
 
   function teclas(e: KeyboardEvent, l: LoteResumo) {

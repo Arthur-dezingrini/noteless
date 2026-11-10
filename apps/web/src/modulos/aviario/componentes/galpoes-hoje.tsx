@@ -13,7 +13,7 @@ export function GalpoesHoje({ galpoes }: { galpoes: GalpaoHoje[] }) {
         {galpoes.map((g, i) => (
           <div key={g.instalacaoId} className={`flex items-center gap-4 px-5 py-3.5 ${i ? "border-t border-line" : ""}`}>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <Link href={`/lotes/${g.loteId}`} className="truncate text-[15px] font-semibold text-ink no-underline hover:underline">
+              <Link href={`/aviario/lotes/${g.loteId}`} className="truncate text-[15px] font-semibold text-ink no-underline hover:underline">
                 {g.nome}
               </Link>
               <span className="truncate text-sm text-ink-muted">Lote {g.loteCodigo}</span>

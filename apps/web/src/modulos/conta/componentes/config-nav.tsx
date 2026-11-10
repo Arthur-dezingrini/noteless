@@ -1,15 +1,14 @@
 "use client";
 
+import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { cx } from "@/components/ui";
-import type { NavItem } from "@/lib/navigation";
 
-const ABAS: NavItem[] = [
+const ABAS: { href: Route; label: string }[] = [
   { href: "/configuracoes", label: "Conta" },
   { href: "/configuracoes/usuarios", label: "Usuários" },
-  { href: "/configuracoes/galpoes", label: "Galpões" },
 ];
 
 export function ConfigNav() {

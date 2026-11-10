@@ -5,7 +5,7 @@ import { getInstalacoes, getLotes } from "@/modulos/aviario/dados";
 
 export const metadata = { title: "Lotes" };
 
-export default async function LotesPage({ searchParams }: PageProps<"/lotes">) {
+export default async function LotesPage({ searchParams }: PageProps<"/aviario/lotes">) {
   const [, org, q] = await Promise.all([requireSession(), getOrgAtiva(), searchParams]);
 
   if (!org) {

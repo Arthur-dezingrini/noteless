@@ -47,14 +47,14 @@ export function LinhaConsulta({
       ? [
           {
             rotulo: "Ver atendimento",
-            fazer: () => router.push(`/prontuarios?id=${c.prontuarioId}`),
+            fazer: () => router.push(`/saude/prontuarios?id=${c.prontuarioId}`),
           },
         ]
       : c.animalId && c.status !== "cancelada"
         ? [
             {
               rotulo: "Registrar atendimento",
-              fazer: () => router.push(`/prontuarios?consulta=${c.id}`),
+              fazer: () => router.push(`/saude/prontuarios?consulta=${c.id}`),
             },
           ]
         : []),
