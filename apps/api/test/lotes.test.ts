@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { db } from "../src/db";
 import { alojamento, apontamentoAviario, instalacao, lote } from "../src/db/lotes";
+import { loteNaData } from "../src/lotes/alojamento";
 import { chamar, criarFazenda } from "./ajuda";
 
 describe("tabelas do aviário", () => {
@@ -70,5 +71,153 @@ describe("rotas de instalações", () => {
     expect(renomear.status).toBe(409);
 
     expect((await chamar(f.dono, "POST", base, { nome: "", tipo: "galpao" })).status).toBe(400);
+  });
+});
+
+describe("rotas de lotes e alojamento", () => {
+  async function galpoes(f: Awaited<ReturnType<typeof criarFazenda>>, ...nomes: string[]) {
+    const ids: string[] = [];
+    for (const nome of nomes) ids.push((await chamar(f.dono, "POST", `/api/org/${f.orgId}/instalacoes`, { nome, tipo: "galpao" })).json.id);
+    return ids;
+  }
+  const novo = (codigo: string, dataAlojamento: string, galpoes: { instalacaoId: string; femeas: number; machos: number }[]) => ({
+    codigo,
+    dataAlojamento,
+    galpoes,
+  });
+
+  it("aloja o lote, lista com vivas e sem apontamento hoje; galpão ocupado e código repetido dão 409", async () => {
+    const f = await criarFazenda("Granja Lotes");
+    const base = `/api/org/${f.orgId}/lotes`;
+    const [g1] = await galpoes(f, "Galpão 1");
+
+    const criado = await chamar(f.dono, "POST", base, novo("L-01", "2026-01-05", [{ instalacaoId: g1!, femeas: 1000, machos: 100 }]));
+    expect(criado.status).toBe(201);
+    expect(typeof criado.json.id).toBe("string");
+
+    const lista = await chamar(f.membro, "GET", `${base}?situacao=ativo`);
+    expect(lista.status).toBe(200);
+    expect(lista.json).toHaveLength(1);
+    expect(lista.json[0]).toMatchObject({
+      codigo: "L-01",
+      fase: "recria",
+      situacao: "ativo",
+      vivas: { femeas: 1000, machos: 100 },
+      galpoes: [{ id: g1, nome: "Galpão 1" }],
+      posturaOntemPct: null,
+      semApontamentoHoje: true,
+      mortalidadeAltaHoje: false,
+    });
+
+    const ocupado = await chamar(f.dono, "POST", base, novo("L-02", "2026-02-01", [{ instalacaoId: g1!, femeas: 10, machos: 1 }]));
+    expect(ocupado.status).toBe(409);
+    expect(ocupado.json.error).toBe("O Galpão 1 já tem lote alojado nesse período.");
+    // a transação desfez o lote L-02
+    expect((await chamar(f.dono, "GET", base)).json).toHaveLength(1);
+
+    const [g2] = await galpoes(f, "Galpão 2");
+    const repetido = await chamar(f.dono, "POST", base, novo("L-01", "2026-01-05", [{ instalacaoId: g2!, femeas: 10, machos: 1 }]));
+    expect(repetido.status).toBe(409);
+    expect(repetido.json.error).toBe("Já existe um lote com esse código.");
+
+    expect((await chamar(f.dono, "POST", base, { codigo: "", dataAlojamento: "2026-01-05", galpoes: [] })).status).toBe(400);
+    expect((await chamar(f.dono, "GET", `${base}?situacao=x`)).status).toBe(400);
+  });
+
+  it("calcula postura de ontem, mortalidade alta e apontamento de hoje a partir dos apontamentos", async () => {
+    const f = await criarFazenda("Granja Indicadores");
+    const base = `/api/org/${f.orgId}/lotes`;
+    const [g1, g2] = await galpoes(f, "Galpão 1", "Galpão 2");
+    const hoje = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    const ontem = new Date(new Date(`${hoje}T12:00:00Z`).getTime() - 86_400_000).toISOString().slice(0, 10);
+    const id = (
+      await chamar(f.dono, "POST", base, novo("L-01", ontem, [
+        { instalacaoId: g1!, femeas: 1000, machos: 100 },
+        { instalacaoId: g2!, femeas: 1000, machos: 100 },
+      ]))
+    ).json.id;
+    await db.insert(apontamentoAviario).values([
+      { organizationId: f.orgId, instalacaoId: g1!, loteId: id, data: ontem, ovosTotal: 500 },
+      { organizationId: f.orgId, instalacaoId: g2!, loteId: id, data: ontem, ovosTotal: 700 },
+      { organizationId: f.orgId, instalacaoId: g1!, loteId: id, data: hoje, mortasFemeas: 5 },
+    ]);
+    const [l] = (await chamar(f.dono, "GET", base)).json;
+    expect(l.posturaOntemPct).toBe(60); // 1200 ovos / 2000 fêmeas
+    expect(l.mortalidadeAltaHoje).toBe(true); // 5 > 0,1% de 1100
+    expect(l.semApontamentoHoje).toBe(true); // falta o Galpão 2
+    expect(l.mortalidadeSemanaPct).toBeCloseTo(0.2, 1); // 5 de 2200
+    expect(l.vivas).toEqual({ femeas: 1995, machos: 200 });
+  });
+
+  it("só dono/admin escreve; outra fazenda não enxerga o lote", async () => {
+    const f = await criarFazenda("Granja Papéis");
+    const outra = await criarFazenda("Outra Granja Lotes");
+    const base = `/api/org/${f.orgId}/lotes`;
+    const [g1, g2] = await galpoes(f, "Galpão 1", "Galpão 2");
+    const corpo = novo("L-01", "2026-01-05", [{ instalacaoId: g1!, femeas: 10, machos: 1 }]);
+
+    expect((await chamar(f.membro, "POST", base, corpo)).status).toBe(403);
+    const id = (await chamar(f.admin, "POST", base, corpo)).json.id;
+
+    const transf = { data: "2026-02-01", de: g1, para: g2, femeas: 10, machos: 1 };
+    expect((await chamar(f.membro, "POST", `${base}/${id}/transferir`, transf)).status).toBe(403);
+    expect((await chamar(f.membro, "POST", `${base}/${id}/fase`, { fase: "producao" })).status).toBe(403);
+    expect((await chamar(f.membro, "POST", `${base}/${id}/encerrar`, { data: "2026-03-01" })).status).toBe(403);
+
+    const alheio = await chamar(outra.dono, "POST", `/api/org/${outra.orgId}/lotes/${id}/transferir`, transf);
+    expect(alheio.status).toBe(404);
+    expect((await chamar(outra.dono, "POST", `/api/org/${outra.orgId}/lotes/${id}/fase`, { fase: "producao" })).status).toBe(404);
+    expect((await chamar(outra.dono, "POST", `/api/org/${outra.orgId}/lotes/${id}/encerrar`, { data: "2026-03-01" })).status).toBe(404);
+    expect((await chamar(outra.dono, "GET", `/api/org/${outra.orgId}/lotes`)).json).toEqual([]);
+
+    const fase = await chamar(f.admin, "POST", `${base}/${id}/fase`, { fase: "producao" });
+    expect(fase.status).toBe(200);
+    expect(fase.json.fase).toBe("producao");
+  });
+
+  it("transferência fecha a origem no dia anterior e libera o galpão para outro lote", async () => {
+    const f = await criarFazenda("Granja Transferência");
+    const base = `/api/org/${f.orgId}/lotes`;
+    const [g1, g2] = await galpoes(f, "Galpão 1", "Galpão 2");
+    const l1 = (await chamar(f.dono, "POST", base, novo("L-01", "2026-01-05", [{ instalacaoId: g1!, femeas: 1000, machos: 100 }]))).json.id;
+
+    const naoAlojado = await chamar(f.dono, "POST", `${base}/${l1}/transferir`, { data: "2026-03-10", de: g2, para: g1, femeas: 1, machos: 1 });
+    expect(naoAlojado.status).toBe(422);
+    expect(naoAlojado.json.error).toMatch(/não está alojado/);
+
+    const ok = await chamar(f.dono, "POST", `${base}/${l1}/transferir`, { data: "2026-03-10", de: g1, para: g2, femeas: 1000, machos: 100 });
+    expect(ok.status).toBe(200);
+    expect(ok.json.galpoes).toEqual([{ id: g2, nome: "Galpão 2" }]);
+
+    const l2 = await chamar(f.dono, "POST", base, novo("L-02", "2026-03-10", [{ instalacaoId: g1!, femeas: 500, machos: 50 }]));
+    expect(l2.status).toBe(201);
+
+    expect((await loteNaData(db, f.orgId, g1!, "2026-03-09"))?.loteId).toBe(l1);
+    expect((await loteNaData(db, f.orgId, g1!, "2026-03-10"))?.loteId).toBe(l2.json.id);
+    expect((await loteNaData(db, f.orgId, g2!, "2026-03-10"))?.loteId).toBe(l1);
+    expect(await loteNaData(db, f.orgId, g2!, "2026-03-09")).toBeNull();
+
+    // destino ocupado
+    const ocupado = await chamar(f.dono, "POST", `${base}/${l1}/transferir`, { data: "2026-04-01", de: g2, para: g1, femeas: 1, machos: 1 });
+    expect(ocupado.status).toBe(409);
+    expect((await chamar(f.dono, "POST", `${base}/${l1}/transferir`, { data: "2026-04-01", de: g2, para: g2, femeas: 1, machos: 1 })).status).toBe(422);
+  });
+
+  it("encerrar tira o lote de ativos, fecha os alojamentos e exige data depois do alojamento", async () => {
+    const f = await criarFazenda("Granja Encerrar");
+    const base = `/api/org/${f.orgId}/lotes`;
+    const [g1] = await galpoes(f, "Galpão 1");
+    const id = (await chamar(f.dono, "POST", base, novo("L-01", "2026-01-05", [{ instalacaoId: g1!, femeas: 10, machos: 1 }]))).json.id;
+
+    const cedo = await chamar(f.dono, "POST", `${base}/${id}/encerrar`, { data: "2026-01-04" });
+    expect(cedo.status).toBe(422);
+
+    expect((await chamar(f.dono, "POST", `${base}/${id}/encerrar`, { data: "2026-06-01" })).status).toBe(200);
+    expect((await chamar(f.dono, "GET", `${base}?situacao=ativo`)).json).toEqual([]);
+    const enc = (await chamar(f.dono, "GET", `${base}?situacao=encerrado`)).json;
+    expect(enc).toHaveLength(1);
+    expect(enc[0]).toMatchObject({ codigo: "L-01", situacao: "encerrado", semApontamentoHoje: false });
+    expect(await loteNaData(db, f.orgId, g1!, "2026-06-02")).toBeNull();
+    expect((await loteNaData(db, f.orgId, g1!, "2026-06-01"))?.situacao).toBe("encerrado");
   });
 });
