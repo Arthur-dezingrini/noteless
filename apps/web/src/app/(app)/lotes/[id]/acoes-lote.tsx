@@ -80,15 +80,31 @@ function ModalAcao({
 
 const primeiroErro = (e: { issues: { message: string }[] }) => ({ erro: e.issues[0]?.message ?? "Dados inválidos." });
 
+/** Aves vivas hoje no galpão: o que entrou menos as baixas apontadas desde a entrada. */
+function vivasNoGalpao(ficha: FichaLote, instalacaoId: string) {
+  const aloj = ficha.alojamentos.find((a) => a.instalacaoId === instalacaoId && a.fim === null);
+  if (!aloj) return { femeas: 0, machos: 0 };
+  let femeas = aloj.femeas;
+  let machos = aloj.machos;
+  for (const d of ficha.diario) {
+    if (d.instalacaoId !== instalacaoId || d.data < aloj.inicio) continue;
+    femeas -= (d.valores.mortasFemeas ?? 0) + (d.valores.eliminadasFemeas ?? 0);
+    machos -= (d.valores.mortasMachos ?? 0) + (d.valores.eliminadasMachos ?? 0);
+  }
+  return { femeas: Math.max(0, femeas), machos: Math.max(0, machos) };
+}
+
 export function TransferirModal({ ficha, instalacoes, ...base }: Base & { ficha: FichaLote; instalacoes: Instalacao[] }) {
   const origens = ficha.lote.galpoes;
   const livres = instalacoes.filter((i) => i.ativa && !i.loteAtual);
+  const [de, setDe] = useState(origens[0]?.id ?? "");
+  const vivas = vivasNoGalpao(ficha, de);
   return (
     <ModalAcao
       {...base}
       rota="transferir"
       titulo="Transferir aves"
-      subtitulo="Passe aves de um galpão do lote para um galpão livre."
+      subtitulo="Passa todas as aves do galpão de origem para um galpão livre."
       confirmar="Transferir"
       montar={(f) => {
         const p = transferirLoteSchema.safeParse({
@@ -110,7 +126,7 @@ export function TransferirModal({ ficha, instalacoes, ...base }: Base & { ficha:
         </Field>
         <span className="hidden sm:block" />
         <Field label="De">
-          <Select name="de" defaultValue={origens[0]?.id ?? ""}>
+          <Select name="de" value={de} onChange={(e) => setDe(e.target.value)}>
             {origens.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.nome}
@@ -129,12 +145,15 @@ export function TransferirModal({ ficha, instalacoes, ...base }: Base & { ficha:
           </Select>
         </Field>
         <Field label="Fêmeas">
-          <Input name="femeas" inputMode="numeric" placeholder="0" />
+          <Input key={`f-${de}`} name="femeas" inputMode="numeric" defaultValue={String(vivas.femeas)} />
         </Field>
         <Field label="Machos">
-          <Input name="machos" inputMode="numeric" placeholder="0" />
+          <Input key={`m-${de}`} name="machos" inputMode="numeric" defaultValue={String(vivas.machos)} />
         </Field>
       </div>
+      <p className="text-sm text-ink-muted">
+        A transferência move todas as aves do galpão e libera o galpão de origem. Confira os números: não podem passar das aves vivas.
+      </p>
       {livres.length === 0 && <p className="text-sm text-ink-muted">Não há galpão livre. Cadastre um em Configurações, Galpões.</p>}
     </ModalAcao>
   );
