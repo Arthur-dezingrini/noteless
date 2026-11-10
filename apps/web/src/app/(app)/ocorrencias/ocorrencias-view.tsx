@@ -39,7 +39,7 @@ export type AnimalRef = { id: string; nome: string; numero: string | null; sexo:
 export type GrupoRef = { id: string; nome: string; animais: number };
 
 export type GalpaoRef = { id: string; nome: string };
-export type LoteRef = { id: string; codigo: string };
+export type LoteRef = { id: string; codigo: string; ativo: boolean };
 
 /** Animais, grupos, galpões e lotes da conta, para dar nome aos alvos. */
 type Cadastro = {
@@ -265,7 +265,7 @@ function opcoesDe(c: CampoCorrigivel, cad: Cadastro): { v: string; r: string }[]
     case "instalacaoId":
       return [...cad.galpoes.values()].map((g) => ({ v: g.id, r: g.nome }));
     case "loteId":
-      return [...cad.lotes.values()].map((l) => ({ v: l.id, r: l.codigo }));
+      return [...cad.lotes.values()].filter((l) => l.ativo).map((l) => ({ v: l.id, r: l.codigo }));
     case "tipoConsulta":
       return TIPOS_CONSULTA.map((t) => ({ v: t, r: ROTULO_TIPO_CONSULTA[t] }));
     case "especie":
@@ -335,11 +335,11 @@ function CamposEditaveis({
       if (!Number.isFinite(valor) || (valor as number) <= 0) return setErro("Informe um peso maior que zero.");
     } else if (CAMPOS_DECIMAIS.includes(c)) {
       valor = Number(bruto.replace(",", "."));
-      if (!Number.isFinite(valor) || (valor as number) < 0) return setErro("Informe um número válido, como 12,5.");
+      if (!Number.isFinite(valor) || (valor as number) < 0) return setErro(ehAviario(op) ? "Informe um número válido, como 12,5." : "Informe um número válido.");
       if (c === "pesoMedioG" && valor === 0) return setErro("Informe um peso maior que zero.");
     } else if (CAMPOS_INTEIROS.includes(c)) {
       valor = Number(bruto);
-      if (!Number.isInteger(valor) || (valor as number) < 0) return setErro("Informe um número inteiro, sem vírgula.");
+      if (!Number.isInteger(valor) || (valor as number) < 0) return setErro(ehAviario(op) ? "Informe um número inteiro, sem vírgula." : "Informe um número inteiro.");
     }
     onCorrigir(c, valor);
     setEditando(null);
