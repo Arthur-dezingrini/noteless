@@ -3,9 +3,9 @@ import { and, desc, eq, gte, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { getTableColumns } from "drizzle-orm";
 import type { z } from "zod";
 
-import { br, hojeISO } from "../base/datas";
-import { db } from "../db";
-import { alojamento, apontamentoAviario, lote } from "../db/tabelas/aviario";
+import { br, hojeISO } from "../../../base/datas";
+import { db } from "../../../db";
+import { alojamento, apontamentoAviario, lote } from "../../../db/tabelas/aviario";
 import { loteNaData, nomeDaInstalacao, type Tx } from "./alojamento";
 
 export type ValoresApontamento = z.infer<typeof valoresApontamentoSchema>;

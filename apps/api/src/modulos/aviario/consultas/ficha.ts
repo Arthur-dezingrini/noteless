@@ -9,9 +9,9 @@ import {
 } from "@vocare/shared";
 import { asc, eq } from "drizzle-orm";
 
-import { hojeISO, noDia } from "../base/datas";
-import { db } from "../db";
-import { alojamento, apontamentoAviario, instalacao, lote, pesagemLote, vacinacaoLote } from "../db/tabelas/aviario";
+import { hojeISO, noDia } from "../../../base/datas";
+import { db } from "../../../db";
+import { alojamento, apontamentoAviario, instalacao, lote, pesagemLote, vacinacaoLote } from "../../../db/tabelas/aviario";
 import { listarLotes } from "./resumo";
 
 const num = (v: string | null) => (v === null ? null : Number(v));

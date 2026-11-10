@@ -1,9 +1,19 @@
 import { avesVivas, semanaDeVida } from "@vocare/shared";
 import { and, asc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 
-import { db } from "../db";
-import { alojamento, apontamentoAviario, instalacao, lote } from "../db/tabelas/aviario";
-import type { GalpaoParaIa } from "../ia/analisar";
+import { db } from "../../../db";
+import { alojamento, apontamentoAviario, instalacao, lote } from "../../../db/tabelas/aviario";
+
+/** Galpão com lote alojado hoje — o contexto para a IA ligar "galpão 3" e "lote 7" a ids. */
+export type GalpaoParaIa = {
+  instalacaoId: string;
+  nome: string;
+  loteId: string;
+  loteCodigo: string;
+  semana: number;
+  femeas: number;
+  machos: number;
+};
 
 /** Galpões com lote ativo alojado em `hoje` — o contexto para "apontei o galpão 3", "pesei o lote 7". */
 export async function galpoesDaOrg(orgId: string, hoje: string): Promise<GalpaoParaIa[]> {

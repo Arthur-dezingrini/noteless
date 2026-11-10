@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getInstalacoes, getLote, getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 import { hojeISO } from "@/lib/datas";
-
-import { FichaLote } from "./ficha-lote";
+import { FichaLote } from "@/modulos/aviario";
+import { getInstalacoes, getLote } from "@/modulos/aviario/dados";
 
 type Props = { params: Promise<{ id: string }> };
 

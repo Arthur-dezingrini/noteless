@@ -7,7 +7,7 @@ import {
   mortalidadeAlta,
   semanaDeVida,
   type ApontamentoDia,
-} from "./indicadores-lote";
+} from "./indicadores";
 
 const base = { data: "2026-01-02", instalacaoId: "g" };
 const lote = { dataAlojamento: "2026-01-01", idadeAlojamentoDias: 0, femeasIniciais: 1000, machosIniciais: 100 };

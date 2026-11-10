@@ -3,7 +3,6 @@ import { Header } from "@/components/app/header";
 import { Sidebar } from "@/components/app/sidebar";
 import {
   getAnimais,
-  getInstalacoes,
   getMemberRole,
   getNotificacoes,
   getNovidades,
@@ -13,6 +12,7 @@ import {
   requireSession,
   rotuloPapel,
 } from "@/lib/auth/dal";
+import { getInstalacoes } from "@/modulos/aviario/dados";
 
 /**
  * Casca da área logada. A sessão é exigida aqui, mas layouts não re-renderizam

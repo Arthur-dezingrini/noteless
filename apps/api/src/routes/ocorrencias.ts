@@ -23,9 +23,8 @@ import { anotacaoAnimal, ocorrencia, ocorrenciaAudio } from "../db/tabelas/notas
 import { user } from "../db/schema";
 import { analisar } from "../ia/analisar";
 import { IaNaoConfigurada, transcrever } from "../ia/transcrever";
-import { aplicarAviario } from "../lotes/aplicar";
-import { galpoesDaOrg } from "../lotes/galpoes-ia";
 import { membroAtual } from "../base/membro-atual";
+import { aplicarAviario, galpoesDaOrg } from "../modulos/aviario";
 import { administradores, notificar } from "../notificacoes/notificar";
 
 /**

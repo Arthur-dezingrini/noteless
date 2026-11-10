@@ -11,9 +11,9 @@ import {
 } from "@vocare/shared";
 import { and, asc, eq, inArray } from "drizzle-orm";
 
-import { db } from "../db";
-import { alojamento, apontamentoAviario, instalacao, lote } from "../db/tabelas/aviario";
-import { hojeISO, noDia } from "../base/datas";
+import { db } from "../../../db";
+import { alojamento, apontamentoAviario, instalacao, lote } from "../../../db/tabelas/aviario";
+import { hojeISO, noDia } from "../../../base/datas";
 
 const SOMAVEIS = [
   "mortasFemeas",

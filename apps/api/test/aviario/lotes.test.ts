@@ -1,13 +1,13 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
-import { db } from "../src/db";
-import { alojamento, apontamentoAviario, instalacao, lote } from "../src/db/tabelas/aviario";
+import { db } from "../../src/db";
+import { alojamento, apontamentoAviario, instalacao, lote } from "../../src/db/tabelas/aviario";
 import { fichaLoteSchema } from "@vocare/shared";
-import { hojeISO, noDia } from "../src/base/datas";
-import { loteNaData } from "../src/lotes/alojamento";
-import { somarApontamento, validarApontamento } from "../src/lotes/apontamento";
-import { chamar, criarFazenda } from "./ajuda";
+import { hojeISO, noDia } from "../../src/base/datas";
+import { loteNaData } from "../../src/modulos/aviario/regras/alojamento";
+import { somarApontamento, validarApontamento } from "../../src/modulos/aviario/regras/apontamento";
+import { chamar, criarFazenda } from "../ajuda";
 
 describe("tabelas do aviário", () => {
   it("migration cria as tabelas do aviário", async () => {

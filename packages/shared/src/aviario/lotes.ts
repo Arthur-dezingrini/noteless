@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { especieSchema, sexoSchema } from "./animais";
-import type { IndicadoresDia, IndicadoresLote, SemanaLote } from "./indicadores-lote";
+import { especieSchema, sexoSchema } from "../animais";
+import type { IndicadoresDia, IndicadoresLote, SemanaLote } from "./indicadores";
 
 const dataIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida.");
 

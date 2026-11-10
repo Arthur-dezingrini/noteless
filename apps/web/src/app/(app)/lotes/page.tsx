@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui";
-import { getInstalacoes, getLotes, getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
-
-import { LotesLista } from "./lotes-lista";
+import { getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { LotesLista } from "@/modulos/aviario";
+import { getInstalacoes, getLotes } from "@/modulos/aviario/dados";
 
 export const metadata = { title: "Lotes" };
 

@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui";
-import { getAnimais, getGrupos, getInstalacoes, getLotes, getMemberRole, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getAnimais, getGrupos, getMemberRole, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getInstalacoes, getLotes } from "@/modulos/aviario/dados";
 
 import { NotasView } from "./notas-view";
 

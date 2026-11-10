@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui";
-import { getInstalacoes, getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
-
-import { GalpoesLista } from "./galpoes-lista";
+import { getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { GalpoesLista } from "@/modulos/aviario";
+import { getInstalacoes } from "@/modulos/aviario/dados";
 
 export const metadata = { title: "Galpões" };
 

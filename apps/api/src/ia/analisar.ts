@@ -12,6 +12,7 @@ import {
 } from "@vocare/shared";
 import { z } from "zod";
 
+import type { GalpaoParaIa } from "../modulos/aviario";
 import { interpretacao, type Interpretacao } from "./provedor";
 import { IaNaoConfigurada } from "./transcrever";
 
@@ -24,17 +25,6 @@ export type AnimalParaIa = {
 };
 
 export type GrupoParaIa = { id: string; nome: string; animais: number };
-
-/** Galpão com lote alojado hoje — o contexto para a IA ligar "galpão 3" e "lote 7" a ids. */
-export type GalpaoParaIa = {
-  instalacaoId: string;
-  nome: string;
-  loteId: string;
-  loteCodigo: string;
-  semana: number;
-  femeas: number;
-  machos: number;
-};
 
 export type Analise = {
   resumo: string;

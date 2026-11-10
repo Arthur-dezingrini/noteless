@@ -3,8 +3,10 @@ import type { Route } from "next";
 import Link from "next/link";
 
 import { buttonClass, Card, Dot, PageHeader, SectionHeader, StatusText, type Tom } from "@/components/ui";
-import { getAvisos, getConsultas, getGalpoesHoje, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getAvisos, getConsultas, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 import { diaCurto, hojeISO, TZ } from "@/lib/datas";
+import { GalpoesHoje } from "@/modulos/aviario";
+import { getGalpoesHoje } from "@/modulos/aviario/dados";
 
 export const metadata = { title: "Início" };
 
@@ -56,27 +58,7 @@ export default async function InicioPage() {
         </div>
       )}
 
-      {galpoes.length > 0 && (
-        <section className="flex flex-col gap-2.5">
-          <SectionHeader title="Galpões hoje" />
-          <Card>
-            {galpoes.map((g, i) => (
-              <div key={g.instalacaoId} className={`flex items-center gap-4 px-5 py-3.5 ${i ? "border-t border-line" : ""}`}>
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <Link href={`/lotes/${g.loteId}`} className="truncate text-[15px] font-semibold text-ink no-underline hover:underline">
-                    {g.nome}
-                  </Link>
-                  <span className="truncate text-sm text-ink-muted">Lote {g.loteCodigo}</span>
-                </span>
-                <span className="flex items-center gap-2 text-[15px] text-ink">
-                  <Dot tone={g.apontado ? "ok" : "aviso"} />
-                  {g.apontado ? "Apontado" : "Sem apontamento"}
-                </span>
-              </div>
-            ))}
-          </Card>
-        </section>
-      )}
+      <GalpoesHoje galpoes={galpoes} />
 
       <div className="flex flex-wrap items-start gap-7">
         <section className="flex min-w-0 flex-[999_1_30rem] flex-col gap-2.5">

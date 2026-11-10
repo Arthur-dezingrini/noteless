@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { db } from "../src/db";
 import { alojamento, apontamentoAviario, instalacao, lote } from "../src/db/tabelas/aviario";
-import { ferramenta, instrucoes, normalizar, type GalpaoParaIa } from "../src/ia/analisar";
-import { galpoesDaOrg } from "../src/lotes/galpoes-ia";
+import { ferramenta, instrucoes, normalizar } from "../src/ia/analisar";
+import { galpoesDaOrg, type GalpaoParaIa } from "../src/modulos/aviario";
 import { criarFazenda } from "./ajuda";
 
 const galpao3: GalpaoParaIa = {
