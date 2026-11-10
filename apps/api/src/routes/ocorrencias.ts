@@ -3,6 +3,7 @@ import {
   corrigirOperacao,
   operacaoSchema,
   statusOcorrenciaSchema,
+  TIPOS_AVIARIO,
   textoOcorrenciaSchema,
   type Ocorrencia,
   type Operacao,
@@ -22,6 +23,7 @@ import { anotacaoAnimal, ocorrencia, ocorrenciaAudio } from "../db/ocorrencias";
 import { user } from "../db/schema";
 import { analisar } from "../ia/analisar";
 import { IaNaoConfigurada, transcrever } from "../ia/transcrever";
+import { aplicarAviario } from "../lotes/aplicar";
 import { galpoesDaOrg } from "../lotes/galpoes-ia";
 import { membroAtual } from "../membros/membro-atual";
 import { administradores, notificar } from "../notificacoes/notificar";
@@ -322,6 +324,8 @@ async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocor
     });
     return null;
   }
+
+  if (TIPOS_AVIARIO.includes(op.tipo)) return aplicarAviario(tx, op, origem, hoje);
 
   const ids = await alvos(tx, op, orgId);
   if (typeof ids === "string") return ids;
