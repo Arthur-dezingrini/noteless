@@ -41,7 +41,8 @@ export function acharViolacoes(arquivos: Arquivo[]): string[] {
   const erros: string[] = [];
   for (const { caminho, conteudo } of arquivos) {
     const meu = moduloDe(caminho);
-    const cliente = /^\s*["']use client["']/.test(conteudo);
+    // A diretiva pode vir depois de comentários.
+    const cliente = /^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use client["']/.test(conteudo);
     for (const esp of especificadores(conteudo)) {
       const alvo = resolver(caminho, esp);
       if (!alvo) continue;
@@ -50,6 +51,8 @@ export function acharViolacoes(arquivos: Arquivo[]): string[] {
       const entrada = em.resto === "" || em.resto === "index" || em.resto === "dados";
       if (cliente && em.resto === "dados") erros.push(`${caminho} → ${alvo} (componente client não busca dados)`);
       else if (em.modulo !== meu && !entrada) erros.push(`${caminho} → ${alvo}`);
+      // Dentro do módulo, voltar pela porta de entrada fecha um ciclo na carga.
+      else if (em.modulo === meu && (em.resto === "" || em.resto === "index")) erros.push(`${caminho} → ${alvo} (use o caminho interno)`);
     }
   }
   return erros;
@@ -146,6 +149,23 @@ describe("estrutura por módulo", () => {
         { caminho: "src/modulos/a/index.ts", conteudo: 'import "../b";' },
         { caminho: "src/modulos/b/index.ts", conteudo: 'import "../a";' },
       ]),
+    ).toHaveLength(1);
+  });
+
+  it("acusa componente client com comentário antes da diretiva", () => {
+    expect(
+      acharViolacoes([
+        {
+          caminho: "src/modulos/notas/componentes/lista.tsx",
+          conteudo: '// eslint-disable-next-line x\n/** Lista */\n"use client";\nimport { getLotes } from "@/modulos/aviario/dados";',
+        },
+      ]),
+    ).toHaveLength(1);
+  });
+
+  it("acusa arquivo que importa a porta de entrada do próprio módulo (ciclo na carga)", () => {
+    expect(
+      acharViolacoes([{ caminho: "src/modulos/aviario/componentes/x.tsx", conteudo: 'import { FichaLote } from "@/modulos/aviario";' }]),
     ).toHaveLength(1);
   });
 

@@ -45,8 +45,11 @@ export function acharViolacoes(arquivos: Arquivo[]): string[] {
       if (!alvo) continue;
       const em = alvoEmModulo(alvo);
       if (!em) continue;
+      const portaDeEntrada = em.resto === "" || em.resto === "index";
       if (meu === "base") erros.push(`${caminho} → ${alvo}`);
-      else if (em.modulo !== meu && em.resto !== "" && em.resto !== "index") erros.push(`${caminho} → ${alvo}`);
+      else if (em.modulo !== meu && !portaDeEntrada) erros.push(`${caminho} → ${alvo}`);
+      // Dentro do módulo, voltar pela porta de entrada fecha um ciclo na carga.
+      else if (em.modulo === meu && portaDeEntrada) erros.push(`${caminho} → ${alvo} (use o caminho interno)`);
     }
   }
   return erros;
@@ -132,6 +135,13 @@ describe("estrutura por módulo", () => {
         { caminho: "src/modulos/b/index.ts", conteudo: 'import "../a";' },
       ]),
     ).toHaveLength(1);
+  });
+
+  it("acusa arquivo que importa a porta de entrada do próprio módulo (ciclo na carga)", () => {
+    expect(
+      acharViolacoes([{ caminho: "src/modulos/aviario/regras/x.ts", conteudo: 'import { aviarioRotas } from "../../aviario";' }]),
+    ).toHaveLength(1);
+    expect(acharViolacoes([{ caminho: "src/modulos/aviario/index.ts", conteudo: 'export { aviarioRotas } from "./rotas";' }])).toEqual([]);
   });
 
   it("o código real segue o padrão", () => {
