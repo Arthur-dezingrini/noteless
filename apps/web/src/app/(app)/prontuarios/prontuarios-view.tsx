@@ -12,7 +12,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { btn } from "@/components/app/ui";
+import { Button, buttonClass, cx, PageHeader, tabId, Tabs } from "@/components/ui";
 import { formatar, idade } from "@/lib/datas";
 
 import { ProntuarioModal, type AnimalOpcao, type Veterinario } from "./prontuario-modal";
@@ -91,19 +91,15 @@ export function ProntuariosView({ orgId, hoje, prontuarios, animais, veterinario
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <h1 className="text-[28px] leading-tight font-semibold tracking-tight text-ink">Prontuários</h1>
-          <p className="text-base text-ink-muted">O registro completo de cada atendimento.</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setModal({ prontuario: null, inicial: { animalId: "", data: hoje, tipo: "consulta", veterinarioId: eu } })}
-          className={btn.secundario}
-        >
-          Registrar atendimento
-        </button>
-      </div>
+      <PageHeader
+        title="Prontuários"
+        description="O registro completo de cada atendimento."
+        actions={
+          <Button onClick={() => setModal({ prontuario: null, inicial: { animalId: "", data: hoje, tipo: "consulta", veterinarioId: eu } })}>
+            Registrar atendimento
+          </Button>
+        }
+      />
 
       {!atual ? (
         <div className="flex max-w-xl flex-col gap-1.5 py-6">
@@ -127,7 +123,7 @@ export function ProntuariosView({ orgId, hoje, prontuarios, animais, veterinario
                       setAba("atendimento");
                     }}
                     aria-current={ativo ? "true" : undefined}
-                    className={`flex w-full cursor-pointer flex-col gap-[3px] rounded-field px-3.5 py-3 text-left transition ${ativo ? "bg-surface" : "hover:bg-hover"}`}
+                    className={cx("flex w-full cursor-pointer flex-col gap-[3px] rounded-field px-3.5 py-3 text-left transition", ativo ? "bg-surface" : "hover:bg-hover")}
                   >
                     <span className="flex justify-between gap-2 text-[15px]">
                       <span className="truncate font-semibold text-ink">{rotuloAnimal({ numero: p.animalNumero, nome: p.animalNome })}</span>
@@ -200,38 +196,24 @@ function Detalhe({
           </p>
         </div>
         <div className="flex items-center gap-5">
-          <button type="button" onClick={onEditar} className={btn.link}>
+          <Button variant="link" onClick={onEditar}>
             Editar
-          </button>
-          <Link href={`/animais/${p.animalId}`} className={`${btn.link} no-underline`}>
+          </Button>
+          <Link href={`/animais/${p.animalId}`} className={buttonClass("link", "no-underline")}>
             Ver ficha do animal
           </Link>
         </div>
       </div>
 
-      <div role="tablist" aria-label="Parte do atendimento" className="flex gap-6 border-b border-line">
-        {ABAS.map((t) => {
-          const ativo = t.aba === aba;
-          return (
-            <button
-              key={t.aba}
-              type="button"
-              role="tab"
-              id={`aba-${t.aba}`}
-              aria-selected={ativo}
-              aria-controls="painel-prontuario"
-              onClick={() => onAba(t.aba)}
-              className={`-mb-px cursor-pointer border-b-2 pb-2.5 text-[15px] transition ${
-                ativo ? "border-ink font-semibold text-ink" : "border-transparent text-ink-muted hover:text-ink"
-              }`}
-            >
-              {t.rotulo}
-            </button>
-          );
-        })}
-      </div>
+      <Tabs
+        label="Parte do atendimento"
+        panelId="painel-prontuario"
+        value={aba}
+        onChange={onAba}
+        items={ABAS.map((t) => ({ value: t.aba, label: t.rotulo }))}
+      />
 
-      <div id="painel-prontuario" role="tabpanel" aria-labelledby={`aba-${aba}`} className="flex flex-col gap-[18px]">
+      <div id="painel-prontuario" role="tabpanel" aria-labelledby={tabId("painel-prontuario", aba)} className="flex flex-col gap-[18px]">
         {aba === "atendimento" && (
           <>
             {p.queixa && (
@@ -263,7 +245,7 @@ function Detalhe({
                   <span className="text-ink-muted">Retorno: </span>
                   <b className="font-semibold text-ink">{quandoRetorno(p.retorno, hoje)}</b>
                 </span>
-                <Link href={`/agenda?dia=${p.retorno.data}`} className={`${btn.link} no-underline`}>
+                <Link href={`/agenda?dia=${p.retorno.data}`} className={buttonClass("link", "no-underline")}>
                   Ver na agenda
                 </Link>
               </div>

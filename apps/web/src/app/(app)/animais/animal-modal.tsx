@@ -12,25 +12,10 @@ import {
   rotuloAnimal,
   type Animal,
 } from "@vocare/shared";
-import { Loader2 } from "lucide-react";
-import { useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 
-import { Modal } from "@/components/app/modal";
-import { Select } from "@/components/app/select";
-import { btn, campo } from "@/components/app/ui";
+import { Button, ConfirmBar, Field, FormMessage, Input, Modal, ModalFooter, Select } from "@/components/ui";
 import { chamarApi, chamarApiJson } from "@/lib/api-client";
-
-function Campo({ label, dica, children, largo }: { label: string; dica?: string; children: ReactNode; largo?: boolean }) {
-  return (
-    <label className={`flex flex-col gap-1.5 ${largo ? "sm:col-span-2" : ""}`}>
-      <span className="text-sm font-semibold text-ink">
-        {label}
-        {dica && <span className="font-normal text-ink-muted"> {dica}</span>}
-      </span>
-      {children}
-    </label>
-  );
-}
 
 /** Texto do formulário: vazio vira null, como o contrato espera. */
 function texto(form: FormData, nome: string): string | null {
@@ -119,13 +104,13 @@ export function AnimalModal({
     >
       <form onSubmit={submit} className="flex flex-col gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Campo label="Número" dica="(brinco, coleira ou registro)">
-            <input name="numero" className={campo} defaultValue={animal?.numero ?? inicial?.numero ?? ""} placeholder="Ex.: 132" autoComplete="off" autoFocus />
-          </Campo>
-          <Campo label="Nome">
-            <input name="nome" className={campo} defaultValue={animal?.nome ?? inicial?.nome ?? ""} placeholder="Ex.: Thor" autoComplete="off" />
-          </Campo>
-          <Campo label="Espécie">
+          <Field label="Número" hint="(brinco, coleira ou registro)">
+            <Input name="numero" defaultValue={animal?.numero ?? inicial?.numero ?? ""} placeholder="Ex.: 132" autoComplete="off" autoFocus />
+          </Field>
+          <Field label="Nome">
+            <Input name="nome" defaultValue={animal?.nome ?? inicial?.nome ?? ""} placeholder="Ex.: Thor" autoComplete="off" />
+          </Field>
+          <Field label="Espécie">
             <Select name="especie" defaultValue={animal?.especie ?? "cao"}>
               {ESPECIES.map((e) => (
                 <option key={e} value={e}>
@@ -133,11 +118,11 @@ export function AnimalModal({
                 </option>
               ))}
             </Select>
-          </Campo>
-          <Campo label="Raça">
-            <input name="raca" className={campo} defaultValue={animal?.raca ?? ""} placeholder="Ex.: Labrador" />
-          </Campo>
-          <Campo label="Sexo">
+          </Field>
+          <Field label="Raça">
+            <Input name="raca" defaultValue={animal?.raca ?? ""} placeholder="Ex.: Labrador" />
+          </Field>
+          <Field label="Sexo">
             <Select name="sexo" defaultValue={animal?.sexo ?? ""}>
               <option value="">Não informado</option>
               {SEXOS.map((s) => (
@@ -146,21 +131,21 @@ export function AnimalModal({
                 </option>
               ))}
             </Select>
-          </Campo>
-          <Campo label="Nascimento">
-            <input name="nascimento" type="date" className={campo} defaultValue={animal?.nascimento ?? ""} />
-          </Campo>
-          <Campo label="Peso (kg)">
-            <input name="pesoKg" inputMode="decimal" className={campo} defaultValue={animal?.pesoKg ?? ""} placeholder="Ex.: 32" />
-          </Campo>
-          <Campo label="Onde fica">
-            <input name="local" className={campo} defaultValue={animal?.local ?? ""} placeholder="Ex.: Casa, Baia 1, Lote 2" />
-          </Campo>
-          <Campo label="Microchip" dica="(opcional)">
-            <input name="microchip" className={campo} defaultValue={animal?.microchip ?? ""} />
-          </Campo>
+          </Field>
+          <Field label="Nascimento">
+            <Input name="nascimento" type="date" defaultValue={animal?.nascimento ?? ""} />
+          </Field>
+          <Field label="Peso (kg)">
+            <Input name="pesoKg" inputMode="decimal" defaultValue={animal?.pesoKg ?? ""} placeholder="Ex.: 32" />
+          </Field>
+          <Field label="Onde fica">
+            <Input name="local" defaultValue={animal?.local ?? ""} placeholder="Ex.: Casa, Baia 1, Lote 2" />
+          </Field>
+          <Field label="Microchip" hint="(opcional)">
+            <Input name="microchip" defaultValue={animal?.microchip ?? ""} />
+          </Field>
           {animal ? (
-            <Campo label="Situação">
+            <Field label="Situação">
               <Select name="status" defaultValue={animal.status}>
                 {STATUS_ANIMAL.map((s) => (
                   <option key={s} value={s}>
@@ -168,58 +153,44 @@ export function AnimalModal({
                   </option>
                 ))}
               </Select>
-            </Campo>
+            </Field>
           ) : (
             <span className="hidden sm:block" />
           )}
-          <Campo label="Tutor" dica="(opcional)">
-            <input name="tutor" className={campo} defaultValue={animal?.tutor ?? ""} placeholder="Quem é o dono" />
-          </Campo>
-          <Campo label="Telefone do tutor" dica="(opcional)">
-            <input name="tutorTelefone" type="tel" className={campo} defaultValue={animal?.tutorTelefone ?? ""} />
-          </Campo>
+          <Field label="Tutor" hint="(opcional)">
+            <Input name="tutor" defaultValue={animal?.tutor ?? ""} placeholder="Quem é o dono" />
+          </Field>
+          <Field label="Telefone do tutor" hint="(opcional)">
+            <Input name="tutorTelefone" type="tel" defaultValue={animal?.tutorTelefone ?? ""} />
+          </Field>
         </div>
 
-        {erro && (
-          <p role="alert" className="text-sm text-danger">
-            {erro}
-          </p>
-        )}
+        {erro && <FormMessage>{erro}</FormMessage>}
 
         {confirmarRemocao && animal && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-field border border-[#efd3cc] bg-danger-bg px-4 py-3 text-[15px] text-ink">
-            <span>
-              Remover <strong>{rotuloAnimal(animal)}</strong> e todo o histórico? Não dá para desfazer.
-            </span>
-            <span className="flex gap-2">
-              <button type="button" onClick={() => setConfirmarRemocao(false)} className={btn.secundario}>
-                Não
-              </button>
-              <button type="button" onClick={remover} disabled={pending} className={btn.perigoSolido}>
-                Remover
-              </button>
-            </span>
-          </div>
+          <ConfirmBar onCancel={() => setConfirmarRemocao(false)} onConfirm={remover} pending={pending}>
+            Remover <strong>{rotuloAnimal(animal)}</strong> e todo o histórico? Não dá para desfazer.
+          </ConfirmBar>
         )}
 
-        <div className="-mx-6 -mb-6 flex items-center justify-between gap-2 border-t border-line px-6 py-4">
-          {animal && possoRemover && !confirmarRemocao ? (
-            <button type="button" onClick={() => setConfirmarRemocao(true)} className={btn.perigo}>
-              Remover animal
-            </button>
-          ) : (
-            <span />
-          )}
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="cursor-pointer rounded-field px-3.5 text-[15px] font-semibold text-ink hover:bg-hover">
-              Cancelar
-            </button>
-            <button type="submit" disabled={pending} className={btn.primario}>
-              {pending && <Loader2 className="size-4 animate-spin" />}
-              {animal ? "Salvar" : "Cadastrar animal"}
-            </button>
-          </div>
-        </div>
+        <ModalFooter
+          start={
+            animal && possoRemover && !confirmarRemocao ? (
+              <Button variant="perigo" onClick={() => setConfirmarRemocao(true)}>
+                Remover animal
+              </Button>
+            ) : (
+              <span />
+            )
+          }
+        >
+          <Button variant="fantasma" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" variant="primario" loading={pending}>
+            {animal ? "Salvar" : "Cadastrar animal"}
+          </Button>
+        </ModalFooter>
       </form>
     </Modal>
   );

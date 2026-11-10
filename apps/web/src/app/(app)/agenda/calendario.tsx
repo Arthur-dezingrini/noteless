@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import { buttonClass, cx } from "@/components/ui";
 import { DIAS_SEMANA, formatar, mesAno } from "@/lib/datas";
 
 type Props = {
@@ -57,11 +58,11 @@ export function Calendario({
   return (
     <div className="flex w-[268px] shrink-0 flex-col gap-3">
       <div className="flex items-center justify-between">
-        <button type="button" onClick={onMesAnterior} aria-label="Mês anterior" className="grid size-8 cursor-pointer place-items-center rounded-lg text-ink-soft hover:bg-surface">
+        <button type="button" onClick={onMesAnterior} aria-label="Mês anterior" className={buttonClass("iconePequeno")}>
           <ChevronLeft className="size-4" />
         </button>
         <h2 className="text-[15px] font-semibold text-ink">{titulo}</h2>
-        <button type="button" onClick={onMesSeguinte} aria-label="Próximo mês" className="grid size-8 cursor-pointer place-items-center rounded-lg text-ink-soft hover:bg-surface">
+        <button type="button" onClick={onMesSeguinte} aria-label="Próximo mês" className={buttonClass("iconePequeno")}>
           <ChevronRight className="size-4" />
         </button>
       </div>
@@ -84,12 +85,13 @@ export function Calendario({
               aria-selected={ativo}
               aria-label={formatar(c.iso, { day: "numeric", month: "long" }) + (tem ? ", com consultas" : "") + (c.iso === hoje ? ", hoje" : "")}
               onClick={() => onSelecionar(c.iso)}
-              className={`flex h-9 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg text-sm tabular-nums transition ${
-                ativo ? "bg-ink text-white" : c.iso === hoje ? "font-semibold text-brand-ink hover:bg-surface" : "text-ink hover:bg-surface"
-              }`}
+              className={cx(
+                "flex h-9 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg text-sm tabular-nums transition",
+                ativo ? "bg-ink text-white" : c.iso === hoje ? "font-semibold text-brand-ink hover:bg-surface" : "text-ink hover:bg-surface",
+              )}
             >
               {c.dia}
-              <span aria-hidden="true" className={`size-1 rounded-full ${tem ? (ativo ? "bg-white" : "bg-[#9a9f9b]") : ""}`} />
+              <span aria-hidden="true" className={cx("size-1 rounded-full", tem && (ativo ? "bg-white" : "bg-[#9a9f9b]"))} />
             </button>
           );
         })}

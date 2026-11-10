@@ -1,10 +1,11 @@
 "use client";
 
 import type { Organization } from "@vocare/shared";
-import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { Spinner } from "@/components/ui";
 import { authClient } from "@/lib/auth/client";
 
 function Conta({ nome, animais }: { nome: string; animais: number | null }) {
@@ -73,7 +74,7 @@ export function OrgSwitcher({
       >
         <Conta nome={ativa.name} animais={animais} />
         {pending ? (
-          <Loader2 className="size-4 shrink-0 animate-spin text-ink-muted" />
+          <Spinner className="text-ink-muted" />
         ) : (
           <ChevronsUpDown className="size-4 shrink-0 text-ink-muted" />
         )}
@@ -99,7 +100,7 @@ export function OrgSwitcher({
                 >
                   <span className="min-w-0 flex-1 truncate">{o.name}</span>
                   {trocandoPara === o.id ? (
-                    <Loader2 className="size-4 animate-spin text-ink-muted" />
+                    <Spinner className="text-ink-muted" />
                   ) : (
                     selecionada && <Check className="size-4 text-brand" />
                   )}

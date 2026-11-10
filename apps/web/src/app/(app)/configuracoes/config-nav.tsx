@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { cx } from "@/components/ui";
 import type { NavItem } from "@/lib/navigation";
 
 const ABAS: NavItem[] = [
@@ -21,9 +22,10 @@ export function ConfigNav() {
             key={aba.href}
             href={aba.href}
             aria-current={ativa ? "page" : undefined}
-            className={`-mb-px border-b-2 pb-[11px] text-[15px] no-underline ${
-              ativa ? "border-ink font-semibold text-ink" : "border-transparent text-ink-muted hover:text-ink"
-            }`}
+            className={cx(
+              "-mb-px border-b-2 pb-[11px] text-[15px] no-underline",
+              ativa ? "border-ink font-semibold text-ink" : "border-transparent text-ink-muted hover:text-ink",
+            )}
           >
             {aba.label}
           </Link>

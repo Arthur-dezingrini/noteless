@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/ui";
 import { getMemberRole, getOrgAtiva, requireSession, rotuloPapel } from "@/lib/auth/dal";
 
 import { PerfilForm } from "./perfil-form";
@@ -10,10 +11,7 @@ export default async function PerfilPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1.5">
-        <h1 className="text-[28px] leading-tight font-semibold tracking-tight text-ink">Meu perfil</h1>
-        <p className="text-base text-ink-muted">Como os outros veem você no sistema.</p>
-      </div>
+      <PageHeader title="Meu perfil" description="Como os outros veem você no sistema." />
       <PerfilForm user={user} papel={rotuloPapel(member?.role) || "Membro"} />
     </div>
   );

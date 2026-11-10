@@ -9,12 +9,10 @@ import {
   type Prontuario,
   type TipoConsulta,
 } from "@vocare/shared";
-import { Loader2, X } from "lucide-react";
-import { useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { X } from "lucide-react";
+import { useState, useTransition, type FormEvent } from "react";
 
-import { Modal } from "@/components/app/modal";
-import { Select } from "@/components/app/select";
-import { btn, campo } from "@/components/app/ui";
+import { Button, buttonClass, ConfirmBar, Field, FormMessage, Input, Modal, ModalFooter, Select, Textarea } from "@/components/ui";
 import { chamarApi, chamarApiJson } from "@/lib/api-client";
 
 export type AnimalOpcao = { id: string; nome: string | null; numero: string | null };
@@ -27,18 +25,6 @@ const EXEMPLO_MEDIDA: Record<(typeof MEDIDAS_EXAME)[number], string> = {
   Peso: "480 kg",
   TPC: "2 s",
 };
-
-function Campo({ label, dica, children, largo }: { label: string; dica?: string; children: ReactNode; largo?: boolean }) {
-  return (
-    <label className={`flex min-w-0 flex-col gap-1.5 ${largo ? "sm:col-span-2" : ""}`}>
-      <span className="text-sm font-semibold text-ink">
-        {label}
-        {dica && <span className="font-normal text-ink-muted"> {dica}</span>}
-      </span>
-      {children}
-    </label>
-  );
-}
 
 type Par = { a: string; b: string };
 
@@ -71,33 +57,33 @@ function Pares({
       <legend className="mb-1.5 text-sm font-semibold text-ink">{titulo}</legend>
       {itens.map((x, i) => (
         <div key={i} className="flex flex-wrap items-center gap-2">
-          <input
+          <Input
             value={x.a}
             onChange={(e) => mudar(i, { a: e.target.value })}
             aria-label={`${rotuloA} ${i + 1}`}
             placeholder={exemploA}
-            className={`${campo} min-w-0 flex-[1_1_10rem]`}
+            className="min-w-0 flex-[1_1_10rem]"
           />
-          <input
+          <Input
             value={x.b}
             onChange={(e) => mudar(i, { b: e.target.value })}
             aria-label={`${rotuloB} ${i + 1}`}
             placeholder={exemploB}
-            className={`${campo} min-w-0 flex-[2_1_14rem]`}
+            className="min-w-0 flex-[2_1_14rem]"
           />
           <button
             type="button"
             onClick={() => onChange(itens.filter((_, j) => j !== i))}
             aria-label={`Tirar ${rotuloA.toLowerCase()} ${i + 1}`}
-            className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-field text-ink-muted hover:bg-hover hover:text-ink"
+            className={buttonClass("icone")}
           >
             <X className="size-4" />
           </button>
         </div>
       ))}
-      <button type="button" onClick={() => onChange([...itens, { a: "", b: "" }])} className={`${btn.link} w-fit text-sm`}>
+      <Button variant="link" onClick={() => onChange([...itens, { a: "", b: "" }])} className="w-fit text-sm">
         {adicionar}
-      </button>
+      </Button>
     </fieldset>
   );
 }
@@ -215,7 +201,7 @@ export function ProntuarioModal({
       <form onSubmit={submit} className="flex flex-col gap-5">
         <div className="grid gap-4 sm:grid-cols-2">
           {!animalFixo && (
-            <Campo label="Animal" largo>
+            <Field label="Animal" wide>
               <Select name="animalId" defaultValue={animalInicial} required>
                 <option value="" disabled>
                   Escolha o animal
@@ -226,12 +212,12 @@ export function ProntuarioModal({
                   </option>
                 ))}
               </Select>
-            </Campo>
+            </Field>
           )}
-          <Campo label="Data">
-            <input name="data" type="date" required className={campo} defaultValue={p?.data ?? inicial?.data} />
-          </Campo>
-          <Campo label="Tipo">
+          <Field label="Data">
+            <Input name="data" type="date" required defaultValue={p?.data ?? inicial?.data} />
+          </Field>
+          <Field label="Tipo">
             <Select name="tipo" defaultValue={p?.tipo ?? inicial?.tipo ?? "consulta"}>
               {TIPOS_CONSULTA.map((t) => (
                 <option key={t} value={t}>
@@ -239,8 +225,8 @@ export function ProntuarioModal({
                 </option>
               ))}
             </Select>
-          </Campo>
-          <Campo label="Quem atendeu" largo>
+          </Field>
+          <Field label="Quem atendeu" wide>
             <Select name="veterinarioId" defaultValue={p ? (p.veterinarioId ?? "") : (inicial?.veterinarioId ?? "")}>
               <option value="">Ninguém da equipe</option>
               {veterinarios.map((v) => (
@@ -249,16 +235,15 @@ export function ProntuarioModal({
                 </option>
               ))}
             </Select>
-          </Campo>
-          <Campo label="Queixa e histórico" largo>
-            <textarea
+          </Field>
+          <Field label="Queixa e histórico" wide>
+            <Textarea
               name="queixa"
               rows={3}
               defaultValue={p?.queixa}
               placeholder="O que o dono contou, desde quando, o que já foi feito."
-              className={`${campo} h-auto py-2.5 leading-relaxed`}
             />
-          </Campo>
+          </Field>
         </div>
 
         <fieldset className="flex flex-col gap-2">
@@ -269,12 +254,7 @@ export function ProntuarioModal({
             {MEDIDAS_EXAME.map((nome) => (
               <label key={nome} className="flex min-w-0 flex-col gap-1">
                 <span className="text-[13px] text-ink-muted">{nome}</span>
-                <input
-                  name={`medida-${nome}`}
-                  defaultValue={medidaFixa(nome)}
-                  placeholder={EXEMPLO_MEDIDA[nome]}
-                  className={`${campo} px-2.5`}
-                />
+                <Input name={`medida-${nome}`} defaultValue={medidaFixa(nome)} placeholder={EXEMPLO_MEDIDA[nome]} className="px-2.5" />
               </label>
             ))}
           </div>
@@ -290,15 +270,9 @@ export function ProntuarioModal({
           adicionar="Adicionar medida"
         />
 
-        <Campo label="Diagnóstico">
-          <textarea
-            name="diagnostico"
-            rows={2}
-            defaultValue={p?.diagnostico}
-            placeholder="O que foi encontrado e o que fazer."
-            className={`${campo} h-auto py-2.5 leading-relaxed`}
-          />
-        </Campo>
+        <Field label="Diagnóstico">
+          <Textarea name="diagnostico" rows={2} defaultValue={p?.diagnostico} placeholder="O que foi encontrado e o que fazer." />
+        </Field>
 
         <Pares
           titulo="Remédios receitados"
@@ -326,49 +300,37 @@ export function ProntuarioModal({
             Retorno <span className="font-normal text-ink-muted">(entra na agenda)</span>
           </legend>
           <div className="grid grid-cols-2 gap-3 sm:max-w-[22rem]">
-            <input name="retornoData" type="date" aria-label="Dia do retorno" className={campo} defaultValue={p?.retorno?.data ?? ""} />
-            <input name="retornoHora" type="time" aria-label="Hora do retorno" className={campo} defaultValue={p?.retorno?.hora ?? ""} />
+            <Input name="retornoData" type="date" aria-label="Dia do retorno" defaultValue={p?.retorno?.data ?? ""} />
+            <Input name="retornoHora" type="time" aria-label="Hora do retorno" defaultValue={p?.retorno?.hora ?? ""} />
           </div>
         </fieldset>
 
-        {erro && (
-          <p role="alert" className="text-sm text-danger">
-            {erro}
-          </p>
-        )}
+        {erro && <FormMessage>{erro}</FormMessage>}
 
         {confirmarRemocao && p && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-field border border-[#efd3cc] bg-danger-bg px-4 py-3 text-[15px] text-ink">
-            <span>Apagar este atendimento? Não dá para desfazer.</span>
-            <span className="flex gap-2">
-              <button type="button" onClick={() => setConfirmarRemocao(false)} className={btn.secundario}>
-                Não
-              </button>
-              <button type="button" onClick={remover} disabled={pending} className={btn.perigoSolido}>
-                Apagar
-              </button>
-            </span>
-          </div>
+          <ConfirmBar onCancel={() => setConfirmarRemocao(false)} onConfirm={remover} pending={pending} confirmLabel="Apagar">
+            Apagar este atendimento? Não dá para desfazer.
+          </ConfirmBar>
         )}
 
-        <div className="-mx-6 -mb-6 flex items-center justify-between gap-2 border-t border-line px-6 py-4">
-          {p && podeApagar && !confirmarRemocao ? (
-            <button type="button" onClick={() => setConfirmarRemocao(true)} className={btn.perigo}>
-              Apagar
-            </button>
-          ) : (
-            <span />
-          )}
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="cursor-pointer rounded-field px-3.5 text-[15px] font-semibold text-ink hover:bg-hover">
-              Cancelar
-            </button>
-            <button type="submit" disabled={pending} className={btn.primario}>
-              {pending && <Loader2 className="size-4 animate-spin" />}
-              {p ? "Salvar" : "Registrar atendimento"}
-            </button>
-          </div>
-        </div>
+        <ModalFooter
+          start={
+            p && podeApagar && !confirmarRemocao ? (
+              <Button variant="perigo" onClick={() => setConfirmarRemocao(true)}>
+                Apagar
+              </Button>
+            ) : (
+              <span />
+            )
+          }
+        >
+          <Button variant="fantasma" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" variant="primario" loading={pending}>
+            {p ? "Salvar" : "Registrar atendimento"}
+          </Button>
+        </ModalFooter>
       </form>
     </Modal>
   );

@@ -11,14 +11,12 @@ import {
   type Consulta,
   type StatusConsulta,
 } from "@vocare/shared";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type DragEvent, type FormEvent } from "react";
 
-import { Modal } from "@/components/app/modal";
-import { Select } from "@/components/app/select";
-import { btn, campo } from "@/components/app/ui";
+import { Button, buttonClass, Card, cx, Field, FormMessage, Input, Menu, MenuItem, Modal, ModalFooter, PageHeader, SectionHeader, SegmentedControl, Select, StatusText, type Tom } from "@/components/ui";
 import { chamarApi } from "@/lib/api-client";
 import { adicionarDias, formatar, inicioDaSemana, paraDate } from "@/lib/datas";
 
@@ -27,15 +25,19 @@ import { Calendario } from "./calendario";
 type Modo = "dia" | "semana";
 type Veterinario = { id: string; nome: string };
 /** Pré-preenchimento da consulta nova (ex.: "Marcar na agenda" do relatório de vacinas). */
-export type NovaConsulta = { animalId?: string; tipoConsulta?: string; observacoes?: string };
+export type NovaConsulta = {
+  animalId?: string;
+  tipoConsulta?: string;
+  observacoes?: string;
+};
 type Dialogo = ({ tipo: "nova"; data: string } & NovaConsulta) | { tipo: "remarcar"; consulta: Consulta } | null;
 
-const COR_STATUS: Record<StatusConsulta, string> = {
-  agendada: "text-warn",
-  confirmada: "text-brand-ink",
-  urgente: "text-danger",
-  concluida: "text-ink-muted",
-  cancelada: "text-ink-muted",
+const TOM_STATUS: Record<StatusConsulta, Tom> = {
+  agendada: "aviso",
+  confirmada: "ok",
+  urgente: "perigo",
+  concluida: "neutro",
+  cancelada: "neutro",
 };
 
 const DURACOES = [15, 30, 45, 60, 120];
@@ -103,10 +105,7 @@ export function AgendaView({ orgId, hoje, dia, consultas: iniciais, animais, vet
     setConsultas(iniciais);
   }
 
-  const diasComConsulta = useMemo(
-    () => new Set(consultas.filter((c) => c.status !== "cancelada").map((c) => c.data)),
-    [consultas],
-  );
+  const diasComConsulta = useMemo(() => new Set(consultas.filter((c) => c.status !== "cancelada").map((c) => c.data)), [consultas]);
 
   function mudarMes(delta: number) {
     setMesVisivel(({ ano, mes }) => {
@@ -119,7 +118,10 @@ export function AgendaView({ orgId, hoje, dia, consultas: iniciais, animais, vet
 
   function selecionar(iso: string) {
     setSelecionado(iso);
-    setMesVisivel({ ano: Number(iso.slice(0, 4)), mes: Number(iso.slice(5, 7)) });
+    setMesVisivel({
+      ano: Number(iso.slice(0, 4)),
+      mes: Number(iso.slice(5, 7)),
+    });
   }
 
   /** Atualiza na hora (otimista) e confirma com a api; se falhar, volta. */
@@ -143,40 +145,26 @@ export function AgendaView({ orgId, hoje, dia, consultas: iniciais, animais, vet
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <h1 className="text-[28px] leading-tight font-semibold tracking-tight text-ink">Agenda</h1>
-          <p className="text-base text-ink-muted">
-            {modo === "dia" ? "Consultas, retornos e vacinas marcados." : "Arraste para remarcar."}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex rounded-field bg-surface p-[3px]" role="group" aria-label="Ver por">
-            {(["dia", "semana"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                aria-pressed={modo === m}
-                onClick={() => setModo(m)}
-                className={`cursor-pointer rounded-lg px-3.5 py-[7px] text-sm font-semibold transition ${
-                  modo === m ? "bg-white text-ink" : "text-ink-muted hover:text-ink"
-                }`}
-              >
-                {m === "dia" ? "Dia" : "Semana"}
-              </button>
-            ))}
+      <PageHeader
+        title="Agenda"
+        description={modo === "dia" ? "Consultas, retornos e vacinas marcados." : "Arraste para remarcar."}
+        actions={
+          <div className="flex items-center gap-3">
+            <SegmentedControl
+              label="Ver por"
+              value={modo}
+              onChange={setModo}
+              items={[
+                { value: "dia", label: "Dia" },
+                { value: "semana", label: "Semana" },
+              ]}
+            />
+            <Button onClick={() => setDialogo({ tipo: "nova", data: selecionado })}>Nova consulta</Button>
           </div>
-          <button type="button" onClick={() => setDialogo({ tipo: "nova", data: selecionado })} className={btn.secundario}>
-            Nova consulta
-          </button>
-        </div>
-      </div>
+        }
+      />
 
-      {erro && (
-        <p role="alert" className="text-sm text-danger">
-          {erro}
-        </p>
-      )}
+      {erro && <FormMessage>{erro}</FormMessage>}
 
       {modo === "dia" ? (
         <div className="flex flex-wrap items-start gap-7">
@@ -191,16 +179,14 @@ export function AgendaView({ orgId, hoje, dia, consultas: iniciais, animais, vet
             onMesSeguinte={() => mudarMes(1)}
           />
           <section className="flex min-w-0 flex-[1_1_27rem] flex-col gap-2.5">
-            <h2 className="text-lg font-semibold text-ink">{tituloDia(selecionado, hoje)}</h2>
+            <SectionHeader title={tituloDia(selecionado, hoje)} />
             {doDia.length === 0 ? (
               <div className="flex flex-col items-center gap-2.5 rounded-card border border-dashed border-button-border p-8 text-center">
                 <p className="text-base text-ink-soft">Nada marcado neste dia.</p>
-                <button type="button" onClick={() => setDialogo({ tipo: "nova", data: selecionado })} className={btn.secundario}>
-                  Marcar consulta
-                </button>
+                <Button onClick={() => setDialogo({ tipo: "nova", data: selecionado })}>Marcar consulta</Button>
               </div>
             ) : (
-              <ul className="rounded-card border border-line bg-white">
+              <Card as="ul">
                 {doDia.map((c, i) => (
                   <LinhaConsulta
                     key={c.id}
@@ -212,7 +198,7 @@ export function AgendaView({ orgId, hoje, dia, consultas: iniciais, animais, vet
                     onRemarcar={() => setDialogo({ tipo: "remarcar", consulta: c })}
                   />
                 ))}
-              </ul>
+              </Card>
             )}
           </section>
         </div>
@@ -280,18 +266,35 @@ function LinhaConsulta({
     ...(!fechada ? [{ rotulo: "Marcar como concluída", fazer: onConcluir }] : []),
     { rotulo: "Remarcar", fazer: onRemarcar },
     ...(c.prontuarioId
-      ? [{ rotulo: "Ver atendimento", fazer: () => router.push(`/prontuarios?id=${c.prontuarioId}`) }]
+      ? [
+          {
+            rotulo: "Ver atendimento",
+            fazer: () => router.push(`/prontuarios?id=${c.prontuarioId}`),
+          },
+        ]
       : c.animalId && c.status !== "cancelada"
-        ? [{ rotulo: "Registrar atendimento", fazer: () => router.push(`/prontuarios?consulta=${c.id}`) }]
+        ? [
+            {
+              rotulo: "Registrar atendimento",
+              fazer: () => router.push(`/prontuarios?consulta=${c.id}`),
+            },
+          ]
         : []),
-    ...(c.animalId ? [{ rotulo: "Ver ficha do animal", fazer: () => router.push(`/animais/${c.animalId}`) }] : []),
+    ...(c.animalId
+      ? [
+          {
+            rotulo: "Ver ficha do animal",
+            fazer: () => router.push(`/animais/${c.animalId}`),
+          },
+        ]
+      : []),
     ...(fechada
       ? [{ rotulo: "Voltar para agendada", fazer: onReabrir }]
       : [{ rotulo: "Cancelar consulta", fazer: onCancelar, perigo: true }]),
   ];
 
   return (
-    <li ref={caixa} className={`relative flex items-center gap-3.5 py-3.5 pr-3 pl-[18px] ${primeira ? "" : "border-t border-line"}`}>
+    <li ref={caixa} className={cx("relative flex items-center gap-3.5 py-3.5 pr-3 pl-[18px]", !primeira && "border-t border-line")}>
       <span className="flex w-[52px] shrink-0 flex-col">
         <span className="text-[15px] font-semibold text-ink tabular-nums">{c.hora}</span>
         <span className="text-[13px] text-ink-muted">{duracao(c.duracaoMin)}</span>
@@ -310,33 +313,33 @@ function LinhaConsulta({
         </span>
       </span>
       <span className="hidden w-28 truncate text-sm text-ink-soft xl:block">{c.veterinarioNome ?? "—"}</span>
-      <span className={`w-24 text-sm font-semibold ${COR_STATUS[c.status]}`}>{ROTULO_STATUS_CONSULTA[c.status]}</span>
+      <span className="w-24">
+        <StatusText tone={TOM_STATUS[c.status]}>{ROTULO_STATUS_CONSULTA[c.status]}</StatusText>
+      </span>
       <button
         type="button"
         onClick={() => setMenu((v) => !v)}
         aria-label={`Mais ações: ${nomeAlvo(c)} às ${c.hora}`}
         aria-expanded={menu}
-        className={`grid size-8 cursor-pointer place-items-center rounded-lg text-lg leading-none text-ink-muted hover:bg-surface ${menu ? "bg-surface" : ""}`}
+        className={buttonClass("iconePequeno", cx("text-lg leading-none text-ink-muted", menu && "bg-surface"))}
       >
         …
       </button>
       {menu && (
-        <div role="menu" className="absolute top-[50px] right-3 z-10 flex w-[210px] flex-col rounded-xl border border-line bg-white p-1.5 shadow-[0_16px_32px_-16px_rgba(0,0,0,.25)]">
+        <Menu className="absolute top-[50px] right-3">
           {acoes.map((a) => (
-            <button
+            <MenuItem
               key={a.rotulo}
-              type="button"
-              role="menuitem"
+              danger={a.perigo}
               onClick={() => {
                 setMenu(false);
                 a.fazer();
               }}
-              className={`cursor-pointer rounded-lg px-2.5 py-[9px] text-left text-[15px] hover:bg-hover ${a.perigo ? "text-danger" : "text-ink"}`}
             >
               {a.rotulo}
-            </button>
+            </MenuItem>
           ))}
-        </div>
+        </Menu>
       )}
     </li>
   );
@@ -381,18 +384,33 @@ function Semana({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => onMudarSemana(-7)} aria-label="Semana anterior" className="grid size-8 cursor-pointer place-items-center rounded-lg text-ink-soft hover:bg-surface">
+          <button
+            type="button"
+            onClick={() => onMudarSemana(-7)}
+            aria-label="Semana anterior"
+            className={buttonClass("iconePequeno")}
+          >
             <ChevronLeft className="size-4" />
           </button>
           <h2 className="text-lg font-semibold text-ink">{titulo}</h2>
-          <button type="button" onClick={() => onMudarSemana(7)} aria-label="Próxima semana" className="grid size-8 cursor-pointer place-items-center rounded-lg text-ink-soft hover:bg-surface">
+          <button
+            type="button"
+            onClick={() => onMudarSemana(7)}
+            aria-label="Próxima semana"
+            className={buttonClass("iconePequeno")}
+          >
             <ChevronRight className="size-4" />
           </button>
         </div>
         <p className="text-sm text-ink-muted">Arraste um horário para outro dia para remarcar.</p>
       </div>
       <div className="overflow-x-auto">
-        <div className="grid min-w-[40rem] gap-3" style={{ gridTemplateColumns: `repeat(${dias.length}, minmax(0, 1fr))` }}>
+        <div
+          className="grid min-w-[40rem] gap-3"
+          style={{
+            gridTemplateColumns: `repeat(${dias.length}, minmax(0, 1fr))`,
+          }}
+        >
           {dias.map((d) => {
             const itens = consultas.filter((c) => c.data === d).sort((a, b) => a.hora.localeCompare(b.hora));
             const semana = formatar(d, { weekday: "short" }).replace(".", "");
@@ -405,9 +423,9 @@ function Semana({
                 }}
                 onDragLeave={() => setAlvo((a) => (a === d ? null : a))}
                 onDrop={(e) => soltar(e, d)}
-                className={`flex min-h-[26rem] min-w-0 flex-col gap-2 rounded-xl p-1 transition ${alvo === d ? "bg-brand-soft" : ""}`}
+                className={cx("flex min-h-[26rem] min-w-0 flex-col gap-2 rounded-xl p-1 transition", alvo === d && "bg-brand-soft")}
               >
-                <div className={`flex items-baseline gap-1.5 border-b-2 px-1.5 pb-2 ${d === hoje ? "border-ink" : "border-line"}`}>
+                <div className={cx("flex items-baseline gap-1.5 border-b-2 px-1.5 pb-2", d === hoje ? "border-ink" : "border-line")}>
                   <span className="text-sm text-ink-muted capitalize">{semana}</span>
                   <span className="text-lg font-semibold text-ink">{paraDate(d).getUTCDate()}</span>
                 </div>
@@ -423,7 +441,9 @@ function Semana({
                     </span>
                     <span className="truncate text-sm font-semibold text-ink">{nomeAlvo(c)}</span>
                     <span className="truncate text-[13px] text-ink-soft">{c.observacoes || ROTULO_TIPO_CONSULTA[c.tipo]}</span>
-                    <span className={`text-[13px] font-semibold ${COR_STATUS[c.status]}`}>{ROTULO_STATUS_CONSULTA[c.status]}</span>
+                    <StatusText tone={TOM_STATUS[c.status]} className="text-[13px]">
+                      {ROTULO_STATUS_CONSULTA[c.status]}
+                    </StatusText>
                   </div>
                 ))}
               </div>
@@ -432,18 +452,6 @@ function Semana({
         </div>
       </div>
     </div>
-  );
-}
-
-function Campo({ label, dica, children, largo }: { label: string; dica?: string; children: React.ReactNode; largo?: boolean }) {
-  return (
-    <label className={`flex flex-col gap-1.5 ${largo ? "sm:col-span-2" : ""}`}>
-      <span className="text-sm font-semibold text-ink">
-        {label}
-        {dica && <span className="font-normal text-ink-muted"> {dica}</span>}
-      </span>
-      {children}
-    </label>
   );
 }
 
@@ -479,15 +487,23 @@ function ConsultaModal({
       duracaoMin: f.get("duracaoMin"),
       tipo: f.get("tipo"),
       observacoes: f.get("observacoes") || null,
-      ...(consulta && { status: consulta.status === "cancelada" ? "agendada" : consulta.status }),
+      ...(consulta && {
+        status: consulta.status === "cancelada" ? "agendada" : consulta.status,
+      }),
     };
     const parsed = consulta ? atualizarConsultaSchema.safeParse(bruto) : criarConsultaSchema.safeParse(bruto);
     if (!parsed.success) return setErro(parsed.error.issues[0]?.message ?? "Dados inválidos.");
 
     start(async () => {
       const err = consulta
-        ? await chamarApi(`/api/org/${orgId}/consultas/${consulta.id}`, { method: "PATCH", body: JSON.stringify(parsed.data) })
-        : await chamarApi(`/api/org/${orgId}/consultas`, { method: "POST", body: JSON.stringify(parsed.data) });
+        ? await chamarApi(`/api/org/${orgId}/consultas/${consulta.id}`, {
+            method: "PATCH",
+            body: JSON.stringify(parsed.data),
+          })
+        : await chamarApi(`/api/org/${orgId}/consultas`, {
+            method: "POST",
+            body: JSON.stringify(parsed.data),
+          });
       if (err) return setErro(err);
       onDone(parsed.data.data);
     });
@@ -507,12 +523,16 @@ function ConsultaModal({
         <form onSubmit={submit} className="flex flex-col gap-4">
           <div className="grid gap-4 sm:grid-cols-2">
             {consulta && !consulta.animalId ? (
-              <Campo label="Grupo" largo>
-                <input className={campo} value={consulta.animalNome} disabled />
-              </Campo>
+              <Field label="Grupo" wide>
+                <Input value={consulta.animalNome} disabled />
+              </Field>
             ) : (
-              <Campo label="Animal" largo>
-                <Select name="animalId" required defaultValue={consulta?.animalId ?? (dialogo.tipo === "nova" ? dialogo.animalId : undefined) ?? ""}>
+              <Field label="Animal" wide>
+                <Select
+                  name="animalId"
+                  required
+                  defaultValue={consulta?.animalId ?? (dialogo.tipo === "nova" ? dialogo.animalId : undefined) ?? ""}
+                >
                   <option value="" disabled>
                     Escolha o animal
                   </option>
@@ -522,33 +542,38 @@ function ConsultaModal({
                     </option>
                   ))}
                 </Select>
-              </Campo>
+              </Field>
             )}
-            <Campo label="Data">
-              <input name="data" type="date" required className={campo} defaultValue={consulta?.data ?? (dialogo.tipo === "nova" ? dialogo.data : "")} />
-            </Campo>
-            <Campo label="Hora">
-              <input name="hora" type="time" required className={campo} defaultValue={consulta?.hora ?? "10:00"} />
-            </Campo>
-            <Campo label="Tipo">
-              <Select name="tipo" defaultValue={consulta?.tipo ?? (dialogo.tipo === "nova" ? dialogo.tipoConsulta : undefined) ?? "consulta"}>
+            <Field label="Data">
+              <Input name="data" type="date" required defaultValue={consulta?.data ?? (dialogo.tipo === "nova" ? dialogo.data : "")} />
+            </Field>
+            <Field label="Hora">
+              <Input name="hora" type="time" required defaultValue={consulta?.hora ?? "10:00"} />
+            </Field>
+            <Field label="Tipo">
+              <Select
+                name="tipo"
+                defaultValue={consulta?.tipo ?? (dialogo.tipo === "nova" ? dialogo.tipoConsulta : undefined) ?? "consulta"}
+              >
                 {TIPOS_CONSULTA.map((t) => (
                   <option key={t} value={t}>
                     {ROTULO_TIPO_CONSULTA[t]}
                   </option>
                 ))}
               </Select>
-            </Campo>
-            <Campo label="Duração">
+            </Field>
+            <Field label="Duração">
               <Select name="duracaoMin" defaultValue={String(consulta?.duracaoMin ?? 30)}>
-                {[...new Set([...DURACOES, consulta?.duracaoMin ?? 30])].sort((a, b) => a - b).map((m) => (
-                  <option key={m} value={m}>
-                    {duracao(m)}
-                  </option>
-                ))}
+                {[...new Set([...DURACOES, consulta?.duracaoMin ?? 30])]
+                  .sort((a, b) => a - b)
+                  .map((m) => (
+                    <option key={m} value={m}>
+                      {duracao(m)}
+                    </option>
+                  ))}
               </Select>
-            </Campo>
-            <Campo label="Quem vai atender" largo>
+            </Field>
+            <Field label="Quem vai atender" wide>
               <Select name="veterinarioId" defaultValue={consulta?.veterinarioId ?? ""}>
                 <option value="">Ninguém definido</option>
                 {veterinarios.map((v) => (
@@ -557,27 +582,26 @@ function ConsultaModal({
                   </option>
                 ))}
               </Select>
-            </Campo>
-            <Campo label="Observações" dica="(opcional)" largo>
-              <input name="observacoes" className={campo} placeholder="Algo que quem vai atender precisa saber" defaultValue={consulta?.observacoes ?? (dialogo.tipo === "nova" ? dialogo.observacoes : undefined) ?? ""} />
-            </Campo>
+            </Field>
+            <Field label="Observações" hint="(opcional)" wide>
+              <Input
+                name="observacoes"
+                placeholder="Algo que quem vai atender precisa saber"
+                defaultValue={consulta?.observacoes ?? (dialogo.tipo === "nova" ? dialogo.observacoes : undefined) ?? ""}
+              />
+            </Field>
           </div>
 
-          {erro && (
-            <p role="alert" className="text-sm text-danger">
-              {erro}
-            </p>
-          )}
+          {erro && <FormMessage>{erro}</FormMessage>}
 
-          <div className="-mx-6 -mb-6 flex justify-end gap-2 border-t border-line px-6 py-4">
-            <button type="button" onClick={onClose} className="cursor-pointer rounded-field px-3.5 text-[15px] font-semibold text-ink hover:bg-hover">
+          <ModalFooter>
+            <Button variant="fantasma" onClick={onClose}>
               Cancelar
-            </button>
-            <button type="submit" disabled={pending} className={btn.primario}>
-              {pending && <Loader2 className="size-4 animate-spin" />}
+            </Button>
+            <Button type="submit" variant="primario" loading={pending}>
               {consulta ? "Salvar" : "Marcar consulta"}
-            </button>
-          </div>
+            </Button>
+          </ModalFooter>
         </form>
       )}
     </Modal>

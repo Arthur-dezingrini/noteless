@@ -1,5 +1,6 @@
 import { PERIODOS, tipoRelatorioSchema, type Periodo } from "@vocare/shared";
 
+import { Card } from "@/components/ui";
 import { getOrgAtiva, getRelatorio, requireSession } from "@/lib/auth/dal";
 
 import { RelatoriosView } from "./relatorios-view";
@@ -9,7 +10,11 @@ export const metadata = { title: "Relatórios" };
 export default async function RelatoriosPage({ searchParams }: PageProps<"/relatorios">) {
   const [, org, q] = await Promise.all([requireSession(), getOrgAtiva(), searchParams]);
   if (!org) {
-    return <p className="rounded-card border border-line bg-white p-6 text-[15px] text-ink-muted">Você ainda não faz parte de nenhuma organização.</p>;
+    return (
+      <Card padded>
+        <p className="text-[15px] text-ink-muted">Você ainda não faz parte de nenhuma organização.</p>
+      </Card>
+    );
   }
 
   const tipo = tipoRelatorioSchema.catch("vacinas").parse(q.tipo);

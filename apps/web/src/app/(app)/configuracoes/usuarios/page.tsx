@@ -1,5 +1,7 @@
 import { getMemberRole, getOrgAtiva, getUsuarios, requireSession } from "@/lib/auth/dal";
 
+import { Card } from "@/components/ui";
+
 import { UsuariosLista } from "./usuarios-lista";
 
 export const metadata = { title: "Usuários" };
@@ -9,9 +11,9 @@ export default async function UsuariosPage() {
 
   if (!org) {
     return (
-      <p className="rounded-xl border border-line bg-white p-6 text-sm text-ink-muted">
+      <Card padded className="text-sm text-ink-muted">
         Você ainda não faz parte de nenhuma organização.
-      </p>
+      </Card>
     );
   }
 

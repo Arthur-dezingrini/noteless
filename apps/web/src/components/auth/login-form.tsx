@@ -1,19 +1,15 @@
 "use client";
 
 import { loginSchema } from "@vocare/shared";
-import { Loader2 } from "lucide-react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition, type FormEvent } from "react";
 import { z } from "zod";
 
 import { authClient } from "@/lib/auth/client";
-import { btn } from "@/components/app/ui";
+import { Button, FormMessage, Input } from "@/components/ui";
 
 type FieldErrors = { email?: string; password?: string };
-
-const fieldClasses =
-  "h-11 w-full rounded-field border bg-white px-3.5 text-[15px] text-ink outline-none transition placeholder:text-ink-muted/70 focus:border-field-border-focus focus:ring-2 focus:ring-brand/20";
 
 /**
  * Só aceita caminho interno. Sem isso, `?next=https://site-falso` transformaria
@@ -81,7 +77,7 @@ export function LoginForm({ next }: { next?: string }) {
         <label htmlFor={emailId} className="block text-sm font-semibold text-ink">
           E-mail
         </label>
-        <input
+        <Input
           id={emailId}
           name="email"
           type="email"
@@ -89,9 +85,6 @@ export function LoginForm({ next }: { next?: string }) {
           placeholder="voce@exemplo.com.br"
           aria-invalid={Boolean(fieldErrors.email)}
           aria-describedby={fieldErrors.email ? `${emailId}-error` : undefined}
-          className={`${fieldClasses} ${
-            fieldErrors.email ? "border-danger" : "border-field-border"
-          }`}
         />
         {fieldErrors.email && (
           <p id={`${emailId}-error`} className="text-sm text-danger">
@@ -118,7 +111,7 @@ export function LoginForm({ next }: { next?: string }) {
           </button>
         </div>
         <div className="relative">
-          <input
+          <Input
             id={passwordId}
             name="password"
             type={showPassword ? "text" : "password"}
@@ -128,9 +121,7 @@ export function LoginForm({ next }: { next?: string }) {
             aria-describedby={
               fieldErrors.password ? `${passwordId}-error` : undefined
             }
-            className={`${fieldClasses} pr-24 ${
-              fieldErrors.password ? "border-danger" : "border-field-border"
-            }`}
+            className="pr-24"
           />
           <button
             type="button"
@@ -154,22 +145,12 @@ export function LoginForm({ next }: { next?: string }) {
       </div>
 
       {formError && (
-        <p
-          role="alert"
-          className="rounded-field bg-danger-bg px-3.5 py-2.5 text-sm text-danger"
-        >
-          {formError}
-        </p>
+        <FormMessage className="rounded-field bg-danger-bg px-3.5 py-2.5">{formError}</FormMessage>
       )}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className={`${btn.primario} w-full`}
-      >
-        {pending && <Loader2 className="size-4 animate-spin" />}
+      <Button type="submit" variant="primario" loading={pending} className="w-full">
         {pending ? "Entrando..." : "Entrar"}
-      </button>
+      </Button>
     </form>
   );
 }

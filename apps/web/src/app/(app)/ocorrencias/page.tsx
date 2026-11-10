@@ -1,3 +1,4 @@
+import { Card } from "@/components/ui";
 import { getAnimais, getGrupos, getMemberRole, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 
 import { OcorrenciasView } from "./ocorrencias-view";
@@ -9,9 +10,9 @@ export default async function OcorrenciasPage({ searchParams }: PageProps<"/ocor
 
   if (!org) {
     return (
-      <p className="rounded-card border border-line bg-white p-6 text-[15px] text-ink-muted">
-        Você ainda não faz parte de nenhuma organização.
-      </p>
+      <Card padded>
+        <p className="text-[15px] text-ink-muted">Você ainda não faz parte de nenhuma organização.</p>
+      </Card>
     );
   }
 

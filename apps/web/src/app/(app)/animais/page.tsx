@@ -1,3 +1,4 @@
+import { Card } from "@/components/ui";
 import { getAnimais, getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 
 import { AnimaisLista } from "./animais-lista";
@@ -10,9 +11,9 @@ export default async function AnimaisPage() {
 
   if (!org) {
     return (
-      <p className="rounded-xl border border-line bg-white p-6 text-sm text-ink-muted">
-        Você ainda não faz parte de nenhuma organização.
-      </p>
+      <Card padded>
+        <p className="text-sm text-ink-muted">Você ainda não faz parte de nenhuma organização.</p>
+      </Card>
     );
   }
 

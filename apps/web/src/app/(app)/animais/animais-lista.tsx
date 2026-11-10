@@ -4,8 +4,7 @@ import { ESPECIES, ROTULO_ESPECIE, ROTULO_SEXO, type Animal, type Especie } from
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type KeyboardEvent } from "react";
 
-import { Select } from "@/components/app/select";
-import { btn, campo } from "@/components/app/ui";
+import { Button, Card, cx, EmptyState, Input, PageHeader, Select, StatusText, tabela, type Tom } from "@/components/ui";
 
 import { AnimalModal } from "./animal-modal";
 
@@ -16,10 +15,10 @@ function situacao(a: Animal): Situacao {
   return a.emTratamento ? "tratamento" : "ativo";
 }
 
-const SITUACAO: Record<Situacao, { rotulo: string; cor: string }> = {
-  ativo: { rotulo: "Ativo", cor: "text-brand-ink" },
-  tratamento: { rotulo: "Em tratamento", cor: "text-warn" },
-  inativo: { rotulo: "Inativo", cor: "text-ink-muted" },
+const SITUACAO: Record<Situacao, { rotulo: string; tom: Tom }> = {
+  ativo: { rotulo: "Ativo", tom: "ok" },
+  tratamento: { rotulo: "Em tratamento", tom: "aviso" },
+  inativo: { rotulo: "Inativo", tom: "neutro" },
 };
 
 function peso(kg: number | null | undefined) {
@@ -63,24 +62,20 @@ export function AnimaisLista({ orgId, animais, possoRemover }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <h1 className="text-[28px] leading-tight font-semibold tracking-tight text-ink">Animais</h1>
-          <p className="text-base text-ink-muted">Clique em um animal para ver o histórico completo.</p>
-        </div>
-        <button type="button" onClick={() => setModal({ animal: null })} className={btn.secundario}>
-          Cadastrar animal
-        </button>
-      </div>
+      <PageHeader
+        title="Animais"
+        description="Clique em um animal para ver o histórico completo."
+        actions={<Button onClick={() => setModal({ animal: null })}>Cadastrar animal</Button>}
+      />
 
       <div className="flex flex-wrap gap-2.5">
-        <input
+        <Input
           type="search"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar por nome ou número"
           aria-label="Buscar animal por nome ou número"
-          className={`${campo} h-[42px] max-w-[400px] flex-[1_1_15rem]`}
+          className="h-[42px] max-w-[400px] flex-[1_1_15rem]"
         />
         <Select value={especie} onChange={(e) => setEspecie(e.target.value as Especie | "")} aria-label="Espécie" className="w-48">
           <option value="">Todas as espécies</option>
@@ -100,24 +95,24 @@ export function AnimaisLista({ orgId, animais, possoRemover }: Props) {
         </Select>
       </div>
 
-      <div className="overflow-hidden rounded-card border border-line bg-white">
-        <table className="w-full table-fixed text-left text-[15px]">
-          <thead className="border-b border-line bg-detail text-[13px] font-semibold text-ink-muted">
+      <Card className="overflow-hidden">
+        <table className={tabela.table}>
+          <thead className={tabela.thead}>
             <tr>
-              <th className="px-[18px] py-3 font-semibold">Animal</th>
-              <th className="hidden px-3 py-3 font-semibold md:table-cell">Espécie e raça</th>
-              <th className="hidden w-24 px-3 py-3 font-semibold xl:table-cell">Sexo</th>
-              <th className="hidden w-24 px-3 py-3 font-semibold md:table-cell">Peso</th>
-              <th className="hidden px-3 py-3 font-semibold xl:table-cell">Onde fica</th>
-              <th className="hidden w-28 px-3 py-3 font-semibold xl:table-cell">Última visita</th>
-              <th className="w-32 px-3 py-3 font-semibold">Situação</th>
+              <th className={tabela.th}>Animal</th>
+              <th className={cx(tabela.th, "hidden md:table-cell")}>Espécie e raça</th>
+              <th className={cx(tabela.th, "hidden w-24 xl:table-cell")}>Sexo</th>
+              <th className={cx(tabela.th, "hidden w-24 md:table-cell")}>Peso</th>
+              <th className={cx(tabela.th, "hidden xl:table-cell")}>Onde fica</th>
+              <th className={cx(tabela.th, "hidden w-28 xl:table-cell")}>Última visita</th>
+              <th className={cx(tabela.th, "w-32")}>Situação</th>
               <th className="w-12 px-3 py-3">
                 <span className="sr-only">Ações</span>
               </th>
             </tr>
           </thead>
           <tbody>
-            {filtrados.map((a, i) => {
+            {filtrados.map((a) => {
               const s = SITUACAO[situacao(a)];
               return (
                 <tr
@@ -127,9 +122,9 @@ export function AnimaisLista({ orgId, animais, possoRemover }: Props) {
                   aria-label={`Abrir ficha de ${a.nome || `nº ${a.numero}`}`}
                   onClick={() => abrir(a)}
                   onKeyDown={(e) => teclas(e, a)}
-                  className={`cursor-pointer hover:bg-detail focus-visible:bg-detail focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand ${i ? "border-t border-line-soft" : ""}`}
+                  className={tabela.linhaClicavel}
                 >
-                  <td className="px-[18px] py-3">
+                  <td className={tabela.td}>
                     <span className="flex min-w-0 items-baseline gap-2">
                       {a.numero && <span className="shrink-0 text-ink-muted tabular-nums">nº {a.numero}</span>}
                       <span className="truncate font-semibold text-ink">{a.nome || (a.numero ? "" : "Sem nome")}</span>
@@ -138,14 +133,16 @@ export function AnimaisLista({ orgId, animais, possoRemover }: Props) {
                       {ROTULO_ESPECIE[a.especie]} · {peso(a.pesoKg)}
                     </span>
                   </td>
-                  <td className="hidden truncate px-3 py-3 text-ink-soft md:table-cell">
+                  <td className={cx(tabela.td, "hidden truncate text-ink-soft md:table-cell")}>
                     {[ROTULO_ESPECIE[a.especie], a.raca].filter(Boolean).join(" · ")}
                   </td>
-                  <td className="hidden px-3 py-3 text-ink-soft xl:table-cell">{a.sexo ? ROTULO_SEXO[a.sexo] : "—"}</td>
-                  <td className="hidden px-3 py-3 text-ink tabular-nums md:table-cell">{peso(a.pesoKg)}</td>
-                  <td className="hidden truncate px-3 py-3 text-ink-soft xl:table-cell">{a.local || "—"}</td>
-                  <td className="hidden px-3 py-3 text-ink-soft tabular-nums xl:table-cell">{diaMes(a.ultimaVisita)}</td>
-                  <td className={`px-3 py-3 text-sm font-semibold ${s.cor}`}>{s.rotulo}</td>
+                  <td className={cx(tabela.td, "hidden text-ink-soft xl:table-cell")}>{a.sexo ? ROTULO_SEXO[a.sexo] : "—"}</td>
+                  <td className={cx(tabela.td, "hidden text-ink tabular-nums md:table-cell")}>{peso(a.pesoKg)}</td>
+                  <td className={cx(tabela.td, "hidden truncate text-ink-soft xl:table-cell")}>{a.local || "—"}</td>
+                  <td className={cx(tabela.td, "hidden text-ink-soft tabular-nums xl:table-cell")}>{diaMes(a.ultimaVisita)}</td>
+                  <td className={tabela.td}>
+                    <StatusText tone={s.tom}>{s.rotulo}</StatusText>
+                  </td>
                   <td className="px-3 py-3 text-right">
                     <button
                       type="button"
@@ -166,18 +163,16 @@ export function AnimaisLista({ orgId, animais, possoRemover }: Props) {
           </tbody>
         </table>
         {filtrados.length === 0 && (
-          <div className="flex flex-col gap-1.5 p-9 text-center">
-            <p className="text-base font-semibold text-ink">
-              {animais.length === 0 ? "Nenhum animal cadastrado ainda" : "Nenhum animal encontrado"}
-            </p>
-            <p className="text-[15px] text-ink-muted">
-              {animais.length === 0
+          <EmptyState
+            title={animais.length === 0 ? "Nenhum animal cadastrado ainda" : "Nenhum animal encontrado"}
+            description={
+              animais.length === 0
                 ? "Cadastre aqui ou fale no microfone: “nasceu um bezerro, número 132”."
-                : "Confira o nome ou o número, ou limpe os filtros."}
-            </p>
-          </div>
+                : "Confira o nome ou o número, ou limpe os filtros."
+            }
+          />
         )}
-      </div>
+      </Card>
       {filtrados.length > 0 && (
         <p className="text-sm text-ink-muted">
           Mostrando {filtrados.length} de {animais.length} {animais.length === 1 ? "animal" : "animais"}

@@ -1,25 +1,14 @@
 "use client";
 
-import {
-  atualizarUsuarioSchema,
-  criarUsuarioSchema,
-  ROTULO_PAPEL,
-  vincularUsuarioSchema,
-  type Usuario,
-} from "@vocare/shared";
-import { Loader2 } from "lucide-react";
+import { atualizarUsuarioSchema, criarUsuarioSchema, ROTULO_PAPEL, vincularUsuarioSchema, type Usuario } from "@vocare/shared";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 import { z } from "zod";
 
 import { initials } from "@/components/app/avatar";
-import { Modal } from "@/components/app/modal";
-import { Select } from "@/components/app/select";
-import { btn, campo } from "@/components/app/ui";
+import { Button, buttonClass, Card, cx, Field, FormMessage, Input, Modal, Select } from "@/components/ui";
 import { chamarApi, chamarApiJson } from "@/lib/api-client";
 import { BRAND_NAME } from "@/lib/brand";
-
-const inputClasses = campo;
 
 type Props = {
   orgId: string;
@@ -27,15 +16,6 @@ type Props = {
   meuId: string;
   possoGerenciar: boolean;
 };
-
-function Campo({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-1.5">
-      <span className="block text-sm font-medium text-ink">{label}</span>
-      {children}
-    </label>
-  );
-}
 
 export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props) {
   const router = useRouter();
@@ -54,20 +34,21 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
           </p>
           {possoGerenciar && (
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setVinculando(true)} className={btn.secundario}>
-                Vincular conta existente
-              </button>
-              <button type="button" onClick={() => setAdicionando(true)} className={btn.primario}>
+              <Button onClick={() => setVinculando(true)}>Vincular conta existente</Button>
+              <Button variant="primario" onClick={() => setAdicionando(true)}>
                 Cadastrar usuário
-              </button>
+              </Button>
             </div>
           )}
         </div>
 
-        <ul className="rounded-card border border-line bg-white">
+        <Card as="ul">
           {usuarios.map((u, i) => (
-            <li key={u.id} className={`flex flex-wrap items-center gap-3 px-5 py-3 ${i ? "border-t border-line-soft" : ""}`}>
-              <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-[#e9e5dc] text-[13px] font-semibold text-ink">
+            <li key={u.id} className={cx("flex flex-wrap items-center gap-3 px-5 py-3", i > 0 && "border-t border-line-soft")}>
+              <span
+                aria-hidden="true"
+                className="grid size-9 shrink-0 place-items-center rounded-full bg-[#e9e5dc] text-[13px] font-semibold text-ink"
+              >
                 {initials(u.name)}
               </span>
               <div className="min-w-0 flex-1">
@@ -80,11 +61,19 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
               <span className="w-32 text-[15px] text-ink-soft">{ROTULO_PAPEL[u.role]}</span>
               {possoGerenciar && (
                 <div className="flex w-40 shrink-0 justify-end gap-1">
-                  <button type="button" onClick={() => setEditando(u)} className="cursor-pointer rounded-lg px-2.5 py-1.5 text-sm font-semibold text-ink hover:bg-hover">
+                  <button
+                    type="button"
+                    onClick={() => setEditando(u)}
+                    className={buttonClass("linha")}
+                  >
                     Editar
                   </button>
                   {u.id !== meuId && u.role !== "owner" && (
-                    <button type="button" onClick={() => setRemovendo(u)} className="cursor-pointer rounded-lg px-2.5 py-1.5 text-sm font-semibold text-danger hover:bg-danger-bg">
+                    <button
+                      type="button"
+                      onClick={() => setRemovendo(u)}
+                      className={buttonClass("linhaPerigo")}
+                    >
                       Remover
                     </button>
                   )}
@@ -92,18 +81,18 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
               )}
             </li>
           ))}
-        </ul>
+        </Card>
 
         <p className="max-w-2xl text-sm leading-relaxed text-ink-muted">
-          Administrador confere ocorrências e mexe em usuários e dados da conta. Membro grava ocorrências e consulta, mas o que ele grava vai
-          para um administrador conferir.
+          Administrador confere ocorrências e mexe em usuários e dados da conta. Membro grava ocorrências e consulta, mas o que ele grava
+          vai para um administrador conferir.
         </p>
       </div>
 
       {feedback && (
-        <p role="status" className="mt-4 text-sm text-brand-ink">
+        <FormMessage tone="ok" className="mt-4">
           {feedback}
-        </p>
+        </FormMessage>
       )}
 
       <AdicionarModal
@@ -153,17 +142,7 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
   );
 }
 
-function AdicionarModal({
-  open,
-  orgId,
-  onClose,
-  onDone,
-}: {
-  open: boolean;
-  orgId: string;
-  onClose: () => void;
-  onDone: () => void;
-}) {
+function AdicionarModal({ open, orgId, onClose, onDone }: { open: boolean; orgId: string; onClose: () => void; onDone: () => void }) {
   const [pending, start] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
 
@@ -198,46 +177,42 @@ function AdicionarModal({
   return (
     <Modal open={open} onClose={onClose} title="Cadastrar usuário" subtitle="A pessoa entra com o e-mail e a senha provisória.">
       <form onSubmit={submit} className="space-y-4">
-        <Campo label="Nome">
-          <input name="name" className={inputClasses} required autoComplete="off" />
-        </Campo>
-        <Campo label="E-mail">
-          <input name="email" type="email" className={inputClasses} required autoComplete="off" />
-        </Campo>
-        <Campo label="Cargo">
-          <input name="cargo" className={inputClasses} placeholder="Veterinária, Recepcionista, Peão…" />
-        </Campo>
-        <Campo label="Papel">
+        <Field label="Nome">
+          <Input name="name" required autoComplete="off" />
+        </Field>
+        <Field label="E-mail">
+          <Input name="email" type="email" required autoComplete="off" />
+        </Field>
+        <Field label="Cargo">
+          <Input name="cargo" placeholder="Veterinária, Recepcionista, Peão…" />
+        </Field>
+        <Field label="Papel">
           <Select name="role" defaultValue="member">
             <option value="member">Membro — opera o sistema</option>
             <option value="admin">Administrador — gerencia usuários e dados</option>
           </Select>
-        </Campo>
-        <Campo label="Status">
+        </Field>
+        <Field label="Status">
           <Select name="status" defaultValue="active" disabled>
             <option value="active">Ativo</option>
           </Select>
-        </Campo>
-        <Campo label="Senha">
-          <input name="password" type="password" className={inputClasses} required minLength={8} autoComplete="new-password" placeholder="Mínimo 8 caracteres" />
-        </Campo>
-        <Campo label="Confirmação de senha">
-          <input name="confirmPassword" type="password" className={inputClasses} required autoComplete="new-password" />
-        </Campo>
+        </Field>
+        <Field label="Senha">
+          <Input name="password" type="password" required minLength={8} autoComplete="new-password" placeholder="Mínimo 8 caracteres" />
+        </Field>
+        <Field label="Confirmação de senha">
+          <Input name="confirmPassword" type="password" required autoComplete="new-password" />
+        </Field>
         <p className="text-xs text-ink-muted">
-          Ainda não enviamos e-mail: repasse a senha à pessoa e peça para trocar
-          no primeiro acesso. Se a pessoa já tem conta em outra organização, use
-          &ldquo;Vincular usuário&rdquo;.
+          Ainda não enviamos e-mail: repasse a senha à pessoa e peça para trocar no primeiro acesso. Se a pessoa já tem conta em outra
+          organização, use &ldquo;Vincular usuário&rdquo;.
         </p>
-        {erro && <p role="alert" className="text-sm text-red-600">{erro}</p>}
+        {erro && <FormMessage>{erro}</FormMessage>}
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} className={btn.secundario}>
-            Cancelar
-          </button>
-          <button type="submit" disabled={pending} className={btn.primario}>
-            {pending && <Loader2 className="size-4 animate-spin" />}
+          <Button onClick={onClose}>Cancelar</Button>
+          <Button type="submit" variant="primario" loading={pending}>
             Cadastrar
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>
@@ -286,27 +261,24 @@ function VincularModal({
     <Modal open={open} onClose={onClose} title="Vincular conta existente" subtitle="Para quem já usa o sistema em outra conta.">
       <form onSubmit={submit} className="space-y-4">
         <p className="text-sm text-ink-muted">
-          Para quem já tem conta no {BRAND_NAME} por outra clínica ou fazenda. A pessoa
-          passa a ver esta organização no seletor; nome e senha não mudam.
+          Para quem já tem conta no {BRAND_NAME} por outra clínica ou fazenda. A pessoa passa a ver esta organização no seletor; nome e
+          senha não mudam.
         </p>
-        <Campo label="E-mail da conta">
-          <input name="email" type="email" className={inputClasses} required autoComplete="off" placeholder="pessoa@exemplo.com" />
-        </Campo>
-        <Campo label="Papel nesta organização">
+        <Field label="E-mail da conta">
+          <Input name="email" type="email" required autoComplete="off" placeholder="pessoa@exemplo.com" />
+        </Field>
+        <Field label="Papel nesta organização">
           <Select name="role" defaultValue="member">
             <option value="member">Membro — opera o sistema</option>
             <option value="admin">Administrador — gerencia usuários e dados</option>
           </Select>
-        </Campo>
-        {erro && <p role="alert" className="text-sm text-red-600">{erro}</p>}
+        </Field>
+        {erro && <FormMessage>{erro}</FormMessage>}
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} className={btn.secundario}>
-            Cancelar
-          </button>
-          <button type="submit" disabled={pending} className={btn.primario}>
-            {pending && <Loader2 className="size-4 animate-spin" />}
+          <Button onClick={onClose}>Cancelar</Button>
+          <Button type="submit" variant="primario" loading={pending}>
             Vincular
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>
@@ -364,42 +336,39 @@ function EditarModal({
     <Modal open={usuario !== null} onClose={fechar} title="Editar usuário">
       {usuario && (
         <form key={usuario.id} onSubmit={submit} className="space-y-4">
-          <Campo label="Nome">
-            <input name="name" className={inputClasses} defaultValue={usuario.name} required />
-          </Campo>
-          <Campo label="E-mail">
-            <input name="email" type="email" className={inputClasses} defaultValue={usuario.email} required autoComplete="off" />
-          </Campo>
-          <Campo label="Nova senha (opcional)">
-            <input name="password" type="password" className={inputClasses} minLength={8} autoComplete="new-password" placeholder="Deixe em branco para manter" />
-          </Campo>
-          <Campo label="Confirmação da nova senha">
-            <input name="confirmPassword" type="password" className={inputClasses} autoComplete="new-password" />
-          </Campo>
-          <Campo label="Cargo">
-            <input name="cargo" className={inputClasses} defaultValue={usuario.cargo ?? ""} placeholder="Veterinária, Recepcionista, Peão…" />
-          </Campo>
-          <Campo label="Papel">
+          <Field label="Nome">
+            <Input name="name" defaultValue={usuario.name} required />
+          </Field>
+          <Field label="E-mail">
+            <Input name="email" type="email" defaultValue={usuario.email} required autoComplete="off" />
+          </Field>
+          <Field label="Nova senha (opcional)">
+            <Input name="password" type="password" minLength={8} autoComplete="new-password" placeholder="Deixe em branco para manter" />
+          </Field>
+          <Field label="Confirmação da nova senha">
+            <Input name="confirmPassword" type="password" autoComplete="new-password" />
+          </Field>
+          <Field label="Cargo">
+            <Input name="cargo" defaultValue={usuario.cargo ?? ""} placeholder="Veterinária, Recepcionista, Peão…" />
+          </Field>
+          <Field label="Papel">
             {ehDono ? (
-              <input className={`${inputClasses} bg-surface text-ink-muted`} value="Dono da organização" disabled />
+              <Input className="bg-surface text-ink-muted" value="Dono da organização" disabled />
             ) : (
               <Select name="role" defaultValue={usuario.role}>
                 <option value="member">Membro — opera o sistema</option>
                 <option value="admin">Administrador — gerencia usuários e dados</option>
               </Select>
             )}
-          </Campo>
+          </Field>
 
-          {erro && <p role="alert" className="text-sm text-red-600">{erro}</p>}
+          {erro && <FormMessage>{erro}</FormMessage>}
 
           <div className="flex justify-end gap-2 pt-2">
-              <button type="button" onClick={fechar} className={btn.secundario}>
-                Cancelar
-              </button>
-              <button type="submit" disabled={pending} className={btn.primario}>
-                {pending && <Loader2 className="size-4 animate-spin" />}
-                Salvar
-              </button>
+            <Button onClick={fechar}>Cancelar</Button>
+            <Button type="submit" variant="primario" loading={pending}>
+              Salvar
+            </Button>
           </div>
         </form>
       )}
@@ -440,18 +409,13 @@ function RemoverModal({
           <p className="text-sm text-ink">
             Tem certeza que deseja remover <strong>{usuario.name}</strong> da organização?
           </p>
-          <p className="text-xs text-ink-muted">
-            A conta não será apagada e poderá continuar pertencendo a outras organizações.
-          </p>
-          {erro && <p role="alert" className="text-sm text-red-600">{erro}</p>}
+          <p className="text-xs text-ink-muted">A conta não será apagada e poderá continuar pertencendo a outras organizações.</p>
+          {erro && <FormMessage>{erro}</FormMessage>}
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className={btn.secundario}>
-              Cancelar
-            </button>
-            <button type="button" onClick={remover} disabled={pending} className={btn.perigoSolido}>
-              {pending && <Loader2 className="size-4 animate-spin" />}
+            <Button onClick={onClose}>Cancelar</Button>
+            <Button variant="perigoSolido" onClick={remover} loading={pending}>
               Remover
-            </button>
+            </Button>
           </div>
         </div>
       )}

@@ -35,6 +35,7 @@
   --color-warn-border: #efe3c4;
   --color-danger: #a8321f;
   --color-danger-bg: #fbf0ed;
+  --color-danger-border: #efd3cc;  /* faixa de confirmação de exclusão */
   --color-notify: #c7371f;         /* bolinha de não lida no sino */
 
   --font-sans: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;

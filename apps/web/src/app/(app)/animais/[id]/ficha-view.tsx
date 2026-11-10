@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { Button, Callout, PageHeader, StatusText, Tabs, type Tom } from "@/components/ui";
 import { formatar, idade } from "@/lib/datas";
 
 import { AnimalModal } from "../animal-modal";
@@ -39,12 +40,12 @@ export function FichaView({
   const [aba, setAba] = useState("tudo");
   const [editando, setEditando] = useState(false);
 
-  const situacao =
+  const situacao: { rotulo: string; tom: Tom } =
     a.status === "inativo"
-      ? { rotulo: "Inativo", cor: "text-ink-muted" }
+      ? { rotulo: "Inativo", tom: "neutro" }
       : a.emTratamento
-        ? { rotulo: "Em tratamento", cor: "text-warn" }
-        : { rotulo: "Ativo", cor: "text-brand-ink" };
+        ? { rotulo: "Em tratamento", tom: "aviso" }
+        : { rotulo: "Ativo", tom: "ok" };
 
   const peso = a.pesoKg != null ? `${a.pesoKg.toLocaleString("pt-BR")} kg` : null;
   const meta = [ROTULO_ESPECIE[a.especie], a.raca, a.sexo && ROTULO_SEXO[a.sexo].toLowerCase(), idade(a.nascimento), peso].filter(Boolean);
@@ -73,25 +74,31 @@ export function FichaView({
         <ChevronLeft className="size-4" /> Animais
       </Link>
 
-      <div className="-mt-2 flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <h1 className="flex items-baseline gap-2.5 text-[28px] leading-tight font-semibold tracking-tight text-ink">
-            {a.numero && <span className="text-[22px] font-medium text-ink-muted">nº {a.numero}</span>}
-            {a.nome}
-          </h1>
-          <p className="text-base text-ink-muted">
-            {meta.join(" · ")}
-            {meta.length > 0 && " · "}
-            <span className={`font-semibold ${situacao.cor}`}>{situacao.rotulo}</span>
-          </p>
-        </div>
-        <button type="button" onClick={() => setEditando(true)} className="h-[42px] cursor-pointer rounded-field px-3.5 text-[15px] font-semibold text-ink hover:bg-hover">
-          Editar dados
-        </button>
+      <div className="-mt-2">
+        <PageHeader
+          title={
+            <span className="flex items-baseline gap-2.5">
+              {a.numero && <span className="text-[22px] font-medium text-ink-muted">nº {a.numero}</span>}
+              {a.nome}
+            </span>
+          }
+          description={
+            <>
+              {meta.join(" · ")}
+              {meta.length > 0 && " · "}
+              <StatusText tone={situacao.tom} size="herda">{situacao.rotulo}</StatusText>
+            </>
+          }
+          actions={
+            <Button variant="fantasma" onClick={() => setEditando(true)}>
+              Editar dados
+            </Button>
+          }
+        />
       </div>
 
       {ocorrenciasPendentes > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warn-border bg-warn-bg px-4 py-3 text-[15px] text-ink">
+        <Callout>
           <span>
             {ocorrenciasPendentes} {ocorrenciasPendentes === 1 ? "ocorrência" : "ocorrências"} sobre {de} {nomeCurto} esperando
             conferência. Só entra no histórico depois de salva.
@@ -99,32 +106,21 @@ export function FichaView({
           <Link href="/ocorrencias" className="font-semibold text-ink underline underline-offset-[3px]">
             Conferir
           </Link>
-        </div>
+        </Callout>
       )}
 
       <div className="flex flex-wrap items-start gap-7">
         <section className="flex min-w-0 flex-[999_1_30rem] flex-col gap-3.5">
-          <div role="tablist" aria-label="Tipo de registro" className="flex flex-wrap gap-x-[22px] border-b border-line">
-            {abas.map((t) => {
-              const n = t.tipos.length ? historico.filter((e) => t.tipos.includes(e.tipo)).length : null;
-              const ativo = t.chave === atual.chave;
-              return (
-                <button
-                  key={t.chave}
-                  type="button"
-                  role="tab"
-                  aria-selected={ativo}
-                  onClick={() => setAba(t.chave)}
-                  className={`-mb-px flex cursor-pointer gap-1.5 border-b-2 pb-[11px] text-[15px] ${
-                    ativo ? "border-ink font-semibold text-ink" : "border-transparent text-ink-muted hover:text-ink"
-                  }`}
-                >
-                  {t.rotulo}
-                  {n !== null && <span className="font-medium text-ink-muted">{n}</span>}
-                </button>
-              );
-            })}
-          </div>
+          <Tabs
+            label="Tipo de registro"
+            items={abas.map((t) => ({
+              value: t.chave,
+              label: t.rotulo,
+              count: t.tipos.length ? historico.filter((e) => t.tipos.includes(e.tipo)).length : null,
+            }))}
+            value={atual.chave}
+            onChange={setAba}
+          />
 
           {visiveis.length === 0 ? (
             <p className="py-7 text-[15px] text-ink-muted">Nada registrado aqui ainda.</p>

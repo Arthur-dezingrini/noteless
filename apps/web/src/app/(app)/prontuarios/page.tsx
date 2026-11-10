@@ -1,3 +1,4 @@
+import { Card } from "@/components/ui";
 import {
   getAnimais,
   getConsultas,
@@ -18,9 +19,9 @@ export default async function ProntuariosPage({ searchParams }: PageProps<"/pron
 
   if (!org) {
     return (
-      <p className="rounded-card border border-line bg-white p-6 text-[15px] text-ink-muted">
+      <Card padded className="text-[15px] text-ink-muted">
         Você ainda não faz parte de nenhuma organização.
-      </p>
+      </Card>
     );
   }
 

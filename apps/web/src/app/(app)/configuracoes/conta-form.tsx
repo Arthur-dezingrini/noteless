@@ -1,25 +1,11 @@
 "use client";
 
 import { TIPOS_CONTA, type Organization, type OrganizationMetadata } from "@vocare/shared";
-import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition } from "react";
 
-import { Select } from "@/components/app/select";
-import { btn, campo } from "@/components/app/ui";
+import { Button, Field, FormMessage, Input, Select } from "@/components/ui";
 import { authClient } from "@/lib/auth/client";
-
-function Campo({ label, dica, children, largo }: { label: string; dica?: string; children: ReactNode; largo?: boolean }) {
-  return (
-    <label className={`flex flex-col gap-1.5 ${largo ? "sm:col-span-2" : ""}`}>
-      <span className="text-sm font-semibold text-ink">
-        {label}
-        {dica && <span className="font-normal text-ink-muted"> {dica}</span>}
-      </span>
-      {children}
-    </label>
-  );
-}
 
 /** Dados da conta: serve para sítio, casa, clínica, canil… */
 export function ContaForm({ org }: { org: Organization }) {
@@ -62,10 +48,10 @@ export function ContaForm({ org }: { org: Organization }) {
       }}
       className="grid max-w-[640px] gap-4 sm:grid-cols-2"
     >
-      <Campo label="Nome da conta">
-        <input name="nome" className={campo} defaultValue={org.name} required />
-      </Campo>
-      <Campo label="Tipo">
+      <Field label="Nome da conta">
+        <Input name="nome" defaultValue={org.name} required />
+      </Field>
+      <Field label="Tipo">
         <Select name="tipo" defaultValue={meta.tipo ?? ""}>
           <option value="" disabled>
             Escolha
@@ -76,29 +62,26 @@ export function ContaForm({ org }: { org: Organization }) {
             </option>
           ))}
         </Select>
-      </Campo>
-      <Campo label="CPF ou CNPJ" dica="(opcional)">
-        <input name="cnpj" className={campo} defaultValue={meta.cnpj ?? ""} inputMode="numeric" />
-      </Campo>
-      <Campo label="Telefone">
-        <input name="telefone" type="tel" className={campo} defaultValue={meta.telefone ?? ""} placeholder="(34) 99812-4471" />
-      </Campo>
-      <Campo label="E-mail" largo>
-        <input name="email" type="email" className={campo} defaultValue={meta.email ?? ""} placeholder="contato@exemplo.com.br" />
-      </Campo>
-      <Campo label="Endereço" largo>
-        <input name="endereco" className={campo} defaultValue={meta.endereco ?? ""} placeholder="Estrada, km, cidade, UF" />
-      </Campo>
+      </Field>
+      <Field label="CPF ou CNPJ" hint="(opcional)">
+        <Input name="cnpj" defaultValue={meta.cnpj ?? ""} inputMode="numeric" />
+      </Field>
+      <Field label="Telefone">
+        <Input name="telefone" type="tel" defaultValue={meta.telefone ?? ""} placeholder="(34) 99812-4471" />
+      </Field>
+      <Field label="E-mail" wide>
+        <Input name="email" type="email" defaultValue={meta.email ?? ""} placeholder="contato@exemplo.com.br" />
+      </Field>
+      <Field label="Endereço" wide>
+        <Input name="endereco" defaultValue={meta.endereco ?? ""} placeholder="Estrada, km, cidade, UF" />
+      </Field>
       <div className="flex items-center justify-end gap-4 sm:col-span-2">
         {aviso && (
-          <p role="status" className={`text-sm ${aviso.ok ? "text-brand-ink" : "text-danger"}`}>
-            {aviso.msg}
-          </p>
+          <FormMessage tone={aviso.ok ? "ok" : "perigo"}>{aviso.msg}</FormMessage>
         )}
-        <button type="submit" disabled={pending} className={btn.primario}>
-          {pending && <Loader2 className="size-4 animate-spin" />}
+        <Button type="submit" variant="primario" loading={pending}>
           Salvar alterações
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/ui";
 import { getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 
 import { ConfigNav } from "./config-nav";
@@ -10,10 +11,7 @@ export default async function ConfiguracoesLayout({ children }: LayoutProps<"/co
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1.5">
-        <h1 className="text-[28px] leading-tight font-semibold tracking-tight text-ink">Configurações</h1>
-        <p className="text-base text-ink-muted">Dados da conta e quem tem acesso.</p>
-      </div>
+      <PageHeader title="Configurações" description="Dados da conta e quem tem acesso." />
       {admin ? (
         <>
           <ConfigNav />

@@ -1,12 +1,11 @@
 "use client";
 
 import { atualizarPerfilSchema, type Session } from "@vocare/shared";
-import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { initials } from "@/components/app/avatar";
-import { btn, campo } from "@/components/app/ui";
+import { Button, Field, FormMessage, Input } from "@/components/ui";
 import { chamarApi } from "@/lib/api-client";
 
 const TAMANHO_MAXIMO = 2 * 1024 * 1024;
@@ -74,9 +73,7 @@ export function PerfilForm({ user, papel }: { user: Session["user"]; papel: stri
             {initials(nome || user.email)}
           </span>
         )}
-        <button type="button" onClick={() => inputRef.current?.click()} className={btn.secundario}>
-          Trocar foto
-        </button>
+        <Button onClick={() => inputRef.current?.click()}>Trocar foto</Button>
         <input
           ref={inputRef}
           type="file"
@@ -91,14 +88,12 @@ export function PerfilForm({ user, papel }: { user: Session["user"]; papel: stri
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-ink">Nome</span>
-          <input value={nome} onChange={(e) => setNome(e.target.value)} className={campo} autoComplete="name" />
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-ink">E-mail</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={campo} autoComplete="email" />
-        </label>
+        <Field label="Nome">
+          <Input value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="name" />
+        </Field>
+        <Field label="E-mail">
+          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+        </Field>
         <div className="flex flex-col gap-1.5">
           <span className="text-sm font-semibold text-ink">Papel</span>
           <span className="text-[15px] text-ink-soft">{papel}</span>
@@ -107,14 +102,11 @@ export function PerfilForm({ user, papel }: { user: Session["user"]; papel: stri
 
       <div className="flex items-center justify-end gap-4">
         {aviso && (
-          <p role="status" className={`text-sm ${aviso.ok ? "text-brand-ink" : "text-danger"}`}>
-            {aviso.msg}
-          </p>
+          <FormMessage tone={aviso.ok ? "ok" : "perigo"}>{aviso.msg}</FormMessage>
         )}
-        <button type="submit" disabled={pending || !alterado} className={btn.primario}>
-          {pending && <Loader2 className="size-4 animate-spin" />}
+        <Button type="submit" variant="primario" loading={pending} disabled={!alterado}>
           Salvar
-        </button>
+        </Button>
       </div>
 
       <section className="flex flex-col gap-3 border-t border-line pt-5">

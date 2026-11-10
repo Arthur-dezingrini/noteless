@@ -5,6 +5,7 @@ import {
   getUsuarios,
   requireSession,
 } from "@/lib/auth/dal";
+import { Card } from "@/components/ui";
 import { hojeISO } from "@/lib/datas";
 
 import { AgendaView } from "./agenda-view";
@@ -16,9 +17,9 @@ export default async function AgendaPage({ searchParams }: PageProps<"/agenda">)
 
   if (!org) {
     return (
-      <p className="rounded-xl border border-line bg-white p-6 text-sm text-ink-muted">
+      <Card padded className="text-sm text-ink-muted">
         Você ainda não faz parte de nenhuma organização.
-      </p>
+      </Card>
     );
   }
 

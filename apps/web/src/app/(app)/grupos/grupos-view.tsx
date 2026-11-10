@@ -1,14 +1,11 @@
 "use client";
 
 import { ESPECIES, ROTULO_ESPECIE, rotuloAnimal, type Animal, type Especie, type Grupo } from "@vocare/shared";
-import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 
-import { Modal } from "@/components/app/modal";
-import { Select } from "@/components/app/select";
-import { btn, campo } from "@/components/app/ui";
+import { Button, buttonClass, Card, ConfirmBar, cx, Field, FormMessage, Input, Modal, ModalFooter, PageHeader, Select } from "@/components/ui";
 import { chamarApi, chamarApiJson } from "@/lib/api-client";
 import { BRAND_NAME } from "@/lib/brand";
 
@@ -57,24 +54,13 @@ export function GruposView({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <h1 className="text-[28px] leading-tight font-semibold tracking-tight text-ink">Grupos</h1>
-          <p className="max-w-3xl text-base text-pretty text-ink-muted">
-            Junte animais que recebem o mesmo cuidado. Quando alguém falar o nome do grupo no microfone do {BRAND_NAME}, o registro vai para
-            todos.
-          </p>
-        </div>
-        <button type="button" onClick={() => setModal("novo")} className={btn.secundario}>
-          Criar grupo
-        </button>
-      </div>
+      <PageHeader
+        title="Grupos"
+        description={`Junte animais que recebem o mesmo cuidado. Quando alguém falar o nome do grupo no microfone do ${BRAND_NAME}, o registro vai para todos.`}
+        actions={<Button onClick={() => setModal("novo")}>Criar grupo</Button>}
+      />
 
-      {erro && (
-        <p role="alert" className="text-sm text-danger">
-          {erro}
-        </p>
-      )}
+      {erro && <FormMessage>{erro}</FormMessage>}
 
       {!sel ? (
         <div className="flex max-w-xl flex-col gap-1.5 py-6">
@@ -93,7 +79,7 @@ export function GruposView({
                   type="button"
                   onClick={() => setSelId(g.id)}
                   aria-current={g.id === sel.id ? "true" : undefined}
-                  className={`flex w-full cursor-pointer flex-col gap-[3px] rounded-field px-3.5 py-3 text-left ${g.id === sel.id ? "bg-surface" : "hover:bg-hover"}`}
+                  className={cx("flex w-full cursor-pointer flex-col gap-[3px] rounded-field px-3.5 py-3 text-left", g.id === sel.id ? "bg-surface" : "hover:bg-hover")}
                 >
                   <span className="text-[15px] font-semibold text-ink">{g.nome}</span>
                   <span className="text-sm text-ink-muted">
@@ -104,15 +90,15 @@ export function GruposView({
             ))}
           </ul>
 
-          <section aria-label={sel.nome} className="flex min-w-0 flex-[999_1_28rem] flex-col rounded-card border border-line bg-white">
+          <Card as="section" aria-label={sel.nome} className="flex min-w-0 flex-[999_1_28rem] flex-col">
             <div className="flex flex-wrap items-start justify-between gap-4 px-6 py-[22px]">
               <div className="flex flex-col gap-1">
                 <h2 className="text-xl font-semibold text-ink">{sel.nome}</h2>
                 <p className="text-[15px] text-ink-muted">{[rotuloEspecie(sel.especie), sel.local].filter(Boolean).join(" · ") || "Sem espécie ou local"}</p>
               </div>
-              <button type="button" onClick={() => setModal("editar")} className="h-10 cursor-pointer rounded-field px-3 text-[15px] font-semibold text-ink hover:bg-hover">
+              <Button variant="fantasma" onClick={() => setModal("editar")}>
                 Editar
-              </button>
+              </Button>
             </div>
             <div className="flex flex-wrap gap-x-10 gap-y-3.5 border-t border-line-soft px-6 py-4">
               <div className="flex flex-[1_1_12rem] flex-col gap-1">
@@ -148,14 +134,14 @@ export function GruposView({
                     <button
                       type="button"
                       onClick={() => tirar(sel, a.id)}
-                      className="cursor-pointer rounded-lg px-2.5 py-1.5 text-sm font-semibold text-danger hover:bg-danger-bg"
+                      className={buttonClass("linhaPerigo")}
                     >
                       Tirar do grupo
                     </button>
                   </li>
                 ))}
             </ul>
-          </section>
+          </Card>
         </div>
       )}
 
@@ -186,19 +172,6 @@ export function GruposView({
       )}
     </div>
   );
-}
-
-function Campo({ label, children, largo }: { label: string; children: ReactNode; largo?: boolean }) {
-  return (
-    <label className={`flex flex-col gap-1.5 ${largo ? "sm:col-span-2" : ""}`}>
-      <span className="text-sm font-semibold text-ink">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function Rodape({ children }: { children: ReactNode }) {
-  return <div className="-mx-6 -mb-6 flex items-center justify-between gap-2 border-t border-line px-6 py-4">{children}</div>;
 }
 
 function GrupoModal({
@@ -257,10 +230,10 @@ function GrupoModal({
     >
       <form onSubmit={submit} className="flex flex-col gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Campo label="Nome do grupo" largo>
-            <input name="nome" className={campo} defaultValue={grupo?.nome ?? ""} placeholder="Ex.: Lote 5, Bezerros, Cães da casa" autoFocus required />
-          </Campo>
-          <Campo label="Espécie">
+          <Field label="Nome do grupo" wide>
+            <Input name="nome" defaultValue={grupo?.nome ?? ""} placeholder="Ex.: Lote 5, Bezerros, Cães da casa" autoFocus required />
+          </Field>
+          <Field label="Espécie">
             <Select name="especie" defaultValue={grupo?.especie ?? ""}>
               <option value="">Não informada</option>
               {ESPECIES.map((e) => (
@@ -270,47 +243,35 @@ function GrupoModal({
               ))}
               <option value={MISTURADO}>Misturado</option>
             </Select>
-          </Campo>
-          <Campo label="Onde fica">
-            <input name="local" className={campo} defaultValue={grupo?.local ?? ""} placeholder="Ex.: Pasto de cima" />
-          </Campo>
+          </Field>
+          <Field label="Onde fica">
+            <Input name="local" defaultValue={grupo?.local ?? ""} placeholder="Ex.: Pasto de cima" />
+          </Field>
         </div>
-        {erro && (
-          <p role="alert" className="text-sm text-danger">
-            {erro}
-          </p>
-        )}
+        {erro && <FormMessage>{erro}</FormMessage>}
         {confirmar && grupo && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-field border border-[#efd3cc] bg-danger-bg px-4 py-3 text-[15px] text-ink">
-            <span>Remover o grupo {grupo.nome}? Os animais continuam cadastrados.</span>
-            <span className="flex gap-2">
-              <button type="button" onClick={() => setConfirmar(false)} className={btn.secundario}>
-                Não
-              </button>
-              <button type="button" onClick={remover} disabled={pending} className={btn.perigoSolido}>
-                Remover
-              </button>
-            </span>
-          </div>
+          <ConfirmBar onCancel={() => setConfirmar(false)} onConfirm={remover} pending={pending}>
+            Remover o grupo {grupo.nome}? Os animais continuam cadastrados.
+          </ConfirmBar>
         )}
-        <Rodape>
-          {grupo && possoRemover && !confirmar ? (
-            <button type="button" onClick={() => setConfirmar(true)} className={btn.perigo}>
-              Remover grupo
-            </button>
-          ) : (
-            <span />
-          )}
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="cursor-pointer rounded-field px-3.5 text-[15px] font-semibold text-ink hover:bg-hover">
-              Cancelar
-            </button>
-            <button type="submit" disabled={pending} className={btn.primario}>
-              {pending && <Loader2 className="size-4 animate-spin" />}
-              {grupo ? "Salvar" : "Criar grupo"}
-            </button>
-          </div>
-        </Rodape>
+        <ModalFooter
+          start={
+            grupo && possoRemover && !confirmar ? (
+              <Button variant="perigo" onClick={() => setConfirmar(true)}>
+                Remover grupo
+              </Button>
+            ) : (
+              <span />
+            )
+          }
+        >
+          <Button variant="fantasma" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" variant="primario" loading={pending}>
+            {grupo ? "Salvar" : "Criar grupo"}
+          </Button>
+        </ModalFooter>
       </form>
     </Modal>
   );
@@ -355,13 +316,12 @@ function MembroModal({
           <p className="text-[15px] text-ink-muted">Todos os animais ativos já estão neste grupo.</p>
         ) : (
           <>
-            <input
+            <Input
               type="search"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por nome ou número"
               aria-label="Buscar animal"
-              className={campo}
               autoFocus
             />
             <ul className="-mx-2 flex max-h-72 flex-col overflow-y-auto">
@@ -389,23 +349,15 @@ function MembroModal({
             </ul>
           </>
         )}
-        {erro && (
-          <p role="alert" className="text-sm text-danger">
-            {erro}
-          </p>
-        )}
-        <Rodape>
-          <span className="text-sm text-ink-muted">{marcados.size ? `${marcados.size} marcados` : ""}</span>
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="cursor-pointer rounded-field px-3.5 text-[15px] font-semibold text-ink hover:bg-hover">
-              Cancelar
-            </button>
-            <button type="button" onClick={salvar} disabled={pending || marcados.size === 0} className={btn.primario}>
-              {pending && <Loader2 className="size-4 animate-spin" />}
-              Adicionar
-            </button>
-          </div>
-        </Rodape>
+        {erro && <FormMessage>{erro}</FormMessage>}
+        <ModalFooter start={<span className="text-sm text-ink-muted">{marcados.size ? `${marcados.size} marcados` : ""}</span>}>
+          <Button variant="fantasma" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button variant="primario" onClick={salvar} loading={pending} disabled={marcados.size === 0}>
+            Adicionar
+          </Button>
+        </ModalFooter>
       </div>
     </Modal>
   );

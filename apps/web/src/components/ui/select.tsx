@@ -1,6 +1,8 @@
 import { ChevronDown } from "lucide-react";
 import type { SelectHTMLAttributes } from "react";
 
+import { CAMPO, cx } from "./variants";
+
 /**
  * <select> nativo com a seta desenhada por nós: a do navegador cola na borda
  * e não dá para afastar. O visual (borda, foco, altura) é o mesmo dos inputs.
@@ -10,10 +12,10 @@ export function Select({
   ...props
 }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <span className={`relative block ${className}`}>
+    <span className={cx("relative block", className)}>
       <select
         {...props}
-        className="h-11 w-full appearance-none rounded-field border border-field-border bg-white pr-10 pl-3.5 text-[15px] text-ink outline-none transition focus:border-field-border-focus focus:ring-2 focus:ring-brand/20 disabled:bg-surface disabled:text-ink-muted"
+        className={cx(CAMPO, "h-11 appearance-none pr-10 pl-3.5")}
       />
       <ChevronDown
         aria-hidden="true"

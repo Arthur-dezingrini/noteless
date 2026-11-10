@@ -20,13 +20,12 @@ import {
   type StatusOcorrencia,
   type TipoConsulta,
 } from "@vocare/shared";
-import { Check, ChevronDown, Loader2, Pause, Play } from "lucide-react";
+import { Check, ChevronDown, Pause, Play } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition, type KeyboardEvent } from "react";
 
-import { Select } from "@/components/app/select";
-import { btn, campo } from "@/components/app/ui";
+import { Button, Card, FormMessage, PageHeader, Select, Tabs, Textarea } from "@/components/ui";
 import { chamarApiJson } from "@/lib/api-client";
 import { BRAND_NAME } from "@/lib/brand";
 import { duracaoCurta, formatar, haQuantoTempo } from "@/lib/datas";
@@ -615,7 +614,7 @@ function Detalhe({
         }[estado];
 
   return (
-    <section aria-label="Ocorrência" className="flex min-w-0 flex-[999_1_28rem] flex-col rounded-card border border-line bg-white">
+    <Card as="section" aria-label="Ocorrência" className="flex min-w-0 flex-[999_1_28rem] flex-col">
       <div className="flex flex-col gap-3.5 px-6 py-5">
         <div className="flex items-baseline justify-between gap-3 text-[15px]">
           <span>
@@ -637,36 +636,31 @@ function Detalhe({
             <p className="text-[15px] leading-normal text-ink-soft">Pode ter tido muito barulho ou o som ficou baixo. Ouça e escreva o que foi dito.</p>
           </div>
           {escrevendo && (
-            <textarea
+            <Textarea
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
               rows={3}
               autoFocus
               aria-label="O que foi dito no áudio"
               placeholder="Ex.: Dei vermífugo na Bolota, 5 ml."
-              className={`${campo} h-auto resize-y py-2.5 leading-normal`}
+              className="resize-y"
             />
           )}
           {erro && (
-            <p role="alert" className="text-sm text-danger">
-              {erro}
-            </p>
+<FormMessage>{erro}</FormMessage>
           )}
           <div className="flex flex-wrap gap-2">
             {escrevendo ? (
-              <button type="button" disabled={pending || texto.trim().length < 3} onClick={() => agir("texto")} className={btn.primario}>
-                {pending && <Loader2 className="size-4 animate-spin" />}
+              <Button variant="primario" disabled={texto.trim().length < 3} loading={pending} onClick={() => agir("texto")}>
                 Enviar texto
-              </button>
+              </Button>
             ) : (
-              <button type="button" onClick={() => setEscrevendo(true)} className={btn.secundario}>
-                Escrever o que foi dito
-              </button>
+              <Button onClick={() => setEscrevendo(true)}>Escrever o que foi dito</Button>
             )}
             {podeSalvar && (
-              <button type="button" disabled={pending} onClick={() => agir("descartar")} className={btn.perigo}>
+              <Button variant="perigo" disabled={pending} onClick={() => agir("descartar")}>
                 Descartar
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -720,30 +714,26 @@ function Detalhe({
           <div className="flex flex-col items-end gap-1">
             <div className="flex gap-2">
               {podeSalvar && (
-                <button type="button" disabled={pending} onClick={() => agir("descartar")} className={btn.perigo}>
+                <Button variant="perigo" disabled={pending} onClick={() => agir("descartar")}>
                   Descartar
-                </button>
+                </Button>
               )}
               {podeSalvar ? (
-                <button type="button" disabled={pending || n === 0} onClick={() => agir("confirmar")} className={`${btn.primario} px-[18px]`}>
-                  {pending && <Loader2 className="size-4 animate-spin" />}
+                <Button variant="primario" disabled={n === 0} loading={pending} onClick={() => agir("confirmar")} className="px-[18px]">
                   {n === 0 ? "Nada marcado" : `Salvar ${n} ${n === 1 ? "ação" : "ações"}`}
-                </button>
+                </Button>
               ) : oc.encaminhadaEm ? (
                 <span className="text-sm text-ink-muted">
                   Mandada para o administrador <span suppressHydrationWarning>{haQuantoTempo(oc.encaminhadaEm)}</span>.
                 </span>
               ) : (
-                <button type="button" disabled={pending || n === 0} onClick={() => agir("encaminhar")} className={btn.primario}>
-                  {pending && <Loader2 className="size-4 animate-spin" />}
+                <Button variant="primario" disabled={n === 0} loading={pending} onClick={() => agir("encaminhar")}>
                   Mandar para o administrador
-                </button>
+                </Button>
               )}
             </div>
             {erro && (
-              <p role="alert" className="text-sm text-danger">
-                {erro}
-              </p>
+<FormMessage>{erro}</FormMessage>
             )}
           </div>
         </div>
@@ -766,9 +756,9 @@ function Detalhe({
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-soft px-6 py-3.5">
           <span className="text-sm text-ink-muted">Nada disto entrou no sistema. Fica guardado aqui por 30 dias.</span>
           {podeSalvar && (
-            <button type="button" disabled={pending} onClick={() => agir("restaurar")} className={btn.secundario}>
+            <Button disabled={pending} onClick={() => agir("restaurar")}>
               Voltar para conferir
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -789,7 +779,7 @@ function Detalhe({
           }}
         />
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -879,34 +869,20 @@ export function OcorrenciasView({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1.5">
-        <h1 className="text-[28px] leading-tight font-semibold tracking-tight text-ink">Ocorrências</h1>
-        <p className="text-base text-ink-muted">O que foi falado no microfone do {BRAND_NAME}. Nada entra no sistema antes de alguém conferir.</p>
-      </div>
+      <PageHeader
+        title="Ocorrências"
+        description={`O que foi falado no microfone do ${BRAND_NAME}. Nada entra no sistema antes de alguém conferir.`}
+      />
 
-      <div role="tablist" aria-label="Situação" className="flex gap-6 border-b border-line">
-        {ABAS.map((t) => {
-          const n = lista.filter((o) => o.status === t.status).length;
-          const ativo = t.status === aba;
-          return (
-            <button
-              key={t.status}
-              type="button"
-              role="tab"
-              aria-selected={ativo}
-              onClick={() => {
-                setAba(t.status);
-                setSelecionadaId(null);
-              }}
-              className={`-mb-px cursor-pointer border-b-2 pb-2.5 text-[15px] transition ${
-                ativo ? "border-ink font-semibold text-ink" : "border-transparent text-ink-muted hover:text-ink"
-              }`}
-            >
-              {t.label} <span className="ml-0.5 font-medium text-ink-muted tabular-nums">{n}</span>
-            </button>
-          );
-        })}
-      </div>
+      <Tabs
+        label="Situação"
+        value={aba}
+        items={ABAS.map((t) => ({ value: t.status, label: t.label, count: lista.filter((o) => o.status === t.status).length }))}
+        onChange={(status) => {
+          setAba(status);
+          setSelecionadaId(null);
+        }}
+      />
 
       {visiveis.length === 0 ? (
         <div className="flex max-w-xl flex-col gap-1.5 py-6">

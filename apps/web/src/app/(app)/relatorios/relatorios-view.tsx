@@ -15,8 +15,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTransition, type ReactNode } from "react";
 
-import { Select } from "@/components/app/select";
-import { btn } from "@/components/app/ui";
+import { Button, buttonClass, cx, Card, PageHeader, Select, Tabs, tabela } from "@/components/ui";
 
 /** "AAAA-MM-DD" → "DD/MM". */
 const dm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
@@ -53,12 +52,12 @@ function paraCsv(r: Relatorio): string {
 
 function Tabela({ cabecalho, children, largura = "" }: { cabecalho: ReactNode; children: ReactNode; largura?: string }) {
   return (
-    <div className={`overflow-x-auto rounded-card border border-line bg-white ${largura}`}>
+    <Card className={cx("overflow-x-auto", largura)}>
       <table className="w-full min-w-[36rem] text-left text-[15px]">
-        <thead className="border-b border-line bg-detail text-[13px] font-semibold text-ink-muted">{cabecalho}</thead>
+        <thead className={tabela.thead}>{cabecalho}</thead>
         <tbody className="[&>tr+tr]:border-t [&>tr+tr]:border-line-soft">{children}</tbody>
       </table>
-    </div>
+    </Card>
   );
 }
 
@@ -89,51 +88,51 @@ export function RelatoriosView({ tipo, periodo, relatorio: r }: { tipo: TipoRela
   const vazio = r && r.linhas.length === 0;
 
   return (
-    <div className={`flex flex-col gap-6 transition-opacity ${pending ? "opacity-60" : ""}`}>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <h1 className="text-[28px] leading-tight font-semibold tracking-tight text-ink">Relatórios</h1>
-          <p className="text-base text-ink-muted print:hidden">Para imprimir, guardar ou mandar para alguém.</p>
-          <p className="hidden text-base text-ink-muted print:block">{ROTULO_RELATORIO[tipo]}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 print:hidden">
-          <Select
-            value={periodo}
-            onChange={(e) => ir({ periodo: e.target.value as Periodo })}
-            aria-label="Período"
-            disabled={!RELATORIO_COM_PERIODO.includes(tipo)}
-            title={RELATORIO_COM_PERIODO.includes(tipo) ? undefined : "Este relatório não depende do período"}
-            className="w-44"
-          >
-            {PERIODOS.map((p) => (
-              <option key={p} value={p}>
-                {ROTULO_PERIODO[p]}
-              </option>
-            ))}
-          </Select>
-          <button type="button" onClick={() => window.print()} disabled={!r || !!vazio} className={btn.secundario}>
-            Imprimir
-          </button>
-          <button type="button" onClick={baixar} disabled={!r || !!vazio} className={btn.secundario}>
-            Baixar planilha
-          </button>
-        </div>
-      </div>
+    <div className={cx("flex flex-col gap-6 transition-opacity", pending && "opacity-60")}>
+      <PageHeader
+        title="Relatórios"
+        description={
+          <>
+            <span className="print:hidden">Para imprimir, guardar ou mandar para alguém.</span>
+            <span className="hidden print:inline">{ROTULO_RELATORIO[tipo]}</span>
+          </>
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
+            <Select
+              value={periodo}
+              onChange={(e) => ir({ periodo: e.target.value as Periodo })}
+              aria-label="Período"
+              disabled={!RELATORIO_COM_PERIODO.includes(tipo)}
+              title={RELATORIO_COM_PERIODO.includes(tipo) ? undefined : "Este relatório não depende do período"}
+              className="w-44"
+            >
+              {PERIODOS.map((p) => (
+                <option key={p} value={p}>
+                  {ROTULO_PERIODO[p]}
+                </option>
+              ))}
+            </Select>
+            <Button onClick={() => window.print()} disabled={!r || !!vazio}>
+              Imprimir
+            </Button>
+            <Button onClick={baixar} disabled={!r || !!vazio}>
+              Baixar planilha
+            </Button>
+          </div>
+        }
+      />
 
-      <div role="tablist" aria-label="Relatório" className="flex flex-wrap gap-x-6 gap-y-1.5 border-b border-line print:hidden">
-        {TIPOS_RELATORIO.map((t) => (
-          <button
-            key={t}
-            type="button"
-            role="tab"
-            aria-selected={t === tipo}
-            onClick={() => ir({ tipo: t })}
-            className={`-mb-px cursor-pointer border-b-2 pb-[11px] text-[15px] ${t === tipo ? "border-ink font-semibold text-ink" : "border-transparent text-ink-muted hover:text-ink"}`}
-          >
-            {ROTULO_RELATORIO[t]}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        label="Relatório"
+        items={TIPOS_RELATORIO.map((t) => ({
+          value: t,
+          label: ROTULO_RELATORIO[t],
+        }))}
+        value={tipo}
+        onChange={(t) => ir({ tipo: t })}
+        className="print:hidden"
+      />
 
       {!r ? (
         <p className="text-[15px] text-danger">Não foi possível carregar o relatório. Recarregue a página.</p>
@@ -199,10 +198,10 @@ export function RelatoriosView({ tipo, periodo, relatorio: r }: { tipo: TipoRela
                     <td className={td}>{l.vacina}</td>
                     <td className={`${td} text-ink-soft tabular-nums`}>{dm(l.vence)}</td>
                     <td className={`${td} text-sm font-semibold ${s.cor}`}>{s.texto}</td>
-                    <td className={`px-[18px] py-2.5 text-right print:hidden`}>
+                    <td className="px-[18px] py-2.5 text-right print:hidden">
                       <Link
                         href={`/agenda?nova=${l.animalId}&tipo=vacinacao&obs=${encodeURIComponent(`Vacina ${l.vacina}`)}`}
-                        className="inline-flex h-9 items-center rounded-[9px] border border-button-border bg-white px-3 text-sm font-semibold text-ink no-underline hover:bg-hover"
+                        className={buttonClass("pequeno")}
                       >
                         Marcar na agenda
                       </Link>
@@ -228,7 +227,7 @@ export function RelatoriosView({ tipo, periodo, relatorio: r }: { tipo: TipoRela
                 </label>
               )}
               {r.linhas.length > 0 && (
-                <div className="flex max-w-[780px] flex-col gap-3 rounded-card border border-line bg-white px-[22px] py-5">
+                <Card className="flex max-w-[780px] flex-col gap-3 px-[22px] py-5">
                   {(() => {
                     const max = Math.max(...r.linhas.map((l) => l.pesoKg));
                     const min = Math.min(...r.linhas.map((l) => l.pesoKg));
@@ -240,22 +239,24 @@ export function RelatoriosView({ tipo, periodo, relatorio: r }: { tipo: TipoRela
                         <span className="flex h-[22px] overflow-hidden rounded-md bg-[#f4f2ed]">
                           <span
                             className={`h-full rounded-md ${i === r.linhas.length - 1 ? "bg-brand" : "bg-[#a9cdb4]"}`}
-                            style={{ width: `${max === base ? 100 : Math.max(8, ((l.pesoKg - base) / (max - base)) * 100)}%` }}
+                            style={{
+                              width: `${max === base ? 100 : Math.max(8, ((l.pesoKg - base) / (max - base)) * 100)}%`,
+                            }}
                           />
                         </span>
                         <span className="text-right text-[15px] font-semibold text-ink tabular-nums">{l.pesoKg.toLocaleString("pt-BR")} kg</span>
                       </div>
                     ));
                   })()}
-                </div>
+                </Card>
               )}
             </>
           )}
 
           {r.tipo === "tratamento" && r.linhas.length > 0 && (
-            <ul className="rounded-card border border-line bg-white">
+            <Card as="ul">
               {r.linhas.map((l, i) => (
-                <li key={`${l.animalId}-${i}`} className={`flex flex-wrap gap-x-7 gap-y-2 px-5 py-4 ${i ? "border-t border-line" : ""}`}>
+                <li key={`${l.animalId}-${i}`} className={cx("flex flex-wrap gap-x-7 gap-y-2 px-5 py-4", i > 0 && "border-t border-line")}>
                   <Link href={`/animais/${l.animalId}`} className="flex flex-[1_1_15rem] flex-col gap-0.5 text-ink no-underline hover:underline">
                     <span className="text-[15px] font-semibold">{l.alvo}</span>
                   </Link>
@@ -269,7 +270,7 @@ export function RelatoriosView({ tipo, periodo, relatorio: r }: { tipo: TipoRela
                   <div className="flex-[0_1_14rem] text-sm font-semibold text-ink-soft">{l.proximo ?? "Nada marcado"}</div>
                 </li>
               ))}
-            </ul>
+            </Card>
           )}
 
           {r.tipo === "ocorrencias" && r.linhas.length > 0 && (
