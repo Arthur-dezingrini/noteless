@@ -95,7 +95,7 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
         </ul>
 
         <p className="max-w-2xl text-sm leading-relaxed text-ink-muted">
-          Administrador confere ocorrências e mexe em usuários e dados da conta. Membro grava ocorrências e consulta, mas o que ele grava vai
+          Administrador confere notas e mexe em usuários e dados da conta. Membro grava notas e consulta, mas o que ele grava vai
           para um administrador conferir.
         </p>
       </div>

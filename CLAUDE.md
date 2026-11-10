@@ -19,6 +19,9 @@ aplicações separadas, com deploy independente:
 - `apps/api/src/db/schema.ts` é gerado (`npm run auth:generate`); não edite à mão.
 - Cor de marca em `apps/web/src/app/globals.css`; nome do produto em
   `apps/web/src/lib/brand.ts`. Um lugar cada.
+- Na tela é **nota** (página `/notas`); no código, no banco e na api continua
+  `ocorrencia` — `/api/org/:orgId/ocorrencias` é o que o gravador chama. Não
+  renomeie; texto novo para quem usa diz "nota".
 - **Toda funcionalidade nova vem com teste, no mesmo commit.** Rota nova ou
   regra nova na api → teste em `apps/api/test/`, cobrindo o caminho feliz e
   quem NÃO pode (outro papel, outra organização). Schema ou função pura →

@@ -1,6 +1,6 @@
 # Firmware — gravador de campo
 
-Código do ESP32 que grava ocorrências e manda para a api. Fora dos workspaces
+Código do ESP32 que grava notas e manda para a api. Fora dos workspaces
 npm; compila com `arduino-cli` (core `esp32:esp32`).
 
 Placa usada: ESP32 DevKit 38 pinos, chip ESP32-D0WD-V3, USB CP2102, flash 4 MB.

@@ -20,7 +20,7 @@ const ROTAS_PROTEGIDAS = [
   "/animais",
   "/grupos",
   "/prontuarios",
-  "/ocorrencias",
+  "/notas",
   "/relatorios",
   "/configuracoes",
   "/perfil",

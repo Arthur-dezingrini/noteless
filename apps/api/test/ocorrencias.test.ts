@@ -75,8 +75,8 @@ describe("conferência de ocorrências", () => {
     const avisos = await db
       .select()
       .from(notificacao)
-      .where(and(eq(notificacao.userId, f.membro.id), eq(notificacao.link, `/ocorrencias?id=${id}`)));
-    expect(avisos).toEqual([expect.objectContaining({ texto: "Sua ocorrência foi salva" })]);
+      .where(and(eq(notificacao.userId, f.membro.id), eq(notificacao.link, `/notas?id=${id}`)));
+    expect(avisos).toEqual([expect.objectContaining({ texto: "Sua nota foi salva" })]);
   });
 
   it("ação sem animal não salva, e nada entra no sistema (tudo ou nada)", async () => {

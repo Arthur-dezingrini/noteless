@@ -88,7 +88,7 @@ export function Header({ orgId, notificacoes }: { orgId: string | null; notifica
             </div>
             {lista.length === 0 ? (
               <p className="border-t border-line-soft px-[18px] py-6 text-[15px] text-ink-muted">
-                Nenhum aviso. Quando alguém gravar ou salvar uma ocorrência, aparece aqui.
+                Nenhum aviso. Quando alguém gravar ou salvar uma nota, aparece aqui.
               </p>
             ) : (
               lista.map((n) => (

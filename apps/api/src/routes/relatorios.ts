@@ -249,8 +249,8 @@ relatoriosRoutes.get("/:orgId/relatorios/:tipo", async (c) => {
       rel = {
         tipo: "ocorrencias",
         resumo: total
-          ? `${total} ${total === 1 ? "ocorrência gravada" : "ocorrências gravadas"}, ${salvas} ${salvas === 1 ? "salva" : "salvas"} no sistema · ${nomePeriodo}`
-          : `Nenhuma ocorrência gravada · ${nomePeriodo}`,
+          ? `${total} ${total === 1 ? "nota gravada" : "notas gravadas"}, ${salvas} ${salvas === 1 ? "salva" : "salvas"} no sistema · ${nomePeriodo}`
+          : `Nenhuma nota gravada · ${nomePeriodo}`,
         linhas,
       };
       break;

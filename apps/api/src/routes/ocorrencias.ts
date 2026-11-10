@@ -32,7 +32,7 @@ import { administradores, notificar } from "../notificacoes/notificar";
 export const ocorrenciasRoutes = new Hono();
 
 const PODE_SALVAR: Papel[] = ["owner", "admin"];
-const SO_ADMIN = "Só o administrador salva ou descarta ocorrências. Use \"Mandar para o administrador\".";
+const SO_ADMIN = "Só o administrador salva ou descarta notas. Use \"Mandar para o administrador\".";
 
 const TAMANHO_MAXIMO = 25 * 1024 * 1024; // limite do Whisper
 const HORA_PADRAO = "08:00";
@@ -154,9 +154,9 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias", async (c) => {
       .catch((e: unknown) => console.error("[ocorrencias] falha ao guardar áudio:", e));
 
     await notificar(orgId, await administradores(orgId, eu.userId), {
-      texto: `${eu.nome} gravou uma ocorrência`,
+      texto: `${eu.nome} gravou uma nota`,
       detalhe: transcricao ? transcricao.slice(0, 80) : "Áudio não entendido",
-      link: `/ocorrencias?id=${nova!.id}`,
+      link: `/notas?id=${nova!.id}`,
     });
 
     const [pronta] = await buscar(orgId, nova!.id);
@@ -202,8 +202,8 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/texto", async (c) => {
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
 
   const [alvo] = await buscar(orgId, id);
-  if (!alvo) return c.json({ error: "Ocorrência não encontrada." }, 404);
-  if (alvo.status !== "pendente") return c.json({ error: "Esta ocorrência já foi revisada." }, 409);
+  if (!alvo) return c.json({ error: "Nota não encontrada." }, 404);
+  if (alvo.status !== "pendente") return c.json({ error: "Esta nota já foi revisada." }, 409);
 
   try {
     const analise = await analisar(body.data.texto, hojeISO(), await animaisDaOrg(orgId), await gruposDaOrg(orgId));
@@ -258,12 +258,12 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/encaminhar", async (c) => {
     .set({ encaminhadaPorId: eu.userId, encaminhadaEm: new Date() })
     .where(and(eq(ocorrencia.id, id), eq(ocorrencia.organizationId, orgId), eq(ocorrencia.status, "pendente")))
     .returning({ id: ocorrencia.id, resumo: ocorrencia.resumo });
-  if (!alvo) return c.json({ error: "Ocorrência não encontrada ou já revisada." }, 404);
+  if (!alvo) return c.json({ error: "Nota não encontrada ou já revisada." }, 404);
 
   await notificar(orgId, await administradores(orgId, eu.userId), {
-    texto: `${eu.nome} mandou uma ocorrência para conferir`,
+    texto: `${eu.nome} mandou uma nota para conferir`,
     detalhe: alvo.resumo || null,
-    link: `/ocorrencias?id=${id}`,
+    link: `/notas?id=${id}`,
   });
 
   const [pronta] = await buscar(orgId, id);
@@ -395,8 +395,8 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/confirmar", async (c) => {
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
 
   const [alvo] = await buscar(orgId, id);
-  if (!alvo) return c.json({ error: "Ocorrência não encontrada." }, 404);
-  if (alvo.status !== "pendente") return c.json({ error: "Esta ocorrência já foi revisada." }, 409);
+  if (!alvo) return c.json({ error: "Nota não encontrada." }, 404);
+  if (alvo.status !== "pendente") return c.json({ error: "Esta nota já foi revisada." }, 409);
 
   // Correções de quem conferiu entram antes de aplicar; o valor da IA fica
   // em `original` de cada operação (trilha de auditoria).
@@ -434,9 +434,9 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/confirmar", async (c) => {
 
   const n = escolhidas.length;
   await notificar(orgId, [await donoSeOutro(id, eu.userId)], {
-    texto: "Sua ocorrência foi salva",
+    texto: "Sua nota foi salva",
     detalhe: `${n} ${n === 1 ? "ação feita" : "ações feitas"} no sistema por ${eu.nome}`,
-    link: `/ocorrencias?id=${id}`,
+    link: `/notas?id=${id}`,
   });
 
   const [pronta] = await buscar(orgId, id);
@@ -455,12 +455,12 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/descartar", async (c) => {
     .set({ status: "descartada", revisadoPorId: eu.userId, revisadoEm: new Date() })
     .where(and(eq(ocorrencia.id, id), eq(ocorrencia.organizationId, orgId), inArray(ocorrencia.status, ["pendente"])))
     .returning({ id: ocorrencia.id });
-  if (!alvo) return c.json({ error: "Ocorrência não encontrada ou já revisada." }, 404);
+  if (!alvo) return c.json({ error: "Nota não encontrada ou já revisada." }, 404);
 
   await notificar(orgId, [await donoSeOutro(id, eu.userId)], {
-    texto: "Sua ocorrência foi descartada",
+    texto: "Sua nota foi descartada",
     detalhe: `Por ${eu.nome}. Nada entrou no sistema.`,
-    link: `/ocorrencias?id=${id}`,
+    link: `/notas?id=${id}`,
   });
 
   const [pronta] = await buscar(orgId, id);
@@ -480,7 +480,7 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/restaurar", async (c) => {
     .set({ status: "pendente", revisadoPorId: null, revisadoEm: null })
     .where(and(eq(ocorrencia.id, id), eq(ocorrencia.organizationId, orgId), eq(ocorrencia.status, "descartada")))
     .returning({ id: ocorrencia.id });
-  if (!alvo) return c.json({ error: "Ocorrência não encontrada ou não está descartada." }, 404);
+  if (!alvo) return c.json({ error: "Nota não encontrada ou não está descartada." }, 404);
 
   const [pronta] = await buscar(orgId, id);
   return c.json(pronta);

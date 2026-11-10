@@ -9,7 +9,7 @@ export const ROTULO_RELATORIO: Record<TipoRelatorio, string> = {
   vencer: "Vacinas a vencer",
   peso: "Peso",
   tratamento: "Em tratamento",
-  ocorrencias: "Ocorrências",
+  ocorrencias: "Notas",
 };
 
 /** Relatórios que dependem do período escolhido. */

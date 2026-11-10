@@ -277,17 +277,19 @@ migração.
   e registrar marca a consulta como concluída. O retorno preenchido vira uma
   consulta nova na agenda. Qualquer membro registra e corrige; apagar é de
   administrador.
-- **Ocorrências** — `ocorrencia`: o coração do produto. Um áudio do campo
-  entra, é transcrito e interpretado pela IA, e vira um registro *pendente*
-  com as operações propostas (JSON). Nada é gravado nas outras tabelas até um
-  humano confirmar: a confirmação aplica só as operações marcadas (agendar
-  consulta, anotação no animal em `anotacao_animal`, atualizar peso), tudo
-  numa transação. Operação sem animal do cadastro não é aplicável — a tela
-  avisa. O áudio fica em `ocorrencia_audio` para quem confere poder ouvir.
+- **Notas** — `ocorrencia` no código, na api e no banco (na tela, "nota"; o
+  endereço antigo `/ocorrencias` leva a `/notas`): o coração do produto. Um
+  áudio do campo entra, é transcrito e interpretado pela IA, e vira um
+  registro *pendente* com as operações propostas (JSON). Nada é gravado nas
+  outras tabelas até um humano confirmar: a confirmação aplica só as operações
+  marcadas (agendar consulta, anotação no animal em `anotacao_animal`,
+  atualizar peso), tudo numa transação. Operação sem animal do cadastro não é
+  aplicável — a tela avisa. O áudio fica em `ocorrencia_audio` para quem
+  confere poder ouvir.
 
   O áudio entra por `POST /api/org/:orgId/ocorrencias` (multipart, campo
   `audio`) — é por aí que o gravador de campo (ESP32, em `firmware/`) e o
-  WhatsApp vão chegar. Áudio que a transcrição não entende vira ocorrência
+  WhatsApp vão chegar. Áudio que a transcrição não entende vira nota
   mesmo assim; quem confere escreve o que foi dito (`POST …/:id/texto`) e a IA
   reinterpreta.
 
@@ -299,7 +301,7 @@ migração.
   e a interpretação (`openai/gpt-oss-120b`, com tool calling) rodam na Groq.
   Se houver `ANTHROPIC_API_KEY`, a interpretação passa para o Claude; a
   resolução está em `apps/api/src/ia/provedor.ts`. A saída do modelo é sempre
-  validada pelo contrato antes de virar ocorrência. Sem chave nenhuma a api
+  validada pelo contrato antes de virar nota. Sem chave nenhuma a api
   sobe normalmente e a gravação responde 503 dizendo o que falta.
 
 Cada módulo tem contrato em `packages/shared` (schemas Zod), rotas em
@@ -328,7 +330,7 @@ em memória (PGlite) com as mesmas migrações: `test/setup.ts` troca o `db` da
 api por ele, então rotas e Better Auth funcionam de verdade, sem Neon, sem
 internet e sem chave de IA — o `.env` nem é lido. `test/ajuda.ts` cria uma
 fazenda com dono, admin e membro já logados. Cobrem permissões por papel e
-por organização, conferência de ocorrências e prontuários.
+por organização, conferência de notas e prontuários.
 
 Dentro de um workspace, `npm run test:watch` roda a cada mudança.
 

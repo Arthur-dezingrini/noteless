@@ -49,13 +49,13 @@ export default async function InicioPage() {
             <span aria-hidden="true" className="size-2 rounded-full bg-warn-dot" />
             <span>
               <b className="font-semibold">
-                {pendentes} {pendentes === 1 ? "ocorrência" : "ocorrências"}
+                {pendentes} {pendentes === 1 ? "nota" : "notas"}
               </b>{" "}
               esperando você conferir
             </span>
           </p>
           <Link
-            href="/ocorrencias"
+            href="/notas"
             className="inline-flex h-10 items-center rounded-field border border-button-border bg-white px-3.5 text-[15px] font-semibold text-ink no-underline hover:bg-hover"
           >
             Conferir agora
