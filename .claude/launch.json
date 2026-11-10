@@ -3,10 +3,10 @@
   "configurations": [
     {
       "name": "vocare-dev",
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "bash",
       "runtimeArgs": [
-        "run",
-        "dev"
+        "-c",
+        "PATH=\"$HOME/.nvm/versions/node/v24.19.0/bin:$PATH\" npm run dev"
       ],
       "port": 3000
     },
