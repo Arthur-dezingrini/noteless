@@ -12,13 +12,13 @@ import { and, desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { db } from "../db";
-import { animal } from "../db/tabelas/animais";
-import { consulta, prontuario } from "../db/tabelas/saude";
-import { grupo, grupoAnimal, parto, pesagem, tratamento, vacina } from "../db/tabelas/historico";
-import { anotacaoAnimal, ocorrencia } from "../db/tabelas/notas";
-import { user } from "../db/schema";
-import { membroAtual } from "../base/membro-atual";
+import { db } from "../../../db";
+import { animal } from "../../../db/tabelas/animais";
+import { consulta, prontuario } from "../../../db/tabelas/saude";
+import { grupo, grupoAnimal, parto, pesagem, tratamento, vacina } from "../../../db/tabelas/historico";
+import { anotacaoAnimal, ocorrencia } from "../../../db/tabelas/notas";
+import { user } from "../../../db/schema";
+import { membroAtual } from "../../../base/membro-atual";
 import { paraContrato } from "./animais";
 
 /**

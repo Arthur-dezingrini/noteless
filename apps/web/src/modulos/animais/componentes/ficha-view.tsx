@@ -9,7 +9,7 @@ import { useState } from "react";
 import { Button, Callout, PageHeader, StatusText, Tabs, type Tom } from "@/components/ui";
 import { formatar, idade } from "@/lib/datas";
 
-import { AnimalModal } from "../animal-modal";
+import { AnimalModal } from "./animal-modal";
 
 /** As abas do histórico e os tipos de registro que cada uma junta. */
 const ABAS: { chave: string; rotulo: string; tipos: TipoEvento[] }[] = [

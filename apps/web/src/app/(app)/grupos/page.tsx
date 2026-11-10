@@ -1,7 +1,8 @@
 import { Card } from "@/components/ui";
-import { getAnimais, getGrupos, getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { GruposView } from "@/modulos/animais";
+import { getAnimais, getGrupos } from "@/modulos/animais/dados";
 
-import { GruposView } from "./grupos-view";
 
 export const metadata = { title: "Grupos" };
 

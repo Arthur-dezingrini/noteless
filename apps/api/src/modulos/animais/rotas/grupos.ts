@@ -2,11 +2,11 @@ import { ROTULO_TIPO_CONSULTA, criarGrupoSchema, tipoConsultaSchema, type Grupo,
 import { and, asc, desc, eq, gte, inArray, ne } from "drizzle-orm";
 import { Hono } from "hono";
 
-import { db } from "../db";
-import { animal } from "../db/tabelas/animais";
-import { consulta } from "../db/tabelas/saude";
-import { grupo, grupoAnimal, tratamento, vacina } from "../db/tabelas/historico";
-import { membroAtual } from "../base/membro-atual";
+import { db } from "../../../db";
+import { animal } from "../../../db/tabelas/animais";
+import { consulta } from "../../../db/tabelas/saude";
+import { grupo, grupoAnimal, tratamento, vacina } from "../../../db/tabelas/historico";
+import { membroAtual } from "../../../base/membro-atual";
 
 /**
  * Grupos de animais. Qualquer membro cria e edita (é manejo do dia a dia);

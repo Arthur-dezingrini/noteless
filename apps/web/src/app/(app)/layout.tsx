@@ -1,16 +1,8 @@
 import { AoVivo } from "@/components/app/ao-vivo";
 import { Header } from "@/components/app/header";
 import { Sidebar } from "@/components/app/sidebar";
-import {
-  getAnimais,
-  getMemberRole,
-  getNotificacoes,
-  getNovidades,
-  getOrgAtiva,
-  getOrganizations,
-  requireSession,
-  rotuloPapel,
-} from "@/lib/auth/dal";
+import { getMemberRole, getNotificacoes, getNovidades, getOrgAtiva, getOrganizations, requireSession, rotuloPapel } from "@/lib/auth/dal";
+import { getAnimais } from "@/modulos/animais/dados";
 import { getInstalacoes } from "@/modulos/aviario/dados";
 import { getOcorrencias } from "@/modulos/notas/dados";
 

@@ -10,8 +10,6 @@ export * from "./usuarios";
 export * from "./animais";
 export * from "./consultas";
 export * from "./notas";
-export * from "./grupos";
-export * from "./ficha";
 export * from "./notificacoes";
 export * from "./novidades";
 export * from "./inicio";

@@ -1,7 +1,8 @@
 import { Card } from "@/components/ui";
-import { getAnimais, getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { AnimaisLista } from "@/modulos/animais";
+import { getAnimais } from "@/modulos/animais/dados";
 
-import { AnimaisLista } from "./animais-lista";
 
 export const metadata = { title: "Animais" };
 

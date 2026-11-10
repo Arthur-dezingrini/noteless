@@ -1,10 +1,5 @@
-import {
-  getAnimais,
-  getConsultas,
-  getOrgAtiva,
-  getUsuarios,
-  requireSession,
-} from "@/lib/auth/dal";
+import { getConsultas, getOrgAtiva, getUsuarios, requireSession } from "@/lib/auth/dal";
+import { getAnimais } from "@/modulos/animais/dados";
 import { Card } from "@/components/ui";
 import { hojeISO } from "@/lib/datas";
 

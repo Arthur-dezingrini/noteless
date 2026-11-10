@@ -1,9 +1,6 @@
 import {
-  animalListaSchema,
   avisoListaSchema,
   consultaListaSchema,
-  fichaAnimalSchema,
-  grupoListaSchema,
   memberRoleSchema,
   notificacaoListaSchema,
   novidadesSchema,
@@ -12,11 +9,8 @@ import {
   relatorioSchema,
   sessionSchema,
   usuarioListaSchema,
-  type Animal,
   type Aviso,
   type Consulta,
-  type FichaAnimal,
-  type Grupo,
   type MemberRole,
   type Notificacao,
   type Organization,
@@ -107,15 +101,6 @@ export const getUsuarios = cache(
   },
 );
 
-/** Animais cadastrados na organização, em ordem alfabética. */
-export const getAnimais = cache(async (organizationId: string): Promise<Animal[]> => {
-  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/animais`);
-  if (!res.ok) return [];
-
-  const parsed = animalListaSchema.safeParse(await corpoJson(res));
-  return parsed.success ? parsed.data : [];
-});
-
 /**
  * Consultas da organização, opcionalmente num intervalo de dias
  * ("AAAA-MM-DD"). Sem intervalo vem tudo — pequeno por muito tempo.
@@ -141,26 +126,6 @@ export const getProntuarios = cache(async (organizationId: string): Promise<Pron
   if (!res.ok) return [];
 
   const parsed = prontuarioListaSchema.safeParse(await corpoJson(res));
-  return parsed.success ? parsed.data : [];
-});
-
-/** Ficha do animal (cadastro + histórico + próximos + pendências); null se não existe. */
-export const getFicha = cache(async (organizationId: string, animalId: string): Promise<FichaAnimal | null> => {
-  const res = await apiFetch(
-    `/api/org/${encodeURIComponent(organizationId)}/animais/${encodeURIComponent(animalId)}/ficha`,
-  );
-  if (!res.ok) return null;
-
-  const parsed = fichaAnimalSchema.safeParse(await corpoJson(res));
-  return parsed.success ? parsed.data : null;
-});
-
-/** Grupos de animais da organização, com os ids dos membros. */
-export const getGrupos = cache(async (organizationId: string): Promise<Grupo[]> => {
-  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/grupos`);
-  if (!res.ok) return [];
-
-  const parsed = grupoListaSchema.safeParse(await corpoJson(res));
   return parsed.success ? parsed.data : [];
 });
 

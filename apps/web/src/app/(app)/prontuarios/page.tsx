@@ -1,13 +1,6 @@
 import { Card } from "@/components/ui";
-import {
-  getAnimais,
-  getConsultas,
-  getMemberRole,
-  getOrgAtiva,
-  getProntuarios,
-  getUsuarios,
-  requireSession,
-} from "@/lib/auth/dal";
+import { getConsultas, getMemberRole, getOrgAtiva, getProntuarios, getUsuarios, requireSession } from "@/lib/auth/dal";
+import { getAnimais } from "@/modulos/animais/dados";
 import { hojeISO } from "@/lib/datas";
 
 import { ProntuariosView, type NovoAtendimento } from "./prontuarios-view";

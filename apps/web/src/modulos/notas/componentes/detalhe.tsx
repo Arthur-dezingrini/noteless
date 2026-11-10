@@ -8,7 +8,7 @@ import { Button, Card, FormMessage, Textarea } from "@/components/ui";
 import { chamarApiJson } from "@/lib/api-client";
 import { haQuantoTempo } from "@/lib/datas";
 
-import { AnimalModal } from "@/app/(app)/animais/animal-modal";
+import { AnimalModal } from "@/modulos/animais";
 
 import { LIMIAR_ATENCAO, CAMPOS_ALVO, naoEntendido, juntar, efeito } from "./operacao/descricao";
 import { type Cadastro, type Correcao } from "./tipos";

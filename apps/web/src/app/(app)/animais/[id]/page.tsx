@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getFicha, getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { FichaView } from "@/modulos/animais";
+import { getFicha } from "@/modulos/animais/dados";
 import { hojeISO } from "@/lib/datas";
 
-import { FichaView } from "./ficha-view";
 
 type Props = { params: Promise<{ id: string }> };
 

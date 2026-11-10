@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { chamar, criarFazenda } from "./ajuda";
+import { chamar, criarFazenda } from "../ajuda";
 
 let f: Awaited<ReturnType<typeof criarFazenda>>;
 const rota = () => `/api/org/${f.orgId}/animais`;
