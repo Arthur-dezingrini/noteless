@@ -42,6 +42,11 @@ esqueleto:
 - **web** `src/modulos/<m>/`: `componentes/`, `dados.ts` (busca na api,
   server-only), `index.ts`. `app/` só tem páginas finas.
 - **shared** `src/<m>/` com `index.ts`; continua tudo em `@vocare/shared`.
+- **Menu:** cada módulo do web declara o seu em `menu.ts` (telas, e as que
+  ainda não existem com `emBreve`); módulo novo é uma pasta com `menu.ts`
+  registrada em `MENU` (`src/lib/navigation.ts`). Tela mora no endereço do
+  módulo (`/aviario/lotes`); endereço que mudar ganha redirect em
+  `next.config.ts`.
 - Fora do módulo, só se entra pelo `index.ts` (no web, também pelo `dados`,
   nunca a partir de `"use client"`). Sem ciclo entre módulos. Arquivo acima
   de ~300 linhas se divide pelo assunto. Código novo nasce no seu módulo.
