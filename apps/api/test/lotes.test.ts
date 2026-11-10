@@ -220,4 +220,23 @@ describe("rotas de lotes e alojamento", () => {
     expect(await loteNaData(db, f.orgId, g1!, "2026-06-02")).toBeNull();
     expect((await loteNaData(db, f.orgId, g1!, "2026-06-01"))?.situacao).toBe("encerrado");
   });
+
+  it("encerrar não aceita data antes da entrada no galpão atual nem lote já encerrado", async () => {
+    const f = await criarFazenda("Granja Encerrar 2");
+    const base = `/api/org/${f.orgId}/lotes`;
+    const [g1, g2] = await galpoes(f, "Galpão 1", "Galpão 2");
+    const id = (await chamar(f.dono, "POST", base, novo("L-01", "2026-01-05", [{ instalacaoId: g1!, femeas: 10, machos: 1 }]))).json.id;
+    await chamar(f.dono, "POST", `${base}/${id}/transferir`, { data: "2026-03-10", de: g1, para: g2, femeas: 10, machos: 1 });
+
+    const antes = await chamar(f.dono, "POST", `${base}/${id}/encerrar`, { data: "2026-03-05" });
+    expect(antes.status).toBe(422);
+    expect(antes.json.error).toBe("A data de encerramento não pode ser antes de 10/03, quando o lote entrou no Galpão 2.");
+    expect((await chamar(f.dono, "GET", `${base}?situacao=ativo`)).json).toHaveLength(1);
+    expect((await loteNaData(db, f.orgId, g2!, "2026-03-10"))?.situacao).toBe("ativo");
+
+    expect((await chamar(f.dono, "POST", `${base}/${id}/encerrar`, { data: "2026-03-10" })).status).toBe(200);
+    const de_novo = await chamar(f.dono, "POST", `${base}/${id}/encerrar`, { data: "2026-04-01" });
+    expect(de_novo.status).toBe(422);
+    expect(de_novo.json.error).toBe("Este lote já foi encerrado em 10/03.");
+  });
 });

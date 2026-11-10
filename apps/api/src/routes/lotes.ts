@@ -415,6 +415,19 @@ lotesRoutes.post("/:orgId/lotes/:id/encerrar", async (c) => {
   if (data < alvo.dataAlojamento) {
     return c.json({ error: "A data de encerramento não pode ser antes do alojamento do lote." }, 422);
   }
+  const br = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
+  if (alvo.situacao === "encerrado") {
+    return c.json({ error: `Este lote já foi encerrado em ${br(alvo.dataEncerramento ?? alvo.dataAlojamento)}.` }, 422);
+  }
+  const abertos = await db
+    .select({ inicio: alojamento.inicio, nome: instalacao.nome })
+    .from(alojamento)
+    .innerJoin(instalacao, eq(instalacao.id, alojamento.instalacaoId))
+    .where(and(eq(alojamento.loteId, id), isNull(alojamento.fim)));
+  const recente = abertos.filter((a) => data < a.inicio).sort((a, b) => (a.inicio < b.inicio ? 1 : -1))[0];
+  if (recente) {
+    return c.json({ error: `A data de encerramento não pode ser antes de ${br(recente.inicio)}, quando o lote entrou no ${recente.nome}.` }, 422);
+  }
   await db.transaction(async (tx) => {
     await tx.update(lote).set({ situacao: "encerrado", dataEncerramento: data }).where(eq(lote.id, id));
     await tx.update(alojamento).set({ fim: data }).where(and(eq(alojamento.loteId, id), isNull(alojamento.fim)));
