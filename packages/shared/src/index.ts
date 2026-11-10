@@ -10,6 +10,5 @@ export * from "./animais";
 export * from "./saude";
 export * from "./notas";
 export * from "./avisos";
-export * from "./inicio";
-export * from "./relatorios";
+export * from "./painel";
 export * from "./aviario";

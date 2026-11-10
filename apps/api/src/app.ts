@@ -4,14 +4,13 @@ import { logger } from "hono/logger";
 
 import { auth } from "./auth";
 import { origensConfiaveis } from "./env";
-import { inicioRoutes } from "./routes/inicio";
-import { relatoriosRoutes } from "./routes/relatorios";
 import { aviarioRotas } from "./modulos/aviario";
 import { notasRotas } from "./modulos/notas";
 import { animaisRotas } from "./modulos/animais";
 import { saudeRotas } from "./modulos/saude";
 import { contaRotas, perfilRotas } from "./modulos/conta";
 import { avisosRotas } from "./modulos/avisos";
+import { painelRotas } from "./modulos/painel";
 
 export const app = new Hono();
 
@@ -42,6 +41,5 @@ app.route("/api/org", saudeRotas);
 app.route("/api/org", notasRotas);
 app.route("/api/org", aviarioRotas);
 app.route("/api/org", avisosRotas);
-app.route("/api/org", inicioRoutes);
-app.route("/api/org", relatoriosRoutes);
+app.route("/api/org", painelRotas);
 app.route("/api/perfil", perfilRotas);

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { KitView } from "./kit-view";
+import { KitView } from "@/components/ui/catalogo";
 
 export const metadata = { title: "Kit de UI" };
 

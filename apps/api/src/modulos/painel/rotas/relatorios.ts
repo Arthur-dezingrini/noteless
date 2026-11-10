@@ -12,20 +12,19 @@ import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or
 import { alias } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 
-import { db } from "../db";
-import { animal } from "../db/tabelas/animais";
-import { consulta } from "../db/tabelas/saude";
-import { grupo, pesagem, tratamento, vacina } from "../db/tabelas/historico";
-import { ocorrencia } from "../db/tabelas/notas";
-import { user } from "../db/schema";
-import { membroAtual } from "../base/membro-atual";
+import { db } from "../../../db";
+import { animal } from "../../../db/tabelas/animais";
+import { consulta } from "../../../db/tabelas/saude";
+import { grupo, pesagem, tratamento, vacina } from "../../../db/tabelas/historico";
+import { ocorrencia } from "../../../db/tabelas/notas";
+import { user } from "../../../db/schema";
+import { hojeISO } from "../../../base/datas";
+import { membroAtual } from "../../../base/membro-atual";
 
 /** Os cinco relatórios da tela Relatórios. Tudo calculado na hora. */
 export const relatoriosRoutes = new Hono();
 
-const TZ = "America/Sao_Paulo";
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-const hojeISO = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
 const dm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
 function somarDias(iso: string, n: number) {

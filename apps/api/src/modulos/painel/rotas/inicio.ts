@@ -7,11 +7,11 @@ import {
 import { and, desc, eq, gte, inArray, isNotNull, lt, lte } from "drizzle-orm";
 import { Hono } from "hono";
 
-import { db } from "../db";
-import { animal } from "../db/tabelas/animais";
-import { consulta } from "../db/tabelas/saude";
-import { vacina } from "../db/tabelas/historico";
-import { membroAtual } from "../base/membro-atual";
+import { db } from "../../../db";
+import { animal } from "../../../db/tabelas/animais";
+import { consulta } from "../../../db/tabelas/saude";
+import { vacina } from "../../../db/tabelas/historico";
+import { membroAtual } from "../../../base/membro-atual";
 
 /**
  * "Fique de olho" do Início: o que passou do prazo ou está para passar.

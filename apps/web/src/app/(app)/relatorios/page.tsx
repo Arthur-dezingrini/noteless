@@ -1,9 +1,10 @@
 import { PERIODOS, tipoRelatorioSchema, type Periodo } from "@vocare/shared";
 
 import { Card } from "@/components/ui";
-import { getOrgAtiva, getRelatorio, requireSession } from "@/lib/auth/dal";
+import { getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getRelatorio } from "@/modulos/painel/dados";
 
-import { RelatoriosView } from "./relatorios-view";
+import { RelatoriosView } from "@/modulos/painel";
 
 export const metadata = { title: "Relatórios" };
 
