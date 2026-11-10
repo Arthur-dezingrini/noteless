@@ -62,6 +62,17 @@ describe("normalizar operações do aviário", () => {
     expect(temAlvo(peso!)).toBe(true);
   });
 
+  it("pesagem sem peso e vacina sem nome ficam para o revisor, com confiança baixa", () => {
+    const peso = normalizar({ tipo: "pesar_lote", titulo: "", alvo: "L-07", animalId: null, detalhe: "", trecho: "", confianca: 95, loteId: "l7", sexo: "femea" }, vazio, vazio, [galpao3]);
+    expect(peso).toMatchObject({ tipo: "pesar_lote", loteId: "l7", pesoMedioG: null });
+    expect(peso!.confianca).toBeLessThanOrEqual(60);
+    expect(temAlvo(peso!)).toBe(false);
+    const vac = normalizar({ tipo: "vacinar_lote", titulo: "", alvo: "L-07", animalId: null, detalhe: "", trecho: "", confianca: 95, loteId: "l7" }, vazio, vazio, [galpao3]);
+    expect(vac).toMatchObject({ tipo: "vacinar_lote", loteId: "l7", vacina: "" });
+    expect(vac!.confianca).toBeLessThanOrEqual(60);
+    expect(temAlvo(vac!)).toBe(false);
+  });
+
   it("sem galpões, descarta os tipos do aviário", () => {
     expect(normalizar({ ...bruta, instalacaoId: "g3" }, vazio, vazio, [])).toBeNull();
   });

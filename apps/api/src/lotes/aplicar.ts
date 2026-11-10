@@ -45,6 +45,7 @@ export async function aplicarAviario(
   }
 
   if (op.tipo === "pesar_lote") {
+    if (op.pesoMedioG == null) return "Informe o peso médio.";
     const data = op.data ?? diaGravacao;
     if (data > hoje) return "Data no futuro.";
     const erro = await loteAtivoNaData(tx, orgId, op.loteId, data);
@@ -65,6 +66,7 @@ export async function aplicarAviario(
   }
 
   if (op.tipo === "vacinar_lote") {
+    if (!op.vacina.trim()) return "Informe a vacina.";
     const data = op.data ?? diaGravacao;
     if (data > hoje) return "Data no futuro.";
     const erro = await loteAtivoNaData(tx, orgId, op.loteId, data);

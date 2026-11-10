@@ -108,14 +108,16 @@ export const operacaoSchema = z.discriminatedUnion("tipo", [
     loteId: z.string().nullable(),
     data: dataIso.nullable(),
     sexo: sexoSchema,
-    pesoMedioG: z.number().positive("Informe um peso maior que zero.").max(10000, "Peso acima de 10.000 g."),
+    /** null = a IA não ouviu o peso; o revisor completa antes de salvar. */
+    pesoMedioG: z.number().positive("Informe um peso maior que zero.").max(10000, "Peso acima de 10.000 g.").nullable(),
     uniformidadePct: z.number().min(0).max(100, "Use de 0 a 100.").nullable(),
     amostra: z.number().int().min(1, "Informe 1 ou mais.").nullable(),
   }),
   baseOperacao.extend({
     tipo: z.literal("vacinar_lote"),
     loteId: z.string().nullable(),
-    vacina: z.string().min(1, "Informe a vacina."),
+    /** Vazio = a IA não ouviu o nome da vacina; o revisor completa antes de salvar. */
+    vacina: z.string(),
     via: textoOpcional,
     data: dataIso.nullable(),
     proximaData: dataIso.nullable(),
@@ -160,7 +162,8 @@ export function precisaAlvo(op: Operacao): boolean {
 /** Tem alvo resolvido — pode ser marcada para salvar. */
 export function temAlvo(op: Operacao): boolean {
   if (op.tipo === "apontar_galpao") return !!op.instalacaoId;
-  if (op.tipo === "pesar_lote" || op.tipo === "vacinar_lote") return !!op.loteId;
+  if (op.tipo === "pesar_lote") return !!op.loteId && op.pesoMedioG != null;
+  if (op.tipo === "vacinar_lote") return !!op.loteId && op.vacina.trim() !== "";
   return !precisaAlvo(op) || op.animalId !== null || !!op.grupoId;
 }
 

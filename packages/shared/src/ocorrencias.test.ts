@@ -144,6 +144,15 @@ describe("operações do aviário", () => {
     expect(temAlvo(operacaoSchema.parse(vacinar))).toBe(false);
   });
 
+  it("pesar_lote sem peso e vacinar_lote sem vacina seguem na lista, mas sem alvo aplicável", () => {
+    const pesar = { ...base, tipo: "pesar_lote", animalId: null, loteId: "l1", data: null, sexo: "femea", pesoMedioG: null, uniformidadePct: null, amostra: null };
+    const vacinar = { ...base, tipo: "vacinar_lote", animalId: null, loteId: "l1", vacina: "", via: null, data: null, proximaData: null };
+    expect(temAlvo(operacaoSchema.parse(pesar))).toBe(false);
+    expect(temAlvo(operacaoSchema.parse(vacinar))).toBe(false);
+    expect(temAlvo(operacaoSchema.parse({ ...pesar, pesoMedioG: 500 }))).toBe(true);
+    expect(operacaoSchema.safeParse({ ...pesar, pesoMedioG: 0 }).success).toBe(false);
+  });
+
   it("pesar_lote permite corrigir o lote", () => {
     expect(CAMPOS_CORRIGIVEIS.pesar_lote).toContain("loteId");
   });

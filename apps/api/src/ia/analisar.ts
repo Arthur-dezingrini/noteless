@@ -320,7 +320,12 @@ function normalizarAviario(tipo: string, bruta: Record<string, unknown>, galpoes
     typeof bruta.loteId === "string"
       ? (galpoes.find((g) => g.loteId === bruta.loteId) ?? galpoes.find((g) => g.loteCodigo === bruta.loteId))?.loteId ?? null
       : null;
-  const semAlvo = tipo === "apontar_galpao" ? !instalacaoId : !loteId;
+  const peso = numeroOuNulo(bruta.pesoMedioG);
+  const pesoMedioG = peso !== null && Number.isFinite(peso) && peso > 0 && peso <= 10000 ? peso : null;
+  const vacina = String(bruta.vacina ?? "").trim();
+  // Sem alvo, sem o peso ou sem o nome da vacina a operação fica para o revisor completar.
+  const semAlvo =
+    tipo === "apontar_galpao" ? !instalacaoId : tipo === "pesar_lote" ? !loteId || pesoMedioG === null : !loteId || !vacina;
   const confianca = Math.max(0, Math.min(100, Math.round(Number(bruta.confianca) || 0)));
   const base = {
     titulo: String(bruta.titulo ?? ""),
@@ -353,7 +358,7 @@ function normalizarAviario(tipo: string, bruta: Record<string, unknown>, galpoes
         loteId,
         data: nulo(bruta.data),
         sexo: bruta.sexo,
-        pesoMedioG: Number(bruta.pesoMedioG),
+        pesoMedioG,
         uniformidadePct: numeroOuNulo(bruta.uniformidadePct),
         amostra: inteiro(bruta.amostra),
       };
@@ -363,7 +368,7 @@ function normalizarAviario(tipo: string, bruta: Record<string, unknown>, galpoes
         ...base,
         tipo,
         loteId,
-        vacina: bruta.vacina,
+        vacina,
         via: nulo(bruta.via),
         data: nulo(bruta.data),
         proximaData: nulo(bruta.proximaData),

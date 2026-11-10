@@ -138,6 +138,25 @@ describe("confirmar operações do aviário", () => {
     expect(await db.select().from(vacinacaoLote).where(eq(vacinacaoLote.ocorrenciaId, id))).toHaveLength(0);
   });
 
+  it("pesagem sem peso e vacina sem nome dão 400 pedindo o dado, e nada é gravado", async () => {
+    const semPeso = await ocorrenciaDoMembro([
+      { ...base, tipo: "pesar_lote", alvo: "L-07", animalId: null, loteId, data: null, sexo: "femea", pesoMedioG: null, uniformidadePct: null, amostra: null },
+    ] as unknown as Operacao[]);
+    const r1 = await confirmar(semPeso, 1);
+    expect(r1.status).toBe(400);
+    expect(r1.json.error).toBe("Informe o peso médio.");
+    const semVacina = await ocorrenciaDoMembro([
+      { ...base, tipo: "vacinar_lote", alvo: "L-07", animalId: null, loteId, vacina: "", via: null, data: null, proximaData: null },
+    ] as unknown as Operacao[]);
+    const r2 = await confirmar(semVacina, 1);
+    expect(r2.status).toBe(400);
+    expect(r2.json.error).toBe("Informe a vacina.");
+    expect(await db.select().from(pesagemLote).where(eq(pesagemLote.ocorrenciaId, semPeso))).toHaveLength(0);
+    // o revisor completa o peso na própria confirmação
+    const ok = await chamar(f.admin, "POST", `${org()}/ocorrencias/${semPeso}/confirmar`, { operacoes: [0], correcoes: { "0": { pesoMedioG: 1900 } } });
+    expect(ok.status).toBe(200);
+  });
+
   it("membro não confirma operações do aviário", async () => {
     const id = await ocorrenciaDoMembro([apontar(galpao3, { ovosTotal: 100 })]);
     expect((await confirmar(id, 1, f.membro)).status).toBe(403);
