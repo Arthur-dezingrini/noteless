@@ -1,6 +1,11 @@
+/** "AAAA-MM-DD" do instante `d` no fuso de São Paulo. */
+export function dataISOEmSP(d: Date) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
+}
+
 /** "AAAA-MM-DD" de hoje em São Paulo — a IA precisa saber que dia é. */
 export function hojeISO() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  return dataISOEmSP(new Date());
 }
 
 /** `data` ("AAAA-MM-DD") deslocada em `dias`. */

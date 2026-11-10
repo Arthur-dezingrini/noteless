@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { db } from "../src/db";
 import { apontamentoAviario, pesagemLote, vacinacaoLote } from "../src/db/lotes";
 import { ocorrencia } from "../src/db/ocorrencias";
-import { hojeISO } from "../src/datas";
+import { hojeISO, noDia } from "../src/datas";
 import { chamar, criarFazenda } from "./ajuda";
 
 let f: Awaited<ReturnType<typeof criarFazenda>>;
@@ -43,10 +43,10 @@ const vazio = {
 const apontar = (instalacaoId: string, extra: Record<string, unknown>): Operacao =>
   ({ ...base, ...vazio, tipo: "apontar_galpao", alvo: "galpão", animalId: null, instalacaoId, data: null, ...extra }) as unknown as Operacao;
 
-async function ocorrenciaDoMembro(operacoes: Operacao[]) {
+async function ocorrenciaDoMembro(operacoes: Operacao[], createdAt?: Date) {
   const [o] = await db
     .insert(ocorrencia)
-    .values({ organizationId: f.orgId, criadoPorId: f.membro.id, transcricao: "Nota do dia.", resumo: "Nota.", operacoes })
+    .values({ organizationId: f.orgId, criadoPorId: f.membro.id, transcricao: "Nota do dia.", resumo: "Nota.", operacoes, ...(createdAt ? { createdAt } : {}) })
     .returning({ id: ocorrencia.id });
   return o!.id;
 }
@@ -103,6 +103,29 @@ describe("confirmar operações do aviário", () => {
     const r = await confirmar(alheio, 1);
     expect(r.status).toBe(400);
     expect(r.json.error).toBe("Lote não encontrado nesta organização.");
+  });
+
+  it("nota gravada ontem com data null lança no dia da gravação, não no da confirmação", async () => {
+    const ontem = noDia(hoje, -1);
+    // Meio-dia em São Paulo (15h UTC) de ontem.
+    const gravada = new Date(`${ontem}T15:00:00Z`);
+    const id = await ocorrenciaDoMembro(
+      [
+        apontar(galpao3, { mortasFemeas: 4 }),
+        { ...base, tipo: "pesar_lote", alvo: "L-07", animalId: null, loteId, data: null, sexo: "femea", pesoMedioG: 1700, uniformidadePct: null, amostra: null },
+        { ...base, tipo: "vacinar_lote", alvo: "L-07", animalId: null, loteId, vacina: "Bouba", via: null, data: null, proximaData: null },
+      ] as unknown as Operacao[],
+      gravada,
+    );
+    expect((await confirmar(id, 3)).status).toBe(200);
+    const linhas = await linhasDoDia();
+    expect(linhas).toHaveLength(1);
+    expect(linhas[0]).toMatchObject({ data: ontem, mortasFemeas: 4 });
+    const [p] = await db.select().from(pesagemLote).where(eq(pesagemLote.ocorrenciaId, id));
+    expect(p!.data).toBe(ontem);
+    const [v] = await db.select().from(vacinacaoLote).where(eq(vacinacaoLote.ocorrenciaId, id));
+    expect(v!.data).toBe(ontem);
+    await db.delete(apontamentoAviario).where(eq(apontamentoAviario.instalacaoId, galpao3));
   });
 
   it("membro não confirma operações do aviário", async () => {

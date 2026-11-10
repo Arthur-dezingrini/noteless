@@ -19,15 +19,22 @@ async function loteAtivoNaData(tx: Tx, orgId: string, loteId: string | null, dat
 
 /**
  * Aplica uma operação do aviário já confirmada. Devolve a mensagem do que está
- * errado, ou null. `data: null` na operação vale `hoje`.
+ * errado, ou null. `data: null` na operação vale `diaGravacao` (o dia em que a
+ * nota foi gravada, não o da confirmação); `hoje` serve só para barrar data futura.
  */
-export async function aplicarAviario(tx: Tx, op: Operacao, origem: Origem, hoje: string): Promise<string | null> {
+export async function aplicarAviario(
+  tx: Tx,
+  op: Operacao,
+  origem: Origem,
+  hoje: string,
+  diaGravacao: string = hoje,
+): Promise<string | null> {
   const orgId = origem.organizationId;
 
   if (op.tipo === "apontar_galpao") {
     if (!op.instalacaoId) return "Operação sem galpão do cadastro não pode ser aplicada.";
     if (!(await nomeDaInstalacao(tx, orgId, op.instalacaoId))) return "Galpão não encontrado nesta organização.";
-    const data = op.data ?? hoje;
+    const data = op.data ?? diaGravacao;
     const valores: Record<string, unknown> = { observacoes: op.observacoes };
     for (const c of CAMPOS_APONTAMENTO) valores[c] = op[c];
     const v = valores as ValoresApontamento;
@@ -38,7 +45,7 @@ export async function aplicarAviario(tx: Tx, op: Operacao, origem: Origem, hoje:
   }
 
   if (op.tipo === "pesar_lote") {
-    const data = op.data ?? hoje;
+    const data = op.data ?? diaGravacao;
     if (data > hoje) return "Data no futuro.";
     const erro = await loteAtivoNaData(tx, orgId, op.loteId, data);
     if (erro) return erro;
@@ -58,7 +65,7 @@ export async function aplicarAviario(tx: Tx, op: Operacao, origem: Origem, hoje:
   }
 
   if (op.tipo === "vacinar_lote") {
-    const data = op.data ?? hoje;
+    const data = op.data ?? diaGravacao;
     const erro = await loteAtivoNaData(tx, orgId, op.loteId, data);
     if (erro) return erro;
     await tx.insert(vacinacaoLote).values({

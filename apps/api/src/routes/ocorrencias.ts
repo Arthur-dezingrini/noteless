@@ -14,7 +14,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { hojeISO } from "../datas";
+import { dataISOEmSP, hojeISO } from "../datas";
 import { db } from "../db";
 import { animal } from "../db/animais";
 import { consulta } from "../db/consultas";
@@ -309,7 +309,7 @@ async function alvos(tx: Tx, op: Operacao, orgId: string): Promise<string[] | st
 }
 
 /** Aplica uma operação já confirmada. Devolve a mensagem de erro, ou null. */
-async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocorrenciaId: string) {
+async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocorrenciaId: string, criadaEm: Date) {
   const hoje = hojeISO();
   const origem = { organizationId: orgId, ocorrenciaId, criadoPorId: userId };
 
@@ -325,7 +325,7 @@ async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocor
     return null;
   }
 
-  if (TIPOS_AVIARIO.includes(op.tipo)) return aplicarAviario(tx, op, origem, hoje);
+  if (TIPOS_AVIARIO.includes(op.tipo)) return aplicarAviario(tx, op, origem, hoje, dataISOEmSP(criadaEm));
 
   const ids = await alvos(tx, op, orgId);
   if (typeof ids === "string") return ids;
@@ -417,7 +417,7 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/confirmar", async (c) => {
   // continua pendente para o revisor ajustar.
   const erro = await db.transaction(async (tx) => {
     for (const op of escolhidas) {
-      const e = await aplicar(tx, op, orgId, eu.userId, id);
+      const e = await aplicar(tx, op, orgId, eu.userId, id, alvo.createdAt);
       // Lançar desfaz a transação; a mensagem volta para o revisor.
       if (e) throw new AplicacaoFalhou(e);
     }
