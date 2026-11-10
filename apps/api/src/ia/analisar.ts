@@ -180,7 +180,7 @@ export function instrucoes(hoje: string, animais: AnimalParaIa[], grupos: GrupoP
 
 Galpões com lote alojado hoje (aviário de matrizes):
 ${galpoes
-  .map((g) => `- ${g.nome} (id ${g.instalacaoId}): lote ${g.loteCodigo}, semana ${g.semana}, ${num(g.femeas)} fêmeas e ${num(g.machos)} machos`)
+  .map((g) => `- ${g.nome} (id ${g.instalacaoId}): lote ${g.loteCodigo} (lote id ${g.loteId}), semana ${g.semana}, ${num(g.femeas)} fêmeas e ${num(g.machos)} machos`)
   .join("\n")}
 
 Operações do aviário (animalId = null e grupoId = null sempre):
@@ -315,7 +315,11 @@ function normalizarAviario(tipo: string, bruta: Record<string, unknown>, galpoes
   if (galpoes.length === 0) return null;
   const instalacaoId =
     typeof bruta.instalacaoId === "string" && galpoes.some((g) => g.instalacaoId === bruta.instalacaoId) ? bruta.instalacaoId : null;
-  const loteId = typeof bruta.loteId === "string" && galpoes.some((g) => g.loteId === bruta.loteId) ? bruta.loteId : null;
+  // O modelo às vezes devolve o código ("L-07") em vez do id: aceita os dois.
+  const loteId =
+    typeof bruta.loteId === "string"
+      ? (galpoes.find((g) => g.loteId === bruta.loteId) ?? galpoes.find((g) => g.loteCodigo === bruta.loteId))?.loteId ?? null
+      : null;
   const semAlvo = tipo === "apontar_galpao" ? !instalacaoId : !loteId;
   const confianca = Math.max(0, Math.min(100, Math.round(Number(bruta.confianca) || 0)));
   const base = {

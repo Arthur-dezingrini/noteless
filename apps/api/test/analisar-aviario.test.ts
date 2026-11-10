@@ -21,7 +21,7 @@ const vazio = new Set<string>();
 describe("instruções com galpões", () => {
   it("lista os galpões e os tipos do aviário", () => {
     const t = instrucoes("2026-03-10", [], [], [galpao3]);
-    expect(t).toContain("- Galpão 3 (id g3): lote L-07, semana 31");
+    expect(t).toContain("- Galpão 3 (id g3): lote L-07 (lote id l7), semana 31");
     expect(t).toContain("apontar_galpao");
     expect(t).toContain("UM apontar_galpao por galpão citado");
   });
@@ -54,6 +54,12 @@ describe("normalizar operações do aviário", () => {
     const vac = normalizar({ tipo: "vacinar_lote", titulo: "", alvo: "L-99", animalId: null, detalhe: "", trecho: "", confianca: 90, loteId: "l99", vacina: "Bouba" }, vazio, vazio, [galpao3]);
     expect(vac).toMatchObject({ loteId: null });
     expect(vac!.confianca).toBeLessThanOrEqual(60);
+  });
+
+  it("aceita o código do lote (L-07) no lugar do id e o mapeia para o id", () => {
+    const peso = normalizar({ tipo: "pesar_lote", titulo: "", alvo: "L-07", animalId: null, detalhe: "", trecho: "", confianca: 90, loteId: "L-07", sexo: "femea", pesoMedioG: 2100 }, vazio, vazio, [galpao3]);
+    expect(peso).toMatchObject({ loteId: "l7" });
+    expect(temAlvo(peso!)).toBe(true);
   });
 
   it("sem galpões, descarta os tipos do aviário", () => {
