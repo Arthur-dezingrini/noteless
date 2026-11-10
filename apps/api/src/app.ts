@@ -4,7 +4,6 @@ import { logger } from "hono/logger";
 
 import { auth } from "./auth";
 import { origensConfiaveis } from "./env";
-import { consultasRoutes } from "./routes/consultas";
 import { inicioRoutes } from "./routes/inicio";
 import { notificacoesRoutes } from "./routes/notificacoes";
 import { novidadesRoutes } from "./routes/novidades";
@@ -12,9 +11,9 @@ import { relatoriosRoutes } from "./routes/relatorios";
 import { aviarioRotas } from "./modulos/aviario";
 import { notasRotas } from "./modulos/notas";
 import { perfilRoutes } from "./routes/perfil";
-import { prontuariosRoutes } from "./routes/prontuarios";
 import { usuariosRoutes } from "./routes/usuarios";
 import { animaisRotas } from "./modulos/animais";
+import { saudeRotas } from "./modulos/saude";
 
 export const app = new Hono();
 
@@ -41,12 +40,11 @@ app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 // Rotas de negócio. Cada uma valida sessão e papel por conta própria.
 app.route("/api/org", usuariosRoutes);
 app.route("/api/org", animaisRotas);
-app.route("/api/org", consultasRoutes);
+app.route("/api/org", saudeRotas);
 app.route("/api/org", notasRotas);
 app.route("/api/org", aviarioRotas);
 app.route("/api/org", notificacoesRoutes);
 app.route("/api/org", novidadesRoutes);
 app.route("/api/org", inicioRoutes);
 app.route("/api/org", relatoriosRoutes);
-app.route("/api/org", prontuariosRoutes);
 app.route("/api/perfil", perfilRoutes);

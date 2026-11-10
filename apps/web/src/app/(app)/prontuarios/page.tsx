@@ -1,9 +1,10 @@
 import { Card } from "@/components/ui";
-import { getConsultas, getMemberRole, getOrgAtiva, getProntuarios, getUsuarios, requireSession } from "@/lib/auth/dal";
+import { getMemberRole, getOrgAtiva, getUsuarios, requireSession } from "@/lib/auth/dal";
+import { getConsultas, getProntuarios } from "@/modulos/saude/dados";
 import { getAnimais } from "@/modulos/animais/dados";
 import { hojeISO } from "@/lib/datas";
 
-import { ProntuariosView, type NovoAtendimento } from "./prontuarios-view";
+import { ProntuariosView, type NovoAtendimento } from "@/modulos/saude";
 
 export const metadata = { title: "Prontuários" };
 

@@ -1,24 +1,14 @@
-import {
-  atualizarProntuarioSchema,
-  criarProntuarioSchema,
-  especieSchema,
-  examePedidoSchema,
-  medidaSchema,
-  remedioReceitadoSchema,
-  sexoSchema,
-  tipoConsultaSchema,
-  type Prontuario,
-} from "@vocare/shared";
+import { atualizarProntuarioSchema, criarProntuarioSchema } from "@vocare/shared";
 import { and, desc, eq, inArray } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
-import { z } from "zod";
 
-import { db } from "../db";
-import { animal } from "../db/tabelas/animais";
-import { consulta, prontuario } from "../db/tabelas/saude";
-import { member, user } from "../db/schema";
-import { membroAtual } from "../base/membro-atual";
+import { db } from "../../../db";
+import { animal } from "../../../db/tabelas/animais";
+import { consulta, prontuario } from "../../../db/tabelas/saude";
+import { member } from "../../../db/schema";
+import { membroAtual } from "../../../base/membro-atual";
+import { consultar, paraContrato, retorno } from "../consultas/prontuarios";
+import { validarVinculos } from "../regras/prontuarios";
 
 /**
  * Prontuários: o registro de cada atendimento. Qualquer membro registra e
@@ -26,125 +16,6 @@ import { membroAtual } from "../base/membro-atual";
  * prontuário é documento.
  */
 export const prontuariosRoutes = new Hono();
-
-const retorno = alias(consulta, "retorno");
-
-const colunas = {
-  id: prontuario.id,
-  animalId: prontuario.animalId,
-  animalNome: animal.nome,
-  animalNumero: animal.numero,
-  animalEspecie: animal.especie,
-  animalRaca: animal.raca,
-  animalSexo: animal.sexo,
-  animalNascimento: animal.nascimento,
-  consultaId: prontuario.consultaId,
-  veterinarioId: prontuario.veterinarioId,
-  veterinarioNome: user.name,
-  data: prontuario.data,
-  tipo: prontuario.tipo,
-  queixa: prontuario.queixa,
-  exame: prontuario.exame,
-  diagnostico: prontuario.diagnostico,
-  remedios: prontuario.remedios,
-  exames: prontuario.exames,
-  retornoId: retorno.id,
-  retornoData: retorno.data,
-  retornoHora: retorno.hora,
-  createdAt: prontuario.createdAt,
-};
-
-type Linha = { [K in keyof typeof colunas]: (typeof colunas)[K]["_"]["data"] | null };
-
-/** JSON do banco → lista validada; item estragado some em vez de derrubar a tela. */
-function lista<T extends z.ZodType>(schema: T, v: unknown): z.infer<T>[] {
-  return z
-    .array(z.unknown())
-    .catch([])
-    .parse(v)
-    .flatMap((x) => {
-      const r = schema.safeParse(x);
-      return r.success ? [r.data] : [];
-    });
-}
-
-function paraContrato(r: Linha): Prontuario {
-  return {
-    id: r.id!,
-    animalId: r.animalId!,
-    animalNome: r.animalNome ?? "",
-    animalNumero: r.animalNumero,
-    animalEspecie: especieSchema.catch("outro").parse(r.animalEspecie),
-    animalRaca: r.animalRaca,
-    animalSexo: sexoSchema.nullish().catch(null).parse(r.animalSexo),
-    animalNascimento: r.animalNascimento,
-    consultaId: r.consultaId,
-    veterinarioId: r.veterinarioId,
-    veterinarioNome: r.veterinarioNome,
-    data: r.data!,
-    tipo: tipoConsultaSchema.catch("outro").parse(r.tipo),
-    queixa: r.queixa ?? "",
-    exame: lista(medidaSchema, r.exame),
-    diagnostico: r.diagnostico ?? "",
-    remedios: lista(remedioReceitadoSchema, r.remedios),
-    exames: lista(examePedidoSchema, r.exames),
-    retorno: r.retornoId ? { id: r.retornoId, data: r.retornoData!, hora: r.retornoHora! } : null,
-    createdAt: r.createdAt!,
-  };
-}
-
-function consultar() {
-  return db
-    .select(colunas)
-    .from(prontuario)
-    .innerJoin(animal, eq(animal.id, prontuario.animalId))
-    .leftJoin(user, eq(user.id, prontuario.veterinarioId))
-    .leftJoin(retorno, eq(retorno.id, prontuario.retornoId));
-}
-
-/**
- * Animal, veterinário e consulta precisam ser desta organização — e a
- * consulta, do mesmo animal. Sem isso um id chutado ligaria o atendimento
- * à fazenda de outro.
- */
-async function validarVinculos(
-  orgId: string,
-  d: { animalId: string; veterinarioId?: string | null; consultaId?: string | null },
-  ignorar?: string,
-) {
-  const [a] = await db
-    .select({ id: animal.id })
-    .from(animal)
-    .where(and(eq(animal.id, d.animalId), eq(animal.organizationId, orgId)))
-    .limit(1);
-  if (!a) return "Animal não encontrado nesta organização.";
-
-  if (d.veterinarioId) {
-    const [m] = await db
-      .select({ id: member.id })
-      .from(member)
-      .where(and(eq(member.userId, d.veterinarioId), eq(member.organizationId, orgId)))
-      .limit(1);
-    if (!m) return "Veterinário não faz parte desta organização.";
-  }
-
-  if (d.consultaId) {
-    const [cons] = await db
-      .select({ animalId: consulta.animalId })
-      .from(consulta)
-      .where(and(eq(consulta.id, d.consultaId), eq(consulta.organizationId, orgId)))
-      .limit(1);
-    if (!cons) return "Consulta não encontrada.";
-    if (cons.animalId !== d.animalId) return "Essa consulta é de outro animal.";
-    const [ja] = await db
-      .select({ id: prontuario.id })
-      .from(prontuario)
-      .where(eq(prontuario.consultaId, d.consultaId))
-      .limit(1);
-    if (ja && ja.id !== ignorar) return "Essa consulta já tem atendimento registrado.";
-  }
-  return null;
-}
 
 const dm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 

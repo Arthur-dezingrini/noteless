@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { especieSchema, sexoSchema } from "../animais";
-import { tipoConsultaSchema } from "../consultas";
+import { tipoConsultaSchema } from "../saude";
 import { CAMPOS_APONTAMENTO, valoresApontamentoBase } from "../aviario";
 
 /**

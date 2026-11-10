@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { especieSchema } from "./animais";
+import { especieSchema } from "../animais";
 
 export const TIPOS_CONSULTA = [
   "consulta",

@@ -1,20 +1,16 @@
 import {
   avisoListaSchema,
-  consultaListaSchema,
   memberRoleSchema,
   notificacaoListaSchema,
   novidadesSchema,
   organizationListSchema,
-  prontuarioListaSchema,
   relatorioSchema,
   sessionSchema,
   usuarioListaSchema,
   type Aviso,
-  type Consulta,
   type MemberRole,
   type Notificacao,
   type Organization,
-  type Prontuario,
   type Relatorio,
   type TipoRelatorio,
   type Session,
@@ -100,34 +96,6 @@ export const getUsuarios = cache(
     return parsed.success ? parsed.data : [];
   },
 );
-
-/**
- * Consultas da organização, opcionalmente num intervalo de dias
- * ("AAAA-MM-DD"). Sem intervalo vem tudo — pequeno por muito tempo.
- */
-export const getConsultas = cache(
-  async (organizationId: string, de?: string, ate?: string): Promise<Consulta[]> => {
-    const q = new URLSearchParams();
-    if (de) q.set("de", de);
-    if (ate) q.set("ate", ate);
-    const sufixo = q.size ? `?${q}` : "";
-
-    const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/consultas${sufixo}`);
-    if (!res.ok) return [];
-
-    const parsed = consultaListaSchema.safeParse(await corpoJson(res));
-    return parsed.success ? parsed.data : [];
-  },
-);
-
-/** Atendimentos registrados, do mais recente para o mais antigo. */
-export const getProntuarios = cache(async (organizationId: string): Promise<Prontuario[]> => {
-  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/prontuarios`);
-  if (!res.ok) return [];
-
-  const parsed = prontuarioListaSchema.safeParse(await corpoJson(res));
-  return parsed.success ? parsed.data : [];
-});
 
 /** "Fique de olho" do Início: vacinas vencidas, consultas sem confirmar… */
 export const getAvisos = cache(async (organizationId: string): Promise<Aviso[]> => {

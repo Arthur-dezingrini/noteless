@@ -3,7 +3,8 @@ import type { Route } from "next";
 import Link from "next/link";
 
 import { buttonClass, Card, Dot, PageHeader, SectionHeader, StatusText, type Tom } from "@/components/ui";
-import { getAvisos, getConsultas, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getAvisos, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getConsultas } from "@/modulos/saude/dados";
 import { diaCurto, hojeISO, TZ } from "@/lib/datas";
 import { GalpoesHoje } from "@/modulos/aviario";
 import { getGalpoesHoje } from "@/modulos/aviario/dados";

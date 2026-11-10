@@ -1,9 +1,10 @@
-import { getConsultas, getOrgAtiva, getUsuarios, requireSession } from "@/lib/auth/dal";
+import { getOrgAtiva, getUsuarios, requireSession } from "@/lib/auth/dal";
+import { getConsultas } from "@/modulos/saude/dados";
 import { getAnimais } from "@/modulos/animais/dados";
 import { Card } from "@/components/ui";
 import { hojeISO } from "@/lib/datas";
 
-import { AgendaView } from "./agenda-view";
+import { AgendaView } from "@/modulos/saude";
 
 export const metadata = { title: "Agenda" };
 

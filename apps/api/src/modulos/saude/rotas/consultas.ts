@@ -9,12 +9,12 @@ import {
 import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { Hono } from "hono";
 
-import { db } from "../db";
-import { animal } from "../db/tabelas/animais";
-import { consulta, prontuario } from "../db/tabelas/saude";
-import { grupo } from "../db/tabelas/historico";
-import { member, user } from "../db/schema";
-import { membroAtual } from "../base/membro-atual";
+import { db } from "../../../db";
+import { animal } from "../../../db/tabelas/animais";
+import { consulta, prontuario } from "../../../db/tabelas/saude";
+import { grupo } from "../../../db/tabelas/historico";
+import { member, user } from "../../../db/schema";
+import { membroAtual } from "../../../base/membro-atual";
 
 /**
  * Agenda: consultas de uma organização. Qualquer membro agenda, edita e

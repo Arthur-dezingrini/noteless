@@ -15,7 +15,8 @@ import { useState } from "react";
 import { Button, buttonClass, cx, PageHeader, tabId, Tabs } from "@/components/ui";
 import { formatar, idade } from "@/lib/datas";
 
-import { ProntuarioModal, type AnimalOpcao, type Veterinario } from "./prontuario-modal";
+import type { AnimalOpcao, Veterinario } from "./pares";
+import { ProntuarioModal } from "./prontuario-modal";
 
 export type NovoAtendimento = {
   consultaId?: string;
