@@ -8,6 +8,7 @@ import {
   transferirLoteSchema,
   vacinacaoLoteInputSchema,
   valoresApontamentoSchema,
+  type GalpaoHoje,
   type Instalacao,
   type Papel,
 } from "@vocare/shared";
@@ -16,7 +17,7 @@ import { Hono } from "hono";
 
 import { br, hojeISO, noDia } from "../datas";
 import { db } from "../db";
-import { alojamento, instalacao, lote, pesagemLote, vacinacaoLote } from "../db/lotes";
+import { alojamento, apontamentoAviario, instalacao, lote, pesagemLote, vacinacaoLote } from "../db/lotes";
 import { nomeDaInstalacao, sobrepoe } from "../lotes/alojamento";
 import { substituirApontamento, validarApontamento } from "../lotes/apontamento";
 import { montarFicha } from "../lotes/ficha";
@@ -73,6 +74,37 @@ lotesRoutes.get("/:orgId/instalacoes", async (c) => {
   const orgId = c.req.param("orgId");
   if (!(await membroAtual(c.req.raw.headers, orgId))) return c.json({ error: SEM_ACESSO }, 403);
   return c.json(await listarInstalacoes(orgId));
+});
+
+lotesRoutes.get("/:orgId/galpoes-hoje", async (c) => {
+  const orgId = c.req.param("orgId");
+  if (!(await membroAtual(c.req.raw.headers, orgId))) return c.json({ error: SEM_ACESSO }, 403);
+  const hoje = hojeISO();
+  const linhas = await db
+    .select({
+      instalacaoId: instalacao.id,
+      nome: instalacao.nome,
+      loteId: lote.id,
+      loteCodigo: lote.codigo,
+      apontamentoId: apontamentoAviario.id,
+    })
+    .from(instalacao)
+    .innerJoin(alojamento, and(eq(alojamento.instalacaoId, instalacao.id), isNull(alojamento.fim)))
+    .innerJoin(lote, eq(lote.id, alojamento.loteId))
+    .leftJoin(
+      apontamentoAviario,
+      and(eq(apontamentoAviario.instalacaoId, instalacao.id), eq(apontamentoAviario.data, hoje)),
+    )
+    .where(eq(instalacao.organizationId, orgId))
+    .orderBy(asc(instalacao.nome));
+  const resposta: GalpaoHoje[] = linhas.map((l) => ({
+    instalacaoId: l.instalacaoId,
+    nome: l.nome,
+    loteId: l.loteId,
+    loteCodigo: l.loteCodigo,
+    apontado: l.apontamentoId !== null,
+  }));
+  return c.json(resposta);
 });
 
 lotesRoutes.post("/:orgId/instalacoes", async (c) => {

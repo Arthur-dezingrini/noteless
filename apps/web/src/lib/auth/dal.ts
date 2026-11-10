@@ -4,6 +4,7 @@ import {
   consultaListaSchema,
   fichaAnimalSchema,
   fichaLoteSchema,
+  galpaoHojeSchema,
   grupoListaSchema,
   instalacaoSchema,
   loteResumoSchema,
@@ -20,6 +21,7 @@ import {
   type Consulta,
   type FichaAnimal,
   type FichaLote,
+  type GalpaoHoje,
   type Grupo,
   type Instalacao,
   type LoteResumo,
@@ -220,6 +222,15 @@ export const getInstalacoes = cache(async (organizationId: string): Promise<Inst
   if (!res.ok) return [];
 
   const parsed = z.array(instalacaoSchema).safeParse(await res.json());
+  return parsed.success ? parsed.data : [];
+});
+
+/** Galpões com lote alojado e se já foram apontados hoje. */
+export const getGalpoesHoje = cache(async (organizationId: string): Promise<GalpaoHoje[]> => {
+  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/galpoes-hoje`);
+  if (!res.ok) return [];
+
+  const parsed = z.array(galpaoHojeSchema).safeParse(await res.json());
   return parsed.success ? parsed.data : [];
 });
 

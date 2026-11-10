@@ -3,7 +3,7 @@ import type { Route } from "next";
 import Link from "next/link";
 
 import { buttonClass, Card, Dot, PageHeader, SectionHeader, StatusText, type Tom } from "@/components/ui";
-import { getAvisos, getConsultas, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getAvisos, getConsultas, getGalpoesHoje, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 import { diaCurto, hojeISO, TZ } from "@/lib/datas";
 
 export const metadata = { title: "Início" };
@@ -28,9 +28,9 @@ export default async function InicioPage() {
   const [{ user }, org] = await Promise.all([requireSession(), getOrgAtiva()]);
   const hoje = hojeISO();
 
-  const [consultas, ocorrencias, avisos] = org
-    ? await Promise.all([getConsultas(org.id, hoje, hoje), getOcorrencias(org.id), getAvisos(org.id)])
-    : [[], [], []];
+  const [consultas, ocorrencias, avisos, galpoes] = org
+    ? await Promise.all([getConsultas(org.id, hoje, hoje), getOcorrencias(org.id), getAvisos(org.id), getGalpoesHoje(org.id)])
+    : [[], [], [], []];
   const pendentes = ocorrencias.filter((o) => o.status === "pendente").length;
   const doDia = consultas.filter((c) => c.status !== "cancelada");
   const primeiroNome = (user.name || user.email).split(/\s+/)[0];
@@ -54,6 +54,28 @@ export default async function InicioPage() {
             Conferir agora
           </Link>
         </div>
+      )}
+
+      {galpoes.length > 0 && (
+        <section className="flex flex-col gap-2.5">
+          <SectionHeader title="Galpões hoje" />
+          <Card>
+            {galpoes.map((g, i) => (
+              <div key={g.instalacaoId} className={`flex items-center gap-4 px-5 py-3.5 ${i ? "border-t border-line" : ""}`}>
+                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <Link href={`/lotes/${g.loteId}`} className="truncate text-[15px] font-semibold text-ink no-underline hover:underline">
+                    {g.nome}
+                  </Link>
+                  <span className="truncate text-sm text-ink-muted">Lote {g.loteCodigo}</span>
+                </span>
+                <span className="flex items-center gap-2 text-[15px] text-ink">
+                  <Dot tone={g.apontado ? "ok" : "aviso"} />
+                  {g.apontado ? "Apontado" : "Sem apontamento"}
+                </span>
+              </div>
+            ))}
+          </Card>
+        </section>
       )}
 
       <div className="flex flex-wrap items-start gap-7">

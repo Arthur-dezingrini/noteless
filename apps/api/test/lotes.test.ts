@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { db } from "../src/db";
 import { alojamento, apontamentoAviario, instalacao, lote } from "../src/db/lotes";
 import { fichaLoteSchema } from "@vocare/shared";
+import { hojeISO } from "../src/datas";
 import { loteNaData } from "../src/lotes/alojamento";
 import { somarApontamento, validarApontamento } from "../src/lotes/apontamento";
 import { chamar, criarFazenda } from "./ajuda";
@@ -365,5 +366,32 @@ describe("apontamento manual, pesagem, vacinação e ficha", () => {
     expect(ficha.semanal[0]).toMatchObject({ semana: 1, pesoFemeaG: 2850, uniformidadeFemeaPct: 82 });
     expect(ficha.pesagens).toHaveLength(1);
     expect(ficha.vacinacoes[0]).toMatchObject({ vacina: "Gumboro", proximaData: "2026-01-29" });
+  });
+});
+
+describe("galpões hoje", () => {
+  it("lista galpões com lote aberto e se já foram apontados hoje; sem lote não aparece; outra fazenda não vê", async () => {
+    const f = await criarFazenda("Granja Hoje");
+    const outra = await criarFazenda("Outra Granja Hoje");
+    const mk = async (nome: string) => (await chamar(f.dono, "POST", `/api/org/${f.orgId}/instalacoes`, { nome, tipo: "galpao" })).json.id as string;
+    const [g1, g2] = [await mk("Galpão 1"), await mk("Galpão 2")];
+    await mk("Galpão 3");
+    const l1 = await chamar(f.dono, "POST", `/api/org/${f.orgId}/lotes`, { codigo: "L-01", dataAlojamento: "2026-01-05", galpoes: [{ instalacaoId: g1, femeas: 100, machos: 10 }] });
+    const l2 = await chamar(f.dono, "POST", `/api/org/${f.orgId}/lotes`, { codigo: "L-02", dataAlojamento: "2026-01-05", galpoes: [{ instalacaoId: g2, femeas: 100, machos: 10 }] });
+    expect(l1.status).toBe(201);
+    expect(l2.status).toBe(201);
+
+    const put = await chamar(f.dono, "PUT", `/api/org/${f.orgId}/lotes/${l1.json.id}/apontamentos/${g1}/${hojeISO()}`, { ovosTotal: 50 });
+    expect(put.status).toBe(200);
+
+    const res = await chamar(f.membro, "GET", `/api/org/${f.orgId}/galpoes-hoje`);
+    expect(res.status).toBe(200);
+    expect(res.json).toEqual([
+      { instalacaoId: g1, nome: "Galpão 1", loteId: l1.json.id, loteCodigo: "L-01", apontado: true },
+      { instalacaoId: g2, nome: "Galpão 2", loteId: l2.json.id, loteCodigo: "L-02", apontado: false },
+    ]);
+
+    expect((await chamar(outra.dono, "GET", `/api/org/${outra.orgId}/galpoes-hoje`)).json).toEqual([]);
+    expect((await chamar(outra.dono, "GET", `/api/org/${f.orgId}/galpoes-hoje`)).status).toBe(403);
   });
 });
