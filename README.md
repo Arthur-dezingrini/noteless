@@ -293,6 +293,15 @@ migração.
   mesmo assim; quem confere escreve o que foi dito (`POST …/:id/texto`) e a IA
   reinterpreta.
 
+  O gravador guarda no cartão o que gravou sem sinal e envia depois, com o
+  campo opcional `gravadoEm` (ISO 8601, ex. `2026-10-26T21:30:00Z`). Essa
+  hora vira a data da nota e o "hoje" da IA — "nasceu hoje", enviado no
+  dia seguinte, é do dia da gravação. Hora impossível (relógio da placa zerado,
+  adiantado ou com mais de 60 dias) é ignorada e vale a chegada: a gravação
+  nunca é recusada por isso. Ao salvar, o que veio sem data (peso, vacina,
+  remédio, parto) fica no dia da gravação; consulta sem data, no dia em que
+  salvou.
+
   Qualquer membro confere; **salvar ou descartar é do administrador**. O
   membro usa "Mandar para o administrador" (`POST …/:id/encaminhar`).
 

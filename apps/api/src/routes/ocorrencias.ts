@@ -39,9 +39,27 @@ const HORA_PADRAO = "08:00";
 
 class AplicacaoFalhou extends Error {}
 
-/** "AAAA-MM-DD" de hoje em São Paulo — a IA precisa saber que dia é. */
-function hojeISO() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+/** "AAAA-MM-DD" em São Paulo (de hoje, sem argumento) — a IA precisa saber que dia é. */
+function hojeISO(quando = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(quando);
+}
+
+const ADIANTADO_MAX_MS = 5 * 60 * 1000;
+const IDADE_MAX_MS = 60 * 24 * 60 * 60 * 1000;
+
+/**
+ * Hora em que o áudio foi gravado, quando chega depois (gravador sem sinal
+ * guarda no cartão e envia quando o Wi-Fi volta). Valor estranho — relógio
+ * da placa zerado ou adiantado, texto inválido — é ignorado em vez de
+ * recusar: perder a gravação é pior; vale a hora da chegada.
+ */
+function quandoFoiGravado(valor: unknown, agora = new Date()): Date | null {
+  const iso = z.iso.datetime({ offset: true }).safeParse(valor);
+  if (!iso.success) return null;
+  const quando = new Date(iso.data);
+  const t = quando.getTime();
+  if (t > agora.getTime() + ADIANTADO_MAX_MS || t < agora.getTime() - IDADE_MAX_MS) return null;
+  return quando;
 }
 
 const criador = alias(user, "criador");
@@ -125,13 +143,16 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias", async (c) => {
   if (!(audio instanceof File) || audio.size === 0) return c.json({ error: "Envie um áudio no campo 'audio'." }, 400);
   if (audio.size > TAMANHO_MAXIMO) return c.json({ error: "Áudio grande demais (máximo 25 MB)." }, 413);
   const duracaoSeg = Number(body?.duracaoSeg) || null;
+  // Vira a data da ocorrência e o "hoje" da IA: "nasceu hoje", gravado sem
+  // sinal e enviado no dia seguinte, é do dia da gravação.
+  const gravadoEm = quandoFoiGravado(body?.gravadoEm);
 
   try {
     const transcricao = await transcrever(audio);
     // Áudio que não deu para entender vira ocorrência mesmo assim: quem
     // confere escreve o que foi dito (POST /:id/texto).
     const analise = transcricao
-      ? await analisar(transcricao, hojeISO(), await animaisDaOrg(orgId), await gruposDaOrg(orgId))
+      ? await analisar(transcricao, hojeISO(gravadoEm ?? undefined), await animaisDaOrg(orgId), await gruposDaOrg(orgId))
       : null;
 
     const [nova] = await db
@@ -143,6 +164,7 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias", async (c) => {
         resumo: analise?.resumo ?? "",
         duracaoSeg,
         operacoes: analise?.operacoes ?? [],
+        ...(gravadoEm && { createdAt: gravadoEm }),
       })
       .returning({ id: ocorrencia.id });
 
@@ -206,7 +228,8 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/texto", async (c) => {
   if (alvo.status !== "pendente") return c.json({ error: "Esta nota já foi revisada." }, 409);
 
   try {
-    const analise = await analisar(body.data.texto, hojeISO(), await animaisDaOrg(orgId), await gruposDaOrg(orgId));
+    // Datas relativas do texto contam a partir do dia em que foi gravado.
+    const analise = await analisar(body.data.texto, hojeISO(alvo.createdAt), await animaisDaOrg(orgId), await gruposDaOrg(orgId));
     await db
       .update(ocorrencia)
       .set({ transcricao: body.data.texto, resumo: analise.resumo, operacoes: analise.operacoes })
@@ -309,9 +332,12 @@ async function alvos(tx: Tx, op: Operacao, orgId: string): Promise<string[] | st
   return [a.id];
 }
 
-/** Aplica uma operação já confirmada. Devolve a mensagem de erro, ou null. */
-async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocorrenciaId: string) {
-  const hoje = hojeISO();
+/**
+ * Aplica uma operação já confirmada. Devolve a mensagem de erro, ou null.
+ * O que foi feito e veio sem data (peso, vacina, remédio, parto) fica no
+ * `dia` em que a ocorrência foi gravada, não no dia em que alguém salvou.
+ */
+async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocorrenciaId: string, dia: string) {
   const origem = { organizationId: orgId, ocorrenciaId, criadoPorId: userId };
 
   if (op.tipo === "cadastrar_animal") {
@@ -337,7 +363,8 @@ async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocor
         // Consulta de grupo fica no grupo ("vacinar o Lote 4"), não em cada animal.
         animalId: op.grupoId ? null : um,
         grupoId: op.grupoId ?? null,
-        data: op.data ?? hoje,
+        // Agendar é para a frente: sem data, vale o dia em que salvou.
+        data: op.data ?? hojeISO(),
         hora: op.hora ?? HORA_PADRAO,
         tipo: op.tipoConsulta,
         observacoes: op.observacoes ?? op.detalhe,
@@ -347,7 +374,7 @@ async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocor
       await tx.insert(anotacaoAnimal).values(ids.map((animalId) => ({ ...origem, animalId, texto: op.texto })));
       return null;
     case "registrar_peso":
-      await tx.insert(pesagem).values({ ...origem, animalId: um, pesoKg: String(op.pesoKg), data: hoje });
+      await tx.insert(pesagem).values({ ...origem, animalId: um, pesoKg: String(op.pesoKg), data: dia });
       // O cadastro guarda o peso atual; o histórico fica na pesagem.
       await tx.update(animal).set({ pesoKg: String(op.pesoKg) }).where(eq(animal.id, um));
       return null;
@@ -359,7 +386,7 @@ async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocor
           vacina: op.vacina,
           dose: op.dose,
           grupoId: op.grupoId ?? null,
-          data: op.data ?? hoje,
+          data: op.data ?? dia,
           proximaData: op.proximaData,
         })),
       );
@@ -372,14 +399,14 @@ async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocor
           remedio: op.remedio,
           dose: op.dose,
           grupoId: op.grupoId ?? null,
-          inicio: hoje,
-          fim: op.dias ? somarDias(hoje, op.dias - 1) : null,
+          inicio: dia,
+          fim: op.dias ? somarDias(dia, op.dias - 1) : null,
           carenciaDias: op.carenciaDias,
         })),
       );
       return null;
     case "registrar_parto":
-      await tx.insert(parto).values({ ...origem, animalId: um, data: op.data ?? hoje, crias: op.crias, observacoes: op.observacoes });
+      await tx.insert(parto).values({ ...origem, animalId: um, data: op.data ?? dia, crias: op.crias, observacoes: op.observacoes });
       return null;
   }
 }
@@ -416,7 +443,7 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/confirmar", async (c) => {
   // continua pendente para o revisor ajustar.
   const erro = await db.transaction(async (tx) => {
     for (const op of escolhidas) {
-      const e = await aplicar(tx, op, orgId, eu.userId, id);
+      const e = await aplicar(tx, op, orgId, eu.userId, id, hojeISO(alvo.createdAt));
       // Lançar desfaz a transação; a mensagem volta para o revisor.
       if (e) throw new AplicacaoFalhou(e);
     }
