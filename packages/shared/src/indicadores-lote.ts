@@ -198,7 +198,6 @@ export function indicadoresDoLote(lote: DadosLote, aps: ApontamentoDia[], hoje: 
 
 export function consolidarSemanas(lote: DadosLote, aps: ApontamentoDia[], pesagens: PesagemSemana[]): SemanaLote[] {
   const dias = somarPorDia(aps);
-  const iniciais = { femeas: lote.femeasIniciais, machos: lote.machosIniciais };
   const sem = (data: string) => semanaDeVida(lote.dataAlojamento, lote.idadeAlojamentoDias, data);
 
   const numeros = new Set<number>([...dias.map((d) => sem(d.data)), ...pesagens.map((p) => sem(p.data))]);

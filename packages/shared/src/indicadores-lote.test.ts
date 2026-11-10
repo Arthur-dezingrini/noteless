@@ -79,11 +79,11 @@ describe("consolidarSemanas", () => {
   it("mortalidade semanal é sobre as aves iniciais", () => {
     const aps: ApontamentoDia[] = [
       { data: "2026-01-01", instalacaoId: "g", mortasFemeas: 50 },
-      { data: "2026-01-08", instalacaoId: "g", mortasFemeas: 11, eliminadasMachos: 0 },
+      { data: "2026-01-08", instalacaoId: "g", mortasFemeas: 105 },
     ];
     const s = consolidarSemanas(lote, aps, []);
     expect(s[0]?.mortalidadePct).toBe(4.5); // 50 / 1100
-    expect(s[1]?.mortalidadePct).toBe(1); // 11 / 1100
+    expect(s[1]?.mortalidadePct).toBe(9.5); // 105 / 1100 (sobre vivas no início seria 10)
   });
 
   it("8 dias de apontamento viram 2 semanas", () => {
