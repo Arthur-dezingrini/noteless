@@ -38,7 +38,7 @@ export function LotesLista({ orgId, situacao, lotes, instalacoes, possoGerenciar
   }
 
   function abrir(l: LoteResumo) {
-    router.push(`/lotes/${l.id}` as Route);
+    router.push(`/lotes/${l.id}`);
   }
 
   function teclas(e: KeyboardEvent, l: LoteResumo) {
