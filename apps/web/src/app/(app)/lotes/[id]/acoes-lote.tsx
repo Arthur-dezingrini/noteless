@@ -185,7 +185,45 @@ export function FaseModal({ ficha, ...base }: Base & { ficha: FichaLote }) {
   );
 }
 
-/** Encerrar não tem volta pela tela: pede data e confirmação na barra de perigo. */
+/** Desfazer a última transferência ou reabrir o lote: só confirmação, a api diz se não dá. */
+export function DesfazerModal({
+  orgId,
+  loteId,
+  onClose,
+  onDone,
+  rota,
+}: Base & { rota: "desfazer-transferencia" | "reabrir" }) {
+  const [pending, start] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+  const reabrir = rota === "reabrir";
+
+  function confirmar() {
+    setErro(null);
+    start(async () => {
+      const err = await chamarApi(`/api/org/${orgId}/lotes/${loteId}/${rota}`, { method: "POST" });
+      if (err) return setErro(err);
+      onDone();
+    });
+  }
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={reabrir ? "Reabrir lote" : "Desfazer última transferência"}
+      subtitle={reabrir ? "O lote volta a ativo nos galpões onde estava." : "As aves voltam para o galpão de origem."}
+    >
+      <div className="flex flex-col gap-4">
+        {erro && <FormMessage>{erro}</FormMessage>}
+        <ConfirmBar onCancel={onClose} onConfirm={confirmar} confirmLabel={reabrir ? "Reabrir" : "Desfazer"} pending={pending}>
+          {reabrir ? "Reabrir o lote e desfazer o encerramento?" : "Desfazer a última transferência deste lote?"}
+        </ConfirmBar>
+      </div>
+    </Modal>
+  );
+}
+
+/** Encerrar pede data e confirmação na barra de perigo; dá para desfazer com "Reabrir lote". */
 export function EncerrarModal({ orgId, loteId, onClose, onDone }: Base) {
   const [pending, start] = useTransition();
   const [erro, setErro] = useState<string | null>(null);

@@ -15,7 +15,7 @@ import { useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { Button, Card, cx, EmptyState, PageHeader, StatusText, tabela, Tabs, tabId } from "@/components/ui";
 
-import { EncerrarModal, FaseModal, PesagemModal, TransferirModal, VacinaModal } from "./acoes-lote";
+import { DesfazerModal, EncerrarModal, FaseModal, PesagemModal, TransferirModal, VacinaModal } from "./acoes-lote";
 import { ApontamentoModal } from "./apontamento-modal";
 
 const ABAS = [
@@ -34,7 +34,7 @@ const num = (v: number | null | undefined, casas = 1) =>
   v == null ? "—" : v.toLocaleString("pt-BR", { maximumFractionDigits: casas });
 const pct = (v: number | null | undefined) => (v == null ? "—" : `${num(v)}%`);
 
-type Acao = "transferir" | "fase" | "encerrar" | "pesagem" | "vacina";
+type Acao = "transferir" | "fase" | "encerrar" | "pesagem" | "vacina" | "desfazer-transferencia" | "reabrir";
 
 export function FichaLote({
   orgId,
@@ -52,6 +52,8 @@ export function FichaLote({
   const router = useRouter();
   const { lote, indicadores: ind } = ficha;
   const ativo = lote.situacao === "ativo";
+  // Alojamento já fechado num lote ativo = houve transferência que pode ser desfeita.
+  const transferiu = ativo && ficha.alojamentos.some((a) => a.fim !== null);
   const [aba, setAba] = useState<Aba>("diario");
   const [acao, setAcao] = useState<Acao | null>(null);
   // `false` = lançamento novo; um dia = correção da linha clicada.
@@ -104,9 +106,14 @@ export function FichaLote({
                 <Button onClick={() => setAcao("vacina")}>Vacina</Button>
                 <Button onClick={() => setAcao("transferir")}>Transferir</Button>
                 <Button onClick={() => setAcao("fase")}>Mudar fase</Button>
+                {transferiu && <Button onClick={() => setAcao("desfazer-transferencia")}>Desfazer transferência</Button>}
                 <Button variant="perigo" onClick={() => setAcao("encerrar")}>
                   Encerrar
                 </Button>
+              </span>
+            ) : possoGerenciar ? (
+              <span className="print:hidden">
+                <Button onClick={() => setAcao("reabrir")}>Reabrir lote</Button>
               </span>
             ) : undefined
           }
@@ -146,6 +153,9 @@ export function FichaLote({
       {acao === "encerrar" && <EncerrarModal {...base} onClose={() => setAcao(null)} onDone={concluir} />}
       {acao === "pesagem" && <PesagemModal {...base} ficha={ficha} onClose={() => setAcao(null)} onDone={concluir} />}
       {acao === "vacina" && <VacinaModal {...base} onClose={() => setAcao(null)} onDone={concluir} />}
+      {(acao === "desfazer-transferencia" || acao === "reabrir") && (
+        <DesfazerModal {...base} rota={acao} onClose={() => setAcao(null)} onDone={concluir} />
+      )}
     </div>
   );
 }

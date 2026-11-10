@@ -377,6 +377,106 @@ lotesRoutes.post("/:orgId/lotes/:id/encerrar", async (c) => {
   return c.json(atualizado);
 });
 
+/**
+ * Desfaz a última transferência: apaga o alojamento de destino e reabre o de
+ * origem (o que terminou no dia anterior). Uma por chamada. Recusa se o
+ * destino já tem lançamento depois da transferência — desfazer apagaria a
+ * história — ou se a origem já recebeu outro lote.
+ */
+lotesRoutes.post("/:orgId/lotes/:id/desfazer-transferencia", async (c) => {
+  const orgId = c.req.param("orgId");
+  const id = c.req.param("id");
+  const eu = await membroAtual(c.req.raw.headers, orgId);
+  if (!eu) return c.json({ error: SEM_ACESSO }, 403);
+  if (!PODE_SALVAR.includes(eu.role)) return c.json({ error: SO_ADMIN_LOTE }, 403);
+
+  const alvo = await acharLote(orgId, id);
+  if (!alvo) return c.json({ error: "Lote não encontrado." }, 404);
+  if (alvo.situacao === "encerrado") return c.json({ error: "Reabra o lote antes de desfazer a transferência." }, 422);
+
+  try {
+    await db.transaction(async (tx) => {
+      const todos = await tx.select().from(alojamento).where(eq(alojamento.loteId, id));
+      const abertos = todos.filter((a) => a.fim === null).sort((a, b) => (a.inicio < b.inicio ? 1 : -1));
+      let par: { destino: (typeof todos)[number]; origem: (typeof todos)[number] } | null = null;
+      for (const destino of abertos) {
+        const origem = todos.find((a) => a.fim === noDia(destino.inicio, -1));
+        if (origem) {
+          par = { destino, origem };
+          break;
+        }
+      }
+      if (!par) throw new FalhaLote(422, "Este lote não tem transferência para desfazer.");
+      const { destino, origem } = par;
+
+      const [apontado] = await tx
+        .select({ id: apontamentoAviario.id })
+        .from(apontamentoAviario)
+        .where(and(eq(apontamentoAviario.instalacaoId, destino.instalacaoId), eq(apontamentoAviario.loteId, id), gte(apontamentoAviario.data, destino.inicio)))
+        .limit(1);
+      const [pesado] = await tx
+        .select({ id: pesagemLote.id })
+        .from(pesagemLote)
+        .where(and(eq(pesagemLote.instalacaoId, destino.instalacaoId), eq(pesagemLote.loteId, id), gte(pesagemLote.data, destino.inicio)))
+        .limit(1);
+      if (apontado || pesado) {
+        const nome = (await nomeDaInstalacao(tx, orgId, destino.instalacaoId)) ?? "galpão de destino";
+        throw new FalhaLote(
+          422,
+          `O ${nome} já tem apontamento ou pesagem depois da transferência. Apague ou corrija esses lançamentos antes de desfazer.`,
+        );
+      }
+      if (await sobrepoe(tx, origem.instalacaoId, origem.inicio, null, origem.id)) {
+        const nome = (await nomeDaInstalacao(tx, orgId, origem.instalacaoId)) ?? "galpão de origem";
+        throw new FalhaLote(422, `O ${nome} já recebeu outro lote depois da transferência.`);
+      }
+      await tx.delete(alojamento).where(eq(alojamento.id, destino.id));
+      await tx.update(alojamento).set({ fim: null }).where(eq(alojamento.id, origem.id));
+    });
+  } catch (e) {
+    if (e instanceof FalhaLote) return c.json({ error: e.message }, e.status);
+    throw e;
+  }
+  const [atualizado] = await listarLotes(orgId, { id });
+  return c.json(atualizado);
+});
+
+/** Desfaz o encerramento: lote volta a ativo e os alojamentos fechados no dia reabrem. */
+lotesRoutes.post("/:orgId/lotes/:id/reabrir", async (c) => {
+  const orgId = c.req.param("orgId");
+  const id = c.req.param("id");
+  const eu = await membroAtual(c.req.raw.headers, orgId);
+  if (!eu) return c.json({ error: SEM_ACESSO }, 403);
+  if (!PODE_SALVAR.includes(eu.role)) return c.json({ error: SO_ADMIN_LOTE }, 403);
+
+  const alvo = await acharLote(orgId, id);
+  if (!alvo) return c.json({ error: "Lote não encontrado." }, 404);
+  if (alvo.situacao !== "encerrado" || !alvo.dataEncerramento) return c.json({ error: "Este lote não está encerrado." }, 422);
+  const encerramento = alvo.dataEncerramento;
+
+  try {
+    await db.transaction(async (tx) => {
+      const fechados = await tx
+        .select()
+        .from(alojamento)
+        .where(and(eq(alojamento.loteId, id), eq(alojamento.fim, encerramento)));
+      for (const a of fechados) {
+        if (await sobrepoe(tx, a.instalacaoId, noDia(encerramento, 1), null, a.id)) {
+          const nome = (await nomeDaInstalacao(tx, orgId, a.instalacaoId)) ?? "galpão";
+          throw new FalhaLote(409, `O ${nome} já recebeu outro lote depois do encerramento.`);
+        }
+      }
+      await tx.update(lote).set({ situacao: "ativo", dataEncerramento: null }).where(eq(lote.id, id));
+      await tx.update(alojamento).set({ fim: null }).where(and(eq(alojamento.loteId, id), eq(alojamento.fim, encerramento)));
+    });
+  } catch (e) {
+    if (e instanceof FalhaLote) return c.json({ error: e.message }, e.status);
+    throw e;
+  }
+  const [atualizado] = await listarLotes(orgId, { id });
+  return c.json(atualizado);
+});
+
 const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
 const dataReal = (d: string) => DATA_ISO.test(d) && noDia(d, 0) === d;
 

@@ -225,6 +225,93 @@ describe("rotas de lotes e alojamento", () => {
     expect((await chamar(f.dono, "GET", `${base}?situacao=ativo`)).json).toHaveLength(1);
   });
 
+  it("desfazer transferência reabre a origem e apaga o destino, uma por vez", async () => {
+    const f = await criarFazenda("Granja Desfazer");
+    const base = `/api/org/${f.orgId}/lotes`;
+    const [g1, g2, g3] = await galpoes(f, "Galpão 1", "Galpão 2", "Galpão 3");
+    const l1 = (await chamar(f.dono, "POST", base, novo("L-01", "2026-01-05", [{ instalacaoId: g1!, femeas: 1000, machos: 100 }]))).json.id;
+
+    const semTransf = await chamar(f.dono, "POST", `${base}/${l1}/desfazer-transferencia`);
+    expect(semTransf.status).toBe(422);
+    expect(semTransf.json.error).toBe("Este lote não tem transferência para desfazer.");
+
+    await chamar(f.dono, "POST", `${base}/${l1}/transferir`, { data: "2026-03-10", de: g1, para: g2, femeas: 1000, machos: 100 });
+    await chamar(f.dono, "POST", `${base}/${l1}/transferir`, { data: "2026-04-10", de: g2, para: g3, femeas: 1000, machos: 100 });
+
+    const primeira = await chamar(f.dono, "POST", `${base}/${l1}/desfazer-transferencia`);
+    expect(primeira.status).toBe(200);
+    expect(primeira.json.galpoes).toEqual([{ id: g2, nome: "Galpão 2" }]);
+    expect((await loteNaData(db, f.orgId, g2!, "2026-05-01"))?.loteId).toBe(l1);
+    expect(await loteNaData(db, f.orgId, g3!, "2026-04-10")).toBeNull();
+
+    const segunda = await chamar(f.dono, "POST", `${base}/${l1}/desfazer-transferencia`);
+    expect(segunda.status).toBe(200);
+    expect(segunda.json.galpoes).toEqual([{ id: g1, nome: "Galpão 1" }]);
+    expect((await loteNaData(db, f.orgId, g1!, "2026-05-01"))?.loteId).toBe(l1);
+    expect(await db.select().from(alojamento).where(eq(alojamento.loteId, l1))).toHaveLength(1);
+  });
+
+  it("desfazer transferência é recusado com apontamento no destino ou origem já reocupada", async () => {
+    const f = await criarFazenda("Granja Desfazer Bloqueado");
+    const base = `/api/org/${f.orgId}/lotes`;
+    const [g1, g2] = await galpoes(f, "Galpão 1", "Galpão 2");
+    const l1 = (await chamar(f.dono, "POST", base, novo("L-01", "2026-01-05", [{ instalacaoId: g1!, femeas: 1000, machos: 100 }]))).json.id;
+    await chamar(f.dono, "POST", `${base}/${l1}/transferir`, { data: "2026-03-10", de: g1, para: g2, femeas: 1000, machos: 100 });
+
+    expect((await chamar(f.dono, "PUT", `${base}/${l1}/apontamentos/${g2}/2026-03-11`, { mortasFemeas: 1 })).status).toBe(200);
+    const comApontamento = await chamar(f.dono, "POST", `${base}/${l1}/desfazer-transferencia`);
+    expect(comApontamento.status).toBe(422);
+    expect(comApontamento.json.error).toBe(
+      "O Galpão 2 já tem apontamento ou pesagem depois da transferência. Apague ou corrija esses lançamentos antes de desfazer.",
+    );
+
+    await db.delete(apontamentoAviario).where(eq(apontamentoAviario.instalacaoId, g2!));
+    expect((await chamar(f.dono, "POST", base, novo("L-02", "2026-03-10", [{ instalacaoId: g1!, femeas: 500, machos: 50 }]))).status).toBe(201);
+    const reocupada = await chamar(f.dono, "POST", `${base}/${l1}/desfazer-transferencia`);
+    expect(reocupada.status).toBe(422);
+    expect(reocupada.json.error).toBe("O Galpão 1 já recebeu outro lote depois da transferência.");
+    expect((await loteNaData(db, f.orgId, g2!, "2026-03-10"))?.loteId).toBe(l1);
+  });
+
+  it("reabrir lote desfaz o encerramento; galpão reocupado dá 409", async () => {
+    const f = await criarFazenda("Granja Reabrir");
+    const base = `/api/org/${f.orgId}/lotes`;
+    const [g1, g2] = await galpoes(f, "Galpão 1", "Galpão 2");
+    const l1 = (await chamar(f.dono, "POST", base, novo("L-01", "2026-01-05", [{ instalacaoId: g1!, femeas: 1000, machos: 100 }]))).json.id;
+
+    const ativo = await chamar(f.dono, "POST", `${base}/${l1}/reabrir`);
+    expect(ativo.status).toBe(422);
+    expect(ativo.json.error).toBe("Este lote não está encerrado.");
+
+    await chamar(f.dono, "POST", `${base}/${l1}/encerrar`, { data: "2026-03-01" });
+    const reaberto = await chamar(f.admin, "POST", `${base}/${l1}/reabrir`);
+    expect(reaberto.status).toBe(200);
+    expect(reaberto.json).toMatchObject({ situacao: "ativo", galpoes: [{ id: g1, nome: "Galpão 1" }] });
+    const [linha] = await db.select().from(lote).where(eq(lote.id, l1));
+    expect(linha?.dataEncerramento).toBeNull();
+    expect((await loteNaData(db, f.orgId, g1!, "2026-05-01"))?.loteId).toBe(l1);
+
+    await chamar(f.dono, "POST", `${base}/${l1}/encerrar`, { data: "2026-03-01" });
+    expect((await chamar(f.dono, "POST", base, novo("L-02", "2026-03-02", [{ instalacaoId: g1!, femeas: 10, machos: 1 }]))).status).toBe(201);
+    const ocupado = await chamar(f.dono, "POST", `${base}/${l1}/reabrir`);
+    expect(ocupado.status).toBe(409);
+    expect(ocupado.json.error).toBe("O Galpão 1 já recebeu outro lote depois do encerramento.");
+    expect((await db.select().from(lote).where(eq(lote.id, l1)))[0]?.situacao).toBe("encerrado");
+    expect(g2).toBeDefined();
+  });
+
+  it("desfazer e reabrir: membro recebe 403 e outra fazenda 404", async () => {
+    const f = await criarFazenda("Granja Desfazer Acesso");
+    const outra = await criarFazenda("Outra Desfazer");
+    const base = `/api/org/${f.orgId}/lotes`;
+    const [g1] = await galpoes(f, "Galpão 1");
+    const l1 = (await chamar(f.dono, "POST", base, novo("L-01", "2026-01-05", [{ instalacaoId: g1!, femeas: 10, machos: 1 }]))).json.id;
+    for (const acao of ["desfazer-transferencia", "reabrir"]) {
+      expect((await chamar(f.membro, "POST", `${base}/${l1}/${acao}`)).status, acao).toBe(403);
+      expect((await chamar(outra.dono, "POST", `/api/org/${outra.orgId}/lotes/${l1}/${acao}`)).status, acao).toBe(404);
+    }
+  });
+
   it("transferência não aceita mais aves do que as vivas no galpão de origem", async () => {
     const f = await criarFazenda("Granja Transf Vivas");
     const base = `/api/org/${f.orgId}/lotes`;
