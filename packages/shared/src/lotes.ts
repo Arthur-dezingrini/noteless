@@ -222,7 +222,8 @@ export const diaGalpaoSchema = z.object({
   instalacaoId: z.string(),
   instalacaoNome: z.string(),
   ocorrenciaId: z.string().nullable(),
-  valores: valoresApontamentoSchema,
+  // Na resposta a observação pode passar de 500: notas somadas no mesmo dia se concatenam.
+  valores: valoresApontamentoBase.extend({ observacoes: z.string().nullish() }),
   indicadores: indicadoresDiaSchema,
 });
 export type DiaGalpao = z.infer<typeof diaGalpaoSchema>;

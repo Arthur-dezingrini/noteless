@@ -287,6 +287,18 @@ describe("apontamento manual, pesagem, vacinação e ficha", () => {
     expect(linha).toMatchObject({ mortasFemeas: 7, ovosTotal: 10, mortasMachos: null, observacoes: "a\nb" });
   });
 
+  it("duas notas somadas com 300 caracteres de observação cada não quebram a ficha", async () => {
+    const { f, g1, id, base, put } = await montar("Granja Obs Longa");
+    await put(f.dono, "2026-02-01", { mortasFemeas: 1, observacoes: "a".repeat(300) });
+    const origem = { organizationId: f.orgId, criadoPorId: f.dono.id, ocorrenciaId: null };
+    await somarApontamento(db, origem, g1, id, "2026-02-01", { observacoes: "b".repeat(300) });
+    await somarApontamento(db, origem, g1, id, "2026-02-01", { observacoes: "c".repeat(300) });
+    const g = await chamar(f.membro, "GET", `${base}/${id}`);
+    expect(g.status).toBe(200);
+    const ficha = fichaLoteSchema.parse(g.json);
+    expect(ficha.diario[0]!.valores.observacoes).toHaveLength(300 * 3 + 2);
+  });
+
   it("rejeita data futura, galpão sem lote, lote encerrado, mais baixas que aves e ovos acima do total", async () => {
     const { f, base, id, g1, put } = await montar("Granja Regras");
     const futura = await put(f.dono, "2999-01-01", { ovosTotal: 1 });
