@@ -1,11 +1,11 @@
 import { temAlvo } from "@vocare/shared";
 import { describe, expect, it } from "vitest";
 
-import { db } from "../src/db";
-import { alojamento, apontamentoAviario, instalacao, lote } from "../src/db/tabelas/aviario";
-import { ferramenta, instrucoes, normalizar } from "../src/ia/analisar";
-import { galpoesDaOrg, type GalpaoParaIa } from "../src/modulos/aviario";
-import { criarFazenda } from "./ajuda";
+import { db } from "../../src/db";
+import { alojamento, apontamentoAviario, instalacao, lote } from "../../src/db/tabelas/aviario";
+import { ferramenta, instrucoes, normalizar } from "../../src/modulos/notas/ia/analisar";
+import { galpoesDaOrg, type GalpaoParaIa } from "../../src/modulos/aviario";
+import { criarFazenda } from "../ajuda";
 
 const galpao3: GalpaoParaIa = {
   instalacaoId: "g3",

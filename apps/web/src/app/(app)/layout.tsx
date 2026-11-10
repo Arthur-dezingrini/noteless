@@ -6,13 +6,13 @@ import {
   getMemberRole,
   getNotificacoes,
   getNovidades,
-  getOcorrencias,
   getOrgAtiva,
   getOrganizations,
   requireSession,
   rotuloPapel,
 } from "@/lib/auth/dal";
 import { getInstalacoes } from "@/modulos/aviario/dados";
+import { getOcorrencias } from "@/modulos/notas/dados";
 
 /**
  * Casca da área logada. A sessão é exigida aqui, mas layouts não re-renderizam

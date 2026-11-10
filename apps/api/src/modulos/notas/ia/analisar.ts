@@ -12,7 +12,7 @@ import {
 } from "@vocare/shared";
 import { z } from "zod";
 
-import type { GalpaoParaIa } from "../modulos/aviario";
+import type { GalpaoParaIa } from "../../aviario";
 import { interpretacao, type Interpretacao } from "./provedor";
 import { IaNaoConfigurada } from "./transcrever";
 

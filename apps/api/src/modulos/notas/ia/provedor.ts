@@ -1,4 +1,4 @@
-import { env } from "../env";
+import { env } from "../../../env";
 
 /**
  * Qual serviço faz cada etapa, a partir do que há no .env. A regra é

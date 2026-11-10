@@ -7,7 +7,6 @@ import {
   memberRoleSchema,
   notificacaoListaSchema,
   novidadesSchema,
-  ocorrenciaListaSchema,
   organizationListSchema,
   prontuarioListaSchema,
   relatorioSchema,
@@ -20,7 +19,6 @@ import {
   type Grupo,
   type MemberRole,
   type Notificacao,
-  type Ocorrencia,
   type Organization,
   type Prontuario,
   type Relatorio,
@@ -207,15 +205,6 @@ export const getNovidades = cache(async (organizationId: string): Promise<string
 
   const parsed = novidadesSchema.safeParse(await corpoJson(res));
   return parsed.success ? parsed.data.versao : null;
-});
-
-/** Registros de ocorrência da organização, mais recentes primeiro. */
-export const getOcorrencias = cache(async (organizationId: string): Promise<Ocorrencia[]> => {
-  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/ocorrencias`);
-  if (!res.ok) return [];
-
-  const parsed = ocorrenciaListaSchema.safeParse(await corpoJson(res));
-  return parsed.success ? parsed.data : [];
 });
 
 /**

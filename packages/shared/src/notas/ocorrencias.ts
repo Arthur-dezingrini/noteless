@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { especieSchema, sexoSchema } from "./animais";
-import { tipoConsultaSchema } from "./consultas";
-import { CAMPOS_APONTAMENTO, valoresApontamentoBase } from "./aviario";
+import { especieSchema, sexoSchema } from "../animais";
+import { tipoConsultaSchema } from "../consultas";
+import { CAMPOS_APONTAMENTO, valoresApontamentoBase } from "../aviario";
 
 /**
  * Registro de ocorrência: um áudio do campo, sua transcrição e as operações

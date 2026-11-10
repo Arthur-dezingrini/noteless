@@ -2,11 +2,11 @@ import type { Operacao } from "@vocare/shared";
 import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { db } from "../src/db";
-import { apontamentoAviario, pesagemLote, vacinacaoLote } from "../src/db/tabelas/aviario";
-import { ocorrencia } from "../src/db/tabelas/notas";
-import { hojeISO, noDia } from "../src/base/datas";
-import { chamar, criarFazenda } from "./ajuda";
+import { db } from "../../src/db";
+import { apontamentoAviario, pesagemLote, vacinacaoLote } from "../../src/db/tabelas/aviario";
+import { ocorrencia } from "../../src/db/tabelas/notas";
+import { hojeISO, noDia } from "../../src/base/datas";
+import { chamar, criarFazenda } from "../ajuda";
 
 let f: Awaited<ReturnType<typeof criarFazenda>>;
 let outra: Awaited<ReturnType<typeof criarFazenda>>;

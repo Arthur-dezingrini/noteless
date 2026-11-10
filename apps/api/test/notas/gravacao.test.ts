@@ -2,23 +2,23 @@ import type { Operacao } from "@vocare/shared";
 import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { app } from "../src/app";
-import { db } from "../src/db";
-import { pesagem } from "../src/db/tabelas/historico";
-import { ocorrencia } from "../src/db/tabelas/notas";
-import { chamar, criarFazenda, type Pessoa } from "./ajuda";
+import { app } from "../../src/app";
+import { db } from "../../src/db";
+import { pesagem } from "../../src/db/tabelas/historico";
+import { ocorrencia } from "../../src/db/tabelas/notas";
+import { chamar, criarFazenda, type Pessoa } from "../ajuda";
 
 // A IA fica de fora: o que está em teste é a data que ela recebe, não o que entende.
 const ia = vi.hoisted(() => ({
   transcrever: vi.fn(async (_audio: File) => "Nasceu um bezerro da Mimosa hoje."),
   analisar: vi.fn(async (_transcricao: string, _hoje: string, ..._contexto: unknown[]) => ({ resumo: "Parto da Mimosa.", operacoes: [] })),
 }));
-vi.mock("../src/ia/transcrever", async (original) => ({
-  ...(await original<typeof import("../src/ia/transcrever")>()),
+vi.mock("../../src/modulos/notas/ia/transcrever", async (original) => ({
+  ...(await original<typeof import("../../src/modulos/notas/ia/transcrever")>()),
   transcrever: ia.transcrever,
 }));
-vi.mock("../src/ia/analisar", async (original) => ({
-  ...(await original<typeof import("../src/ia/analisar")>()),
+vi.mock("../../src/modulos/notas/ia/analisar", async (original) => ({
+  ...(await original<typeof import("../../src/modulos/notas/ia/analisar")>()),
   analisar: ia.analisar,
 }));
 

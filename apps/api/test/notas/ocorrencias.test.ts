@@ -2,11 +2,11 @@ import type { Operacao } from "@vocare/shared";
 import { and, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { db } from "../src/db";
-import { notificacao } from "../src/db/tabelas/avisos";
-import { pesagem } from "../src/db/tabelas/historico";
-import { ocorrencia } from "../src/db/tabelas/notas";
-import { chamar, criarFazenda } from "./ajuda";
+import { db } from "../../src/db";
+import { notificacao } from "../../src/db/tabelas/avisos";
+import { pesagem } from "../../src/db/tabelas/historico";
+import { ocorrencia } from "../../src/db/tabelas/notas";
+import { chamar, criarFazenda } from "../ajuda";
 
 let f: Awaited<ReturnType<typeof criarFazenda>>;
 let mimosaId: string;
@@ -120,7 +120,7 @@ describe("conferência de ocorrências", () => {
   it("sem chave da IA, mandar áudio avisa o que falta em vez de quebrar", async () => {
     const form = new FormData();
     form.append("audio", new Blob([new Uint8Array(100)], { type: "audio/webm" }), "a.webm");
-    const { app } = await import("../src/app");
+    const { app } = await import("../../src/app");
     const res = await app.request(`${org()}/ocorrencias`, {
       method: "POST",
       headers: { Cookie: f.membro.cookie, Origin: "http://localhost:3000" },

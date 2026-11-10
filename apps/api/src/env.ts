@@ -21,7 +21,7 @@ const schema = z.object({
 
   // IA das ocorrências. Tudo opcional: sem chave nenhuma a api sobe e a rota
   // de áudio responde 503 explicando. A resolução de qual serviço usar fica
-  // em src/ia/provedor.ts.
+  // em src/modulos/notas/ia/provedor.ts.
   GROQ_API_KEY: z.string().optional(), // grátis: transcrição + interpretação
   ANTHROPIC_API_KEY: z.string().optional(), // se presente, interpreta com Claude
   IA_MODELO: z.string().optional(), // sobrescreve o modelo padrão do provedor

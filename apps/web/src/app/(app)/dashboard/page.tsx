@@ -3,10 +3,11 @@ import type { Route } from "next";
 import Link from "next/link";
 
 import { buttonClass, Card, Dot, PageHeader, SectionHeader, StatusText, type Tom } from "@/components/ui";
-import { getAvisos, getConsultas, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getAvisos, getConsultas, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 import { diaCurto, hojeISO, TZ } from "@/lib/datas";
 import { GalpoesHoje } from "@/modulos/aviario";
 import { getGalpoesHoje } from "@/modulos/aviario/dados";
+import { getOcorrencias } from "@/modulos/notas/dados";
 
 export const metadata = { title: "Início" };
 

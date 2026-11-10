@@ -1,8 +1,8 @@
 import { Card } from "@/components/ui";
-import { getAnimais, getGrupos, getMemberRole, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
+import { getAnimais, getGrupos, getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 import { getInstalacoes, getLotes } from "@/modulos/aviario/dados";
-
-import { NotasView } from "./notas-view";
+import { NotasView } from "@/modulos/notas";
+import { getOcorrencias } from "@/modulos/notas/dados";
 
 // Na tela é "nota"; no contrato (api, banco, @vocare/shared) continua "ocorrência".
 export const metadata = { title: "Notas" };
