@@ -4,7 +4,7 @@ import { novidadesSchema } from "@vocare/shared";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 
-import { proximaVerificacao, voltouDaOciosidade } from "@/lib/ao-vivo";
+import { proximaVerificacao, voltouDaOciosidade } from "../ao-vivo";
 
 /**
  * Deixa a tela em dia sem recarregar. Pergunta à api se mudou alguma coisa —

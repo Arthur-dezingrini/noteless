@@ -9,7 +9,7 @@ import { analisar } from "./ia/analisar";
 import { IaNaoConfigurada, transcrever } from "./ia/transcrever";
 import { membroAtual } from "../../base/membro-atual";
 import { galpoesDaOrg } from "../aviario";
-import { administradores, notificar } from "../../notificacoes/notificar";
+import { administradores, notificar } from "../avisos";
 import { buscar, animaisDaOrg, donoSeOutro, gruposDaOrg } from "./consultas";
 import { confirmarNota } from "./regras/aplicar";
 import { quandoFoiGravado } from "./regras/gravacao";

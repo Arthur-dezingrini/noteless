@@ -1,7 +1,8 @@
-import { AoVivo } from "@/components/app/ao-vivo";
+import { AoVivo } from "@/modulos/avisos";
 import { Header } from "@/components/app/header";
 import { Sidebar } from "@/components/app/sidebar";
-import { getMemberRole, getNotificacoes, getNovidades, getOrgAtiva, getOrganizations, requireSession, rotuloPapel } from "@/lib/auth/dal";
+import { getMemberRole, getOrgAtiva, getOrganizations, requireSession, rotuloPapel } from "@/lib/auth/dal";
+import { getNotificacoes, getNovidades } from "@/modulos/avisos/dados";
 import { getAnimais } from "@/modulos/animais/dados";
 import { getInstalacoes } from "@/modulos/aviario/dados";
 import { getOcorrencias } from "@/modulos/notas/dados";

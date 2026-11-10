@@ -2,10 +2,10 @@ import type { Novidades } from "@vocare/shared";
 import { and, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 
-import { db } from "../db";
-import { notificacao } from "../db/tabelas/avisos";
-import { ocorrencia } from "../db/tabelas/notas";
-import { membroAtual } from "../base/membro-atual";
+import { db } from "../../../db";
+import { notificacao } from "../../../db/tabelas/avisos";
+import { ocorrencia } from "../../../db/tabelas/notas";
+import { membroAtual } from "../../../base/membro-atual";
 
 /**
  * A tela aberta pergunta aqui, de poucos em poucos segundos, se precisa

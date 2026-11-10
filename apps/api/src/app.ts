@@ -5,14 +5,13 @@ import { logger } from "hono/logger";
 import { auth } from "./auth";
 import { origensConfiaveis } from "./env";
 import { inicioRoutes } from "./routes/inicio";
-import { notificacoesRoutes } from "./routes/notificacoes";
-import { novidadesRoutes } from "./routes/novidades";
 import { relatoriosRoutes } from "./routes/relatorios";
 import { aviarioRotas } from "./modulos/aviario";
 import { notasRotas } from "./modulos/notas";
 import { animaisRotas } from "./modulos/animais";
 import { saudeRotas } from "./modulos/saude";
 import { contaRotas, perfilRotas } from "./modulos/conta";
+import { avisosRotas } from "./modulos/avisos";
 
 export const app = new Hono();
 
@@ -42,8 +41,7 @@ app.route("/api/org", animaisRotas);
 app.route("/api/org", saudeRotas);
 app.route("/api/org", notasRotas);
 app.route("/api/org", aviarioRotas);
-app.route("/api/org", notificacoesRoutes);
-app.route("/api/org", novidadesRoutes);
+app.route("/api/org", avisosRotas);
 app.route("/api/org", inicioRoutes);
 app.route("/api/org", relatoriosRoutes);
 app.route("/api/perfil", perfilRotas);

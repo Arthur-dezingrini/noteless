@@ -1,8 +1,8 @@
 import { and, eq, inArray, ne } from "drizzle-orm";
 
-import { db } from "../db";
-import { notificacao } from "../db/tabelas/avisos";
-import { member } from "../db/schema";
+import { db } from "../../../db";
+import { notificacao } from "../../../db/tabelas/avisos";
+import { member } from "../../../db/schema";
 
 type Aviso = { texto: string; detalhe?: string | null; link?: string | null };
 

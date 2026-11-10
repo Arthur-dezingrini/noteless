@@ -2,9 +2,9 @@ import type { Notificacao } from "@vocare/shared";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 
-import { db } from "../db";
-import { notificacao } from "../db/tabelas/avisos";
-import { membroAtual } from "../base/membro-atual";
+import { db } from "../../../db";
+import { notificacao } from "../../../db/tabelas/avisos";
+import { membroAtual } from "../../../base/membro-atual";
 
 /** O sino: os avisos do usuário atual nesta organização. */
 export const notificacoesRoutes = new Hono();
