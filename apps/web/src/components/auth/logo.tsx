@@ -6,7 +6,11 @@ type LogoProps = {
   className?: string;
 };
 
-/** Marca do Taiplan: brinco de gado com um check — o animal identificado e o registro feito. */
+/**
+ * Marca do Noteless: uma nota com uma onda de voz no lugar do texto — o que
+ * foi falado vira registro. A dobra e as barras são recortes que mostram o
+ * fundo, então a mesma forma serve sobre o claro e sobre o verde.
+ */
 export function Logo({ tone = "dark", className = "" }: LogoProps) {
   const claro = tone === "light";
   return (
@@ -15,15 +19,7 @@ export function Logo({ tone = "dark", className = "" }: LogoProps) {
         <path
           className={claro ? "fill-white" : "fill-brand"}
           fillRule="evenodd"
-          d="M16 2.5c2.2 0 4 1.8 4 4v1l5.3 3.4c1.1.7 1.7 1.9 1.7 3.1V24c0 3-2.5 5.5-5.5 5.5h-11C7.5 29.5 5 27 5 24V14c0-1.2.6-2.4 1.7-3.1L12 7.5v-1c0-2.2 1.8-4 4-4Zm0 2.4a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4Z"
-        />
-        <path
-          className={claro ? "stroke-brand" : "stroke-white"}
-          d="M10.5 18l4.5 5.2L22 14.5"
-          fill="none"
-          strokeWidth={3}
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          d="M9.5 2.5H18.45V7.7a3.45 3.45 0 0 0 3.45 3.45H27V25a4.5 4.5 0 0 1-4.5 4.5h-13A4.5 4.5 0 0 1 5 25V7a4.5 4.5 0 0 1 4.5-4.5ZM20.35 3.45V7.7a1.55 1.55 0 0 0 1.55 1.55h4.25ZM8.2 18a1.2 1.2 0 0 1 2.4 0v3a1.2 1.2 0 0 1-2.4 0Zm4.4-3.5a1.2 1.2 0 0 1 2.4 0v10a1.2 1.2 0 0 1-2.4 0Zm4.4 2a1.2 1.2 0 0 1 2.4 0v6a1.2 1.2 0 0 1-2.4 0Zm4.4 2.25a1.2 1.2 0 0 1 2.4 0v1.5a1.2 1.2 0 0 1-2.4 0Z"
         />
       </svg>
       <span className={`text-[19px] font-bold tracking-tight ${claro ? "text-white" : "text-ink"}`}>{BRAND_NAME}</span>

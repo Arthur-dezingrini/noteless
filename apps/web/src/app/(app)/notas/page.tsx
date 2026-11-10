@@ -1,11 +1,12 @@
 import { Card } from "@/components/ui";
 import { getAnimais, getGrupos, getInstalacoes, getLotes, getMemberRole, getOcorrencias, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 
-import { OcorrenciasView } from "./ocorrencias-view";
+import { NotasView } from "./notas-view";
 
-export const metadata = { title: "Ocorrências" };
+// Na tela é "nota"; no contrato (api, banco, @vocare/shared) continua "ocorrência".
+export const metadata = { title: "Notas" };
 
-export default async function OcorrenciasPage({ searchParams }: PageProps<"/ocorrencias">) {
+export default async function NotasPage({ searchParams }: PageProps<"/notas">) {
   const [, org, busca] = await Promise.all([requireSession(), getOrgAtiva(), searchParams]);
 
   if (!org) {
@@ -27,7 +28,7 @@ export default async function OcorrenciasPage({ searchParams }: PageProps<"/ocor
   ]);
 
   return (
-    <OcorrenciasView
+    <NotasView
       orgId={org.id}
       ocorrencias={ocorrencias}
       animais={animais.map((a) => ({ id: a.id, nome: a.nome, numero: a.numero ?? null, sexo: a.sexo ?? null }))}

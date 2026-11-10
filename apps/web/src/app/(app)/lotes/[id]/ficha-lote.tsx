@@ -211,7 +211,7 @@ function Diario({ ficha, editavel, onAbrir }: { ficha: FichaLote; editavel: bool
                 <td className={tabela.td}>
                   {d.ocorrenciaId ? (
                     <Link
-                      href={`/ocorrencias?id=${encodeURIComponent(d.ocorrenciaId)}` as Route}
+                      href={`/notas?id=${encodeURIComponent(d.ocorrenciaId)}` as Route}
                       onClick={(e) => e.stopPropagation()}
                       className="font-semibold text-ink underline underline-offset-[3px]"
                     >

@@ -18,7 +18,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/lotes", label: "Lotes", soComInstalacao: true },
   { href: "/grupos", label: "Grupos" },
   { href: "/prontuarios", label: "Prontuários" },
-  { href: "/ocorrencias", label: "Ocorrências" },
+  { href: "/notas", label: "Notas" },
   { href: "/relatorios", label: "Relatórios" },
 ];
 

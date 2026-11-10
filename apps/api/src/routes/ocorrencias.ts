@@ -14,7 +14,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { dataISOEmSP, hojeISO } from "../datas";
+import { hojeISO } from "../datas";
 import { db } from "../db";
 import { animal } from "../db/animais";
 import { consulta } from "../db/consultas";
@@ -36,12 +36,30 @@ import { administradores, notificar } from "../notificacoes/notificar";
 export const ocorrenciasRoutes = new Hono();
 
 const PODE_SALVAR: Papel[] = ["owner", "admin"];
-const SO_ADMIN = "Só o administrador salva ou descarta ocorrências. Use \"Mandar para o administrador\".";
+const SO_ADMIN = "Só o administrador salva ou descarta notas. Use \"Mandar para o administrador\".";
 
 const TAMANHO_MAXIMO = 25 * 1024 * 1024; // limite do Whisper
 const HORA_PADRAO = "08:00";
 
 class AplicacaoFalhou extends Error {}
+
+const ADIANTADO_MAX_MS = 5 * 60 * 1000;
+const IDADE_MAX_MS = 60 * 24 * 60 * 60 * 1000;
+
+/**
+ * Hora em que o áudio foi gravado, quando chega depois (gravador sem sinal
+ * guarda no cartão e envia quando o Wi-Fi volta). Valor estranho — relógio
+ * da placa zerado ou adiantado, texto inválido — é ignorado em vez de
+ * recusar: perder a gravação é pior; vale a hora da chegada.
+ */
+function quandoFoiGravado(valor: unknown, agora = new Date()): Date | null {
+  const iso = z.iso.datetime({ offset: true }).safeParse(valor);
+  if (!iso.success) return null;
+  const quando = new Date(iso.data);
+  const t = quando.getTime();
+  if (t > agora.getTime() + ADIANTADO_MAX_MS || t < agora.getTime() - IDADE_MAX_MS) return null;
+  return quando;
+}
 
 const criador = alias(user, "criador");
 const revisor = alias(user, "revisor");
@@ -124,13 +142,16 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias", async (c) => {
   if (!(audio instanceof File) || audio.size === 0) return c.json({ error: "Envie um áudio no campo 'audio'." }, 400);
   if (audio.size > TAMANHO_MAXIMO) return c.json({ error: "Áudio grande demais (máximo 25 MB)." }, 413);
   const duracaoSeg = Number(body?.duracaoSeg) || null;
+  // Vira a data da ocorrência e o "hoje" da IA: "nasceu hoje", gravado sem
+  // sinal e enviado no dia seguinte, é do dia da gravação.
+  const gravadoEm = quandoFoiGravado(body?.gravadoEm);
 
   try {
     const transcricao = await transcrever(audio);
     // Áudio que não deu para entender vira ocorrência mesmo assim: quem
     // confere escreve o que foi dito (POST /:id/texto).
     const analise = transcricao
-      ? await analisar(transcricao, hojeISO(), await animaisDaOrg(orgId), await gruposDaOrg(orgId), await galpoesDaOrg(orgId, hojeISO()))
+      ? await analisar(transcricao, hojeISO(gravadoEm ?? undefined), await animaisDaOrg(orgId), await gruposDaOrg(orgId), await galpoesDaOrg(orgId, hojeISO(gravadoEm ?? undefined)))
       : null;
 
     const [nova] = await db
@@ -142,6 +163,7 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias", async (c) => {
         resumo: analise?.resumo ?? "",
         duracaoSeg,
         operacoes: analise?.operacoes ?? [],
+        ...(gravadoEm && { createdAt: gravadoEm }),
       })
       .returning({ id: ocorrencia.id });
 
@@ -153,9 +175,9 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias", async (c) => {
       .catch((e: unknown) => console.error("[ocorrencias] falha ao guardar áudio:", e));
 
     await notificar(orgId, await administradores(orgId, eu.userId), {
-      texto: `${eu.nome} gravou uma ocorrência`,
+      texto: `${eu.nome} gravou uma nota`,
       detalhe: transcricao ? transcricao.slice(0, 80) : "Áudio não entendido",
-      link: `/ocorrencias?id=${nova!.id}`,
+      link: `/notas?id=${nova!.id}`,
     });
 
     const [pronta] = await buscar(orgId, nova!.id);
@@ -201,11 +223,12 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/texto", async (c) => {
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
 
   const [alvo] = await buscar(orgId, id);
-  if (!alvo) return c.json({ error: "Ocorrência não encontrada." }, 404);
-  if (alvo.status !== "pendente") return c.json({ error: "Esta ocorrência já foi revisada." }, 409);
+  if (!alvo) return c.json({ error: "Nota não encontrada." }, 404);
+  if (alvo.status !== "pendente") return c.json({ error: "Esta nota já foi revisada." }, 409);
 
   try {
-    const analise = await analisar(body.data.texto, hojeISO(), await animaisDaOrg(orgId), await gruposDaOrg(orgId), await galpoesDaOrg(orgId, hojeISO()));
+    // Datas relativas do texto contam a partir do dia em que foi gravado.
+    const analise = await analisar(body.data.texto, hojeISO(alvo.createdAt), await animaisDaOrg(orgId), await gruposDaOrg(orgId), await galpoesDaOrg(orgId, hojeISO(alvo.createdAt)));
     await db
       .update(ocorrencia)
       .set({ transcricao: body.data.texto, resumo: analise.resumo, operacoes: analise.operacoes })
@@ -257,12 +280,12 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/encaminhar", async (c) => {
     .set({ encaminhadaPorId: eu.userId, encaminhadaEm: new Date() })
     .where(and(eq(ocorrencia.id, id), eq(ocorrencia.organizationId, orgId), eq(ocorrencia.status, "pendente")))
     .returning({ id: ocorrencia.id, resumo: ocorrencia.resumo });
-  if (!alvo) return c.json({ error: "Ocorrência não encontrada ou já revisada." }, 404);
+  if (!alvo) return c.json({ error: "Nota não encontrada ou já revisada." }, 404);
 
   await notificar(orgId, await administradores(orgId, eu.userId), {
-    texto: `${eu.nome} mandou uma ocorrência para conferir`,
+    texto: `${eu.nome} mandou uma nota para conferir`,
     detalhe: alvo.resumo || null,
-    link: `/ocorrencias?id=${id}`,
+    link: `/notas?id=${id}`,
   });
 
   const [pronta] = await buscar(orgId, id);
@@ -308,9 +331,12 @@ async function alvos(tx: Tx, op: Operacao, orgId: string): Promise<string[] | st
   return [a.id];
 }
 
-/** Aplica uma operação já confirmada. Devolve a mensagem de erro, ou null. */
-async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocorrenciaId: string, criadaEm: Date) {
-  const hoje = hojeISO();
+/**
+ * Aplica uma operação já confirmada. Devolve a mensagem de erro, ou null.
+ * O que foi feito e veio sem data (peso, vacina, remédio, parto) fica no
+ * `dia` em que a ocorrência foi gravada, não no dia em que alguém salvou.
+ */
+async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocorrenciaId: string, dia: string) {
   const origem = { organizationId: orgId, ocorrenciaId, criadoPorId: userId };
 
   if (op.tipo === "cadastrar_animal") {
@@ -325,7 +351,7 @@ async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocor
     return null;
   }
 
-  if (TIPOS_AVIARIO.includes(op.tipo)) return aplicarAviario(tx, op, origem, hoje, dataISOEmSP(criadaEm));
+  if (TIPOS_AVIARIO.includes(op.tipo)) return aplicarAviario(tx, op, origem, hojeISO(), dia);
 
   const ids = await alvos(tx, op, orgId);
   if (typeof ids === "string") return ids;
@@ -338,7 +364,8 @@ async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocor
         // Consulta de grupo fica no grupo ("vacinar o Lote 4"), não em cada animal.
         animalId: op.grupoId ? null : um,
         grupoId: op.grupoId ?? null,
-        data: op.data ?? hoje,
+        // Agendar é para a frente: sem data, vale o dia em que salvou.
+        data: op.data ?? hojeISO(),
         hora: op.hora ?? HORA_PADRAO,
         tipo: op.tipoConsulta,
         observacoes: op.observacoes ?? op.detalhe,
@@ -348,7 +375,7 @@ async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocor
       await tx.insert(anotacaoAnimal).values(ids.map((animalId) => ({ ...origem, animalId, texto: op.texto })));
       return null;
     case "registrar_peso":
-      await tx.insert(pesagem).values({ ...origem, animalId: um, pesoKg: String(op.pesoKg), data: hoje });
+      await tx.insert(pesagem).values({ ...origem, animalId: um, pesoKg: String(op.pesoKg), data: dia });
       // O cadastro guarda o peso atual; o histórico fica na pesagem.
       await tx.update(animal).set({ pesoKg: String(op.pesoKg) }).where(eq(animal.id, um));
       return null;
@@ -360,7 +387,7 @@ async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocor
           vacina: op.vacina,
           dose: op.dose,
           grupoId: op.grupoId ?? null,
-          data: op.data ?? hoje,
+          data: op.data ?? dia,
           proximaData: op.proximaData,
         })),
       );
@@ -373,14 +400,14 @@ async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocor
           remedio: op.remedio,
           dose: op.dose,
           grupoId: op.grupoId ?? null,
-          inicio: hoje,
-          fim: op.dias ? somarDias(hoje, op.dias - 1) : null,
+          inicio: dia,
+          fim: op.dias ? somarDias(dia, op.dias - 1) : null,
           carenciaDias: op.carenciaDias,
         })),
       );
       return null;
     case "registrar_parto":
-      await tx.insert(parto).values({ ...origem, animalId: um, data: op.data ?? hoje, crias: op.crias, observacoes: op.observacoes });
+      await tx.insert(parto).values({ ...origem, animalId: um, data: op.data ?? dia, crias: op.crias, observacoes: op.observacoes });
       return null;
   }
 }
@@ -396,8 +423,8 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/confirmar", async (c) => {
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
 
   const [alvo] = await buscar(orgId, id);
-  if (!alvo) return c.json({ error: "Ocorrência não encontrada." }, 404);
-  if (alvo.status !== "pendente") return c.json({ error: "Esta ocorrência já foi revisada." }, 409);
+  if (!alvo) return c.json({ error: "Nota não encontrada." }, 404);
+  if (alvo.status !== "pendente") return c.json({ error: "Esta nota já foi revisada." }, 409);
 
   // Correções de quem conferiu entram antes de aplicar; o valor da IA fica
   // em `original` de cada operação (trilha de auditoria).
@@ -417,7 +444,7 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/confirmar", async (c) => {
   // continua pendente para o revisor ajustar.
   const erro = await db.transaction(async (tx) => {
     for (const op of escolhidas) {
-      const e = await aplicar(tx, op, orgId, eu.userId, id, alvo.createdAt);
+      const e = await aplicar(tx, op, orgId, eu.userId, id, hojeISO(alvo.createdAt));
       // Lançar desfaz a transação; a mensagem volta para o revisor.
       if (e) throw new AplicacaoFalhou(e);
     }
@@ -435,9 +462,9 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/confirmar", async (c) => {
 
   const n = escolhidas.length;
   await notificar(orgId, [await donoSeOutro(id, eu.userId)], {
-    texto: "Sua ocorrência foi salva",
+    texto: "Sua nota foi salva",
     detalhe: `${n} ${n === 1 ? "ação feita" : "ações feitas"} no sistema por ${eu.nome}`,
-    link: `/ocorrencias?id=${id}`,
+    link: `/notas?id=${id}`,
   });
 
   const [pronta] = await buscar(orgId, id);
@@ -456,12 +483,12 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/descartar", async (c) => {
     .set({ status: "descartada", revisadoPorId: eu.userId, revisadoEm: new Date() })
     .where(and(eq(ocorrencia.id, id), eq(ocorrencia.organizationId, orgId), inArray(ocorrencia.status, ["pendente"])))
     .returning({ id: ocorrencia.id });
-  if (!alvo) return c.json({ error: "Ocorrência não encontrada ou já revisada." }, 404);
+  if (!alvo) return c.json({ error: "Nota não encontrada ou já revisada." }, 404);
 
   await notificar(orgId, [await donoSeOutro(id, eu.userId)], {
-    texto: "Sua ocorrência foi descartada",
+    texto: "Sua nota foi descartada",
     detalhe: `Por ${eu.nome}. Nada entrou no sistema.`,
-    link: `/ocorrencias?id=${id}`,
+    link: `/notas?id=${id}`,
   });
 
   const [pronta] = await buscar(orgId, id);
@@ -481,7 +508,7 @@ ocorrenciasRoutes.post("/:orgId/ocorrencias/:id/restaurar", async (c) => {
     .set({ status: "pendente", revisadoPorId: null, revisadoEm: null })
     .where(and(eq(ocorrencia.id, id), eq(ocorrencia.organizationId, orgId), eq(ocorrencia.status, "descartada")))
     .returning({ id: ocorrencia.id });
-  if (!alvo) return c.json({ error: "Ocorrência não encontrada ou não está descartada." }, 404);
+  if (!alvo) return c.json({ error: "Nota não encontrada ou não está descartada." }, 404);
 
   const [pronta] = await buscar(orgId, id);
   return c.json(pronta);

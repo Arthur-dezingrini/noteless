@@ -1,9 +1,9 @@
 /**
  * Identidade e conteúdo do painel de apresentação do login.
- * O repositório ainda se chama VOCare, mas o produto é Taiplan. Este é o
+ * O repositório ainda se chama VOCare, mas o produto é Noteless. Este é o
  * único lugar onde o nome aparece na interface.
  */
-export const BRAND_NAME = "Taiplan";
+export const BRAND_NAME = "Noteless";
 
 export type ShowcaseSlide = {
   quote: string;

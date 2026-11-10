@@ -45,12 +45,12 @@ export default async function InicioPage() {
             <Dot tone="aviso" />
             <span>
               <b className="font-semibold">
-                {pendentes} {pendentes === 1 ? "ocorrência" : "ocorrências"}
+                {pendentes} {pendentes === 1 ? "nota" : "notas"}
               </b>{" "}
               esperando você conferir
             </span>
           </p>
-          <Link href="/ocorrencias" className={buttonClass("secundario")}>
+          <Link href="/notas" className={buttonClass("secundario")}>
             Conferir agora
           </Link>
         </div>

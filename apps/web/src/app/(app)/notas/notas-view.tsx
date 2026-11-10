@@ -62,10 +62,10 @@ const ABAS: { status: StatusOcorrencia; label: string }[] = [
 const VAZIO: Record<StatusOcorrencia, { titulo: string; texto: string }> = {
   pendente: {
     titulo: "Nada para conferir",
-    texto: `Quando alguém falar no microfone do ${BRAND_NAME}, a ocorrência aparece aqui para você conferir antes de entrar no sistema.`,
+    texto: `Quando alguém falar no microfone do ${BRAND_NAME}, a nota aparece aqui para você conferir antes de entrar no sistema.`,
   },
-  confirmada: { titulo: "Nada salvo ainda", texto: "As ocorrências que você conferir e salvar ficam aqui." },
-  descartada: { titulo: "Nenhuma ocorrência descartada", texto: "O que for descartado fica aqui por 30 dias, caso mude de ideia." },
+  confirmada: { titulo: "Nada salvo ainda", texto: "As notas que você conferir e salvar ficam aqui." },
+  descartada: { titulo: "Nenhuma nota descartada", texto: "O que for descartado fica aqui por 30 dias, caso mude de ideia." },
 };
 
 /** "o retorno", "a vacinação"… — para montar a frase do rodapé. */
@@ -698,7 +698,7 @@ function Detalhe({
         }[estado];
 
   return (
-    <Card as="section" aria-label="Ocorrência" className="flex min-w-0 flex-[999_1_28rem] flex-col">
+    <Card as="section" aria-label="Nota" className="flex min-w-0 flex-[999_1_28rem] flex-col">
       <div className="flex flex-col gap-3.5 px-6 py-5">
         <div className="flex items-baseline justify-between gap-3 text-[15px]">
           <span>
@@ -910,7 +910,7 @@ function ItemLista({ oc, ativa, onClick }: { oc: Ocorrencia; ativa: boolean; onC
   );
 }
 
-export function OcorrenciasView({
+export function NotasView({
   orgId,
   ocorrencias: iniciais,
   animais: listaAnimais,
@@ -933,12 +933,18 @@ export function OcorrenciasView({
   const router = useRouter();
   const [lista, setLista] = useState(iniciais);
   const [anteriores, setAnteriores] = useState(iniciais);
+  const [aba, setAba] = useState<StatusOcorrencia>(() => iniciais.find((o) => o.id === selecionarId)?.status ?? "pendente");
+  const [selecionadaId, setSelecionadaId] = useState<string | null>(selecionarId ?? null);
   if (anteriores !== iniciais) {
     setAnteriores(iniciais);
     setLista(iniciais);
+    // A lista nova pode trazer uma ocorrência que acabou de chegar, no topo.
+    // Quem estava aberta (mesmo sem clique, por ser a primeira) continua aberta.
+    if (!selecionadaId) {
+      const aberta = lista.find((o) => o.status === aba);
+      if (aberta) setSelecionadaId(aberta.id);
+    }
   }
-  const [aba, setAba] = useState<StatusOcorrencia>(() => iniciais.find((o) => o.id === selecionarId)?.status ?? "pendente");
-  const [selecionadaId, setSelecionadaId] = useState<string | null>(selecionarId ?? null);
   const cad: Cadastro = {
     animais: new Map(listaAnimais.map((a) => [a.id, a])),
     grupos: new Map(listaGrupos.map((g) => [g.id, g])),
@@ -960,7 +966,7 @@ export function OcorrenciasView({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Ocorrências"
+        title="Notas"
         description={`O que foi falado no microfone do ${BRAND_NAME}. Nada entra no sistema antes de alguém conferir.`}
       />
 
@@ -981,7 +987,7 @@ export function OcorrenciasView({
         </div>
       ) : (
         <div className="flex flex-wrap items-start gap-7">
-          <ul aria-label="Ocorrências" className="flex max-w-[310px] min-w-0 flex-[1_1_15rem] flex-col gap-0.5">
+          <ul aria-label="Notas" className="flex max-w-[310px] min-w-0 flex-[1_1_15rem] flex-col gap-0.5">
             {visiveis.map((oc) => (
               <ItemLista key={oc.id} oc={oc} ativa={oc.id === selecionada?.id} onClick={() => setSelecionadaId(oc.id)} />
             ))}

@@ -22,6 +22,12 @@ const nextConfig: NextConfig = {
       { source: "/health", destination: `${API_URL}/health` },
     ];
   },
+
+  // "Ocorrências" virou "Notas". Aviso antigo (o link fica salvo no banco) e
+  // favorito continuam abrindo a nota certa: a query (?id=) vai junto.
+  async redirects() {
+    return [{ source: "/ocorrencias", destination: "/notas", permanent: true }];
+  },
 };
 
 export default nextConfig;

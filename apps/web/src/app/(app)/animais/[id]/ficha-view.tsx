@@ -100,10 +100,10 @@ export function FichaView({
       {ocorrenciasPendentes > 0 && (
         <Callout>
           <span>
-            {ocorrenciasPendentes} {ocorrenciasPendentes === 1 ? "ocorrência" : "ocorrências"} sobre {de} {nomeCurto} esperando
+            {ocorrenciasPendentes} {ocorrenciasPendentes === 1 ? "nota" : "notas"} sobre {de} {nomeCurto} esperando
             conferência. Só entra no histórico depois de salva.
           </span>
-          <Link href="/ocorrencias" className="font-semibold text-ink underline underline-offset-[3px]">
+          <Link href="/notas" className="font-semibold text-ink underline underline-offset-[3px]">
             Conferir
           </Link>
         </Callout>

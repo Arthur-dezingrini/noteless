@@ -3,9 +3,9 @@ export function dataISOEmSP(d: Date) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
 }
 
-/** "AAAA-MM-DD" de hoje em São Paulo — a IA precisa saber que dia é. */
-export function hojeISO() {
-  return dataISOEmSP(new Date());
+/** "AAAA-MM-DD" em São Paulo (de hoje, sem argumento) — a IA precisa saber que dia é. */
+export function hojeISO(quando = new Date()) {
+  return dataISOEmSP(quando);
 }
 
 /** `data` ("AAAA-MM-DD") deslocada em `dias`. */

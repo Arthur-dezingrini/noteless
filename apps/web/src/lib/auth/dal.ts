@@ -10,6 +10,7 @@ import {
   loteResumoSchema,
   memberRoleSchema,
   notificacaoListaSchema,
+  novidadesSchema,
   ocorrenciaListaSchema,
   organizationListSchema,
   prontuarioListaSchema,
@@ -40,6 +41,7 @@ import { cache } from "react";
 import { z } from "zod";
 
 import { apiFetch } from "@/lib/api";
+import { corpoJson } from "@/lib/json";
 
 /**
  * Data Access Layer da sessão.
@@ -55,7 +57,7 @@ export const getSession = cache(async (): Promise<Session | null> => {
   const res = await apiFetch("/api/auth/get-session");
   if (!res.ok) return null;
 
-  const parsed = sessionSchema.safeParse(await res.json());
+  const parsed = sessionSchema.safeParse(await corpoJson(res));
   return parsed.success ? parsed.data : null;
 });
 
@@ -71,7 +73,7 @@ export const getOrganizations = cache(async (): Promise<Organization[]> => {
   const res = await apiFetch("/api/auth/organization/list");
   if (!res.ok) return [];
 
-  const parsed = organizationListSchema.safeParse(await res.json());
+  const parsed = organizationListSchema.safeParse(await corpoJson(res));
   return parsed.success ? parsed.data : [];
 });
 
@@ -87,7 +89,7 @@ export const getMemberRole = cache(
     );
     if (!res.ok) return null;
 
-    const parsed = memberRoleSchema.safeParse(await res.json());
+    const parsed = memberRoleSchema.safeParse(await corpoJson(res));
     return parsed.success ? parsed.data : null;
   },
 );
@@ -111,7 +113,7 @@ export const getUsuarios = cache(
     const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/usuarios`);
     if (!res.ok) return [];
 
-    const parsed = usuarioListaSchema.safeParse(await res.json());
+    const parsed = usuarioListaSchema.safeParse(await corpoJson(res));
     return parsed.success ? parsed.data : [];
   },
 );
@@ -121,7 +123,7 @@ export const getAnimais = cache(async (organizationId: string): Promise<Animal[]
   const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/animais`);
   if (!res.ok) return [];
 
-  const parsed = animalListaSchema.safeParse(await res.json());
+  const parsed = animalListaSchema.safeParse(await corpoJson(res));
   return parsed.success ? parsed.data : [];
 });
 
@@ -139,7 +141,7 @@ export const getConsultas = cache(
     const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/consultas${sufixo}`);
     if (!res.ok) return [];
 
-    const parsed = consultaListaSchema.safeParse(await res.json());
+    const parsed = consultaListaSchema.safeParse(await corpoJson(res));
     return parsed.success ? parsed.data : [];
   },
 );
@@ -149,7 +151,7 @@ export const getProntuarios = cache(async (organizationId: string): Promise<Pron
   const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/prontuarios`);
   if (!res.ok) return [];
 
-  const parsed = prontuarioListaSchema.safeParse(await res.json());
+  const parsed = prontuarioListaSchema.safeParse(await corpoJson(res));
   return parsed.success ? parsed.data : [];
 });
 
@@ -160,7 +162,7 @@ export const getFicha = cache(async (organizationId: string, animalId: string): 
   );
   if (!res.ok) return null;
 
-  const parsed = fichaAnimalSchema.safeParse(await res.json());
+  const parsed = fichaAnimalSchema.safeParse(await corpoJson(res));
   return parsed.success ? parsed.data : null;
 });
 
@@ -169,7 +171,7 @@ export const getGrupos = cache(async (organizationId: string): Promise<Grupo[]> 
   const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/grupos`);
   if (!res.ok) return [];
 
-  const parsed = grupoListaSchema.safeParse(await res.json());
+  const parsed = grupoListaSchema.safeParse(await corpoJson(res));
   return parsed.success ? parsed.data : [];
 });
 
@@ -178,7 +180,7 @@ export const getAvisos = cache(async (organizationId: string): Promise<Aviso[]> 
   const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/inicio/avisos`);
   if (!res.ok) return [];
 
-  const parsed = avisoListaSchema.safeParse(await res.json());
+  const parsed = avisoListaSchema.safeParse(await corpoJson(res));
   return parsed.success ? parsed.data : [];
 });
 
@@ -194,7 +196,7 @@ export async function getRelatorio(
   const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/relatorios/${tipo}${q.size ? `?${q}` : ""}`);
   if (!res.ok) return null;
 
-  const parsed = relatorioSchema.safeParse(await res.json());
+  const parsed = relatorioSchema.safeParse(await corpoJson(res));
   return parsed.success ? parsed.data : null;
 }
 
@@ -203,8 +205,17 @@ export const getNotificacoes = cache(async (organizationId: string): Promise<Not
   const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/notificacoes`);
   if (!res.ok) return [];
 
-  const parsed = notificacaoListaSchema.safeParse(await res.json());
+  const parsed = notificacaoListaSchema.safeParse(await corpoJson(res));
   return parsed.success ? parsed.data : [];
+});
+
+/** Versão de "mudou alguma coisa?" no momento em que a tela é montada (ver AoVivo). */
+export const getNovidades = cache(async (organizationId: string): Promise<string | null> => {
+  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/novidades`);
+  if (!res.ok) return null;
+
+  const parsed = novidadesSchema.safeParse(await corpoJson(res));
+  return parsed.success ? parsed.data.versao : null;
 });
 
 /** Registros de ocorrência da organização, mais recentes primeiro. */
@@ -212,7 +223,7 @@ export const getOcorrencias = cache(async (organizationId: string): Promise<Ocor
   const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/ocorrencias`);
   if (!res.ok) return [];
 
-  const parsed = ocorrenciaListaSchema.safeParse(await res.json());
+  const parsed = ocorrenciaListaSchema.safeParse(await corpoJson(res));
   return parsed.success ? parsed.data : [];
 });
 
