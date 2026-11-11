@@ -10,6 +10,8 @@
 - O super usuário é um **tipo de usuário**, configurável pela tela.
 - O administrador da empresa gerencia **só a própria empresa**. Vincular conta existente passa a ser só do super usuário.
 
+> **Mudança de 2026-11-11 (pedido do Arthur):** o super usuário passa a entrar em **qualquer** empresa, como dono, sem vínculo. `membroAtual` trata isso. A troca de empresa do super usa `POST /api/admin/empresa-ativa`, e o seletor dele lista `GET /api/admin/organizacoes`. O papel na tela vem de `GET /api/org/:orgId/meu-papel`. Onde este documento diz o contrário, vale esta nota.
+
 ## Objetivo
 
 O Arthur (e quem ele marcar) monta os acessos de toda a plataforma num lugar só: qualquer usuário em qualquer empresa, com o papel certo. Cada pessoa continua vendo e escolhendo só as empresas às quais está vinculada.

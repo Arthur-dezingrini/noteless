@@ -15,7 +15,7 @@ describe("tipo de usuário", () => {
     expect(s.json.user.tipo).toBe("super");
   });
 
-  it("set-active para empresa sem vínculo é recusado, até para super", async () => {
+  it("set-active do Better Auth para empresa sem vínculo é recusado (o super troca por /api/admin/empresa-ativa)", async () => {
     const a = await criarFazenda("Alfa");
     const b = await criarFazenda("Beta");
     const sup = await criarSuper();

@@ -39,7 +39,9 @@ export async function requireSession(): Promise<Session> {
 
 /** Organizações (fazendas/clínicas) das quais o usuário atual é membro. */
 export const getOrganizations = cache(async (): Promise<Organization[]> => {
-  const res = await apiFetch("/api/auth/organization/list");
+  // Super usuário entra em qualquer empresa: a lista é a da plataforma inteira.
+  const session = await getSession();
+  const res = await apiFetch(session?.user.tipo === "super" ? "/api/admin/organizacoes" : "/api/auth/organization/list");
   if (!res.ok) return [];
 
   const parsed = organizationListSchema.safeParse(await corpoJson(res));
@@ -48,14 +50,12 @@ export const getOrganizations = cache(async (): Promise<Organization[]> => {
 
 /**
  * Papel do usuário atual na organização informada (owner, admin, member).
- * `get-active-member` exigiria organização ativa na sessão; este endpoint
- * aceita o id explícito.
+ * Super usuário sem vínculo aparece como owner.
  */
 export const getMemberRole = cache(
   async (organizationId: string): Promise<MemberRole | null> => {
-    const res = await apiFetch(
-      `/api/auth/organization/get-active-member-role?organizationId=${encodeURIComponent(organizationId)}`,
-    );
+    // Pela api (não pelo Better Auth): ela conhece o super usuário, que é dono em qualquer empresa.
+    const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/meu-papel`);
     if (!res.ok) return null;
 
     const parsed = memberRoleSchema.safeParse(await corpoJson(res));

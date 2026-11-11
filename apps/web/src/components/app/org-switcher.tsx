@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { Spinner } from "@/components/ui";
+import { chamarApi } from "@/lib/api-client";
 import { authClient } from "@/lib/auth/client";
 
 function Conta({ nome, animais }: { nome: string; animais: number | null }) {
@@ -29,11 +30,14 @@ export function OrgSwitcher({
   organizacoes,
   ativaId,
   animais,
+  ehSuper = false,
 }: {
   organizacoes: Organization[];
   ativaId: string | null;
   /** Quantos animais a conta ativa tem. */
   animais: number | null;
+  /** Super usuário vê todas as empresas e troca por /api/admin/empresa-ativa (o Better Auth exige vínculo). */
+  ehSuper?: boolean;
 }) {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
@@ -46,7 +50,8 @@ export function OrgSwitcher({
     if (id === ativa?.id) return setAberto(false);
     setTrocandoPara(id);
     start(async () => {
-      await authClient.organization.setActive({ organizationId: id });
+      if (ehSuper) await chamarApi("/api/admin/empresa-ativa", { method: "POST", body: JSON.stringify({ organizationId: id }) });
+      else await authClient.organization.setActive({ organizationId: id });
       setAberto(false);
       setTrocandoPara(null);
       router.refresh();

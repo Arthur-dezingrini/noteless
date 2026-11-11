@@ -3,7 +3,9 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 
 import { quemNaPlataforma } from "../../../base/super-usuario";
-import { listarEmpresas, listarUsuariosAdmin } from "../consultas/admin";
+import { auth } from "../../../auth";
+import { trocarEmpresaAtiva } from "../regras/empresa-ativa";
+import { listarEmpresas, listarOrganizacoes, listarUsuariosAdmin } from "../consultas/admin";
 import { desvincular, mudarPapel, mudarTipo, vincular } from "../regras/vinculos";
 
 /** Vínculos da plataforma inteira (qualquer usuário em qualquer empresa). Só super usuário. Montado em /api/admin. */
@@ -63,5 +65,23 @@ adminRoutes.patch("/usuarios/:userId", async (c) => {
   const body = mudarTipoSchema.safeParse(await corpo(c));
   if (!body.success) return c.json(invalido(body.error), 400);
   const r = await mudarTipo(c.req.param("userId"), body.data.tipo);
+  return r.ok ? c.json({ ok: true }) : c.json({ error: r.erro }, r.status);
+});
+
+/** Todas as empresas no formato de /organization/list: o seletor do super usuário. */
+adminRoutes.get("/organizacoes", async (c) => {
+  const barrado = await barrar(c);
+  if (barrado) return barrado;
+  return c.json(await listarOrganizacoes());
+});
+
+/** Troca a empresa ativa da sessão para qualquer empresa (o set-active do Better Auth exige vínculo). */
+adminRoutes.post("/empresa-ativa", async (c) => {
+  const barrado = await barrar(c);
+  if (barrado) return barrado;
+  const body = (await corpo(c)) as { organizationId?: unknown } | null;
+  if (typeof body?.organizationId !== "string" || !body.organizationId) return c.json({ error: "Escolha a empresa." }, 400);
+  const s = await auth.api.getSession({ headers: c.req.raw.headers });
+  const r = await trocarEmpresaAtiva(s!.session.id, body.organizationId);
   return r.ok ? c.json({ ok: true }) : c.json({ error: r.erro }, r.status);
 });

@@ -51,3 +51,11 @@ export async function listarUsuariosAdmin(busca?: string): Promise<UsuarioAdmin[
 export async function listarEmpresas(): Promise<Empresa[]> {
   return db.select({ id: organization.id, nome: organization.name }).from(organization).orderBy(asc(organization.name));
 }
+
+/** Todas as empresas, como o Better Auth lista em /organization/list. */
+export async function listarOrganizacoes() {
+  return db
+    .select({ id: organization.id, name: organization.name, slug: organization.slug, logo: organization.logo, metadata: organization.metadata, createdAt: organization.createdAt })
+    .from(organization)
+    .orderBy(asc(organization.name));
+}

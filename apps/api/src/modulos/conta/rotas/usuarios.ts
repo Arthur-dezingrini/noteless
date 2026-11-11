@@ -13,6 +13,7 @@ import { db } from "../../../db";
 import { member, user } from "../../../db/schema";
 import { membroAtual } from "../../../base/membro-atual";
 import { criarUsuario, UsuarioJaExiste } from "../regras/criar-usuario";
+import { desvincular, mudarPapel } from "../regras/vinculos";
 
 /**
  * Administração de usuários de uma organização.
@@ -82,6 +83,13 @@ usuariosRoutes.get("/:orgId/usuarios", async (c) => {
   if (!eu) return c.json({ error: "Sem acesso a esta organização." }, 403);
 
   return c.json(await listar(orgId));
+});
+
+/** Papel de quem chama nesta empresa (super usuário sem vínculo: dono). A tela usa para mostrar ou esconder ações. */
+usuariosRoutes.get("/:orgId/meu-papel", async (c) => {
+  const eu = await membroAtual(c.req.raw.headers, c.req.param("orgId"));
+  if (!eu) return c.json({ error: "Sem acesso a esta organização." }, 403);
+  return c.json({ role: eu.role });
 });
 
 usuariosRoutes.post("/:orgId/usuarios", async (c) => {
@@ -179,10 +187,16 @@ usuariosRoutes.patch("/:orgId/usuarios/:userId", async (c) => {
   }
 
   if (body.data.role && body.data.role !== alvo.role) {
-    await auth.api.updateMemberRole({
-      body: { memberId: alvo.memberId, role: body.data.role, organizationId: orgId },
-      headers: c.req.raw.headers,
-    });
+    if (eu.memberId === null) {
+      // Super usuário sem vínculo: o Better Auth não o reconhece na empresa.
+      const r = await mudarPapel(alvo.memberId, body.data.role);
+      if (!r.ok) return c.json({ error: r.erro }, r.status);
+    } else {
+      await auth.api.updateMemberRole({
+        body: { memberId: alvo.memberId, role: body.data.role, organizationId: orgId },
+        headers: c.req.raw.headers,
+      });
+    }
   }
 
   return c.json({ ok: true });
@@ -211,10 +225,16 @@ usuariosRoutes.delete("/:orgId/usuarios/:userId", async (c) => {
 
   // Remove a filiação, não a conta: a pessoa pode pertencer a outras
   // organizações. Sem nenhuma, ela simplesmente não vê nada ao entrar.
-  await auth.api.removeMember({
-    body: { memberIdOrEmail: alvo.memberId, organizationId: orgId },
-    headers: c.req.raw.headers,
-  });
+  if (eu.memberId === null) {
+    // Super usuário sem vínculo: o Better Auth não o reconhece na empresa.
+    const r = await desvincular(alvo.memberId);
+    if (!r.ok) return c.json({ error: r.erro }, r.status);
+  } else {
+    await auth.api.removeMember({
+      body: { memberIdOrEmail: alvo.memberId, organizationId: orgId },
+      headers: c.req.raw.headers,
+    });
+  }
 
   return c.json({ ok: true });
 });

@@ -24,6 +24,7 @@ export function Sidebar({
   pendentes,
   admin,
   temInstalacao,
+  ehSuper,
 }: {
   organizacoes: Organization[];
   ativaId: string | null;
@@ -37,6 +38,8 @@ export function Sidebar({
   admin: boolean;
   /** Organização com galpão/instalação cadastrada: libera as telas `soComInstalacao`. */
   temInstalacao: boolean;
+  /** Super usuário: o seletor lista e troca para qualquer empresa. */
+  ehSuper: boolean;
 }) {
   const pathname = usePathname();
   const ativo = acharAtivo(pathname, useSearchParams().get("tela"));
@@ -102,7 +105,7 @@ export function Sidebar({
   return (
     <aside className="print:hidden sticky top-0 flex h-svh w-56 shrink-0 flex-col gap-[18px] overflow-y-auto border-r border-line px-3.5 py-[22px]">
       <Logo className="px-2" />
-      <OrgSwitcher organizacoes={organizacoes} ativaId={ativaId} animais={animais} />
+      <OrgSwitcher organizacoes={organizacoes} ativaId={ativaId} animais={animais} ehSuper={ehSuper} />
 
       <nav className="flex flex-col gap-0.5" aria-label="Principal">
         {menuVisivel(MENU, { temInstalacao }).map(modulo)}
