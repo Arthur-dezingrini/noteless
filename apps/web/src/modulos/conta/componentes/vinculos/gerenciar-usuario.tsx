@@ -1,11 +1,17 @@
 "use client";
 
-import { criarVinculoSchema, PAPEIS, ROTULO_PAPEL, type Empresa, type Papel, type UsuarioAdmin, type Vinculo } from "@vocare/shared";
+import { criarVinculoSchema, PAPEIS, type Empresa, type Papel, type UsuarioAdmin, type Vinculo } from "@vocare/shared";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 
 import { Button, ConfirmBar, Field, FormMessage, Modal, Select, StatusText } from "@/components/ui";
 import { chamarApi } from "@/lib/api-client";
+
+/**
+ * No resto do sistema dono e administrador aparecem os dois como
+ * "Administrador"; aqui precisa separar — é o dono que a empresa não pode perder.
+ */
+const ROTULO: Record<Papel, string> = { owner: "Dono", admin: "Administrador", member: "Membro" };
 
 type Confirmar = { tipo: "desvincular"; vinculo: Vinculo } | { tipo: "super" } | null;
 
@@ -80,7 +86,7 @@ export function GerenciarUsuario({
                     >
                       {PAPEIS.map((p) => (
                         <option key={p} value={p}>
-                          {ROTULO_PAPEL[p]}
+                          {ROTULO[p]}
                         </option>
                       ))}
                     </Select>
@@ -123,7 +129,7 @@ export function GerenciarUsuario({
                 <Select name="papel" defaultValue="member">
                   {PAPEIS.map((p) => (
                     <option key={p} value={p}>
-                      {ROTULO_PAPEL[p]}
+                      {ROTULO[p]}
                     </option>
                   ))}
                 </Select>
