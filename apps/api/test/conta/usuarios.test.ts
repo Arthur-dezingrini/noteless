@@ -1,17 +1,25 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { auth } from "../../src/auth";
-import { chamar, criarFazenda, entrar, type Pessoa } from "../ajuda";
+import { chamar, criarFazenda, criarSuper, entrar, type Pessoa } from "../ajuda";
 
 type Fazenda = Awaited<ReturnType<typeof criarFazenda>>;
 
 let santaRita: Fazenda;
 let boaVista: Fazenda;
+let sup: Pessoa;
 
 beforeAll(async () => {
   santaRita = await criarFazenda("Santa Rita");
   boaVista = await criarFazenda("Boa Vista");
+  sup = await criarSuper();
 });
+
+/** Vincular conta que já existe é do super usuário (/api/admin). */
+async function vincular(p: { id: string }, f: Fazenda) {
+  const r = await chamar(sup, "POST", "/api/admin/vinculos", { userId: p.id, organizationId: f.orgId, papel: "member" });
+  expect(r.status).toBe(201);
+}
 
 const SENHA = "senha-inicial-123";
 const NOVA = "senha-nova-456";
@@ -33,8 +41,7 @@ async function cadastrar(f: Fazenda, role: "admin" | "member" = "member"): Promi
 /** Alguém da Boa Vista que a Santa Rita também vinculou. */
 async function compartilhada(): Promise<Pessoa> {
   const p = await cadastrar(boaVista);
-  const r = await chamar(santaRita.admin, "POST", `${usuarios(santaRita)}/vincular`, { email: p.email, role: "member" });
-  expect(r.status).toBe(201);
+  await vincular(p, santaRita);
   return p;
 }
 
@@ -91,10 +98,9 @@ describe("administrador troca senha e e-mail de quem só está na fazenda dele",
 
 describe("o que ninguém troca pela conta dos outros", () => {
   it("tomada de conta: vincular o dono de outra fazenda e trocar a senha dele", async () => {
-    // Basta saber o e-mail. Vincular continua valendo — é assim que um
-    // veterinário atende várias fazendas —, mas a senha não é mais da Santa Rita.
-    const vinculo = await chamar(santaRita.admin, "POST", `${usuarios(santaRita)}/vincular`, { email: boaVista.dono.email, role: "member" });
-    expect(vinculo.status).toBe(201);
+    // O dono da Boa Vista também está na Santa Rita (um veterinário atende
+    // várias fazendas), mas a senha dele não é da Santa Rita.
+    await vincular(boaVista.dono, santaRita);
 
     const r = await chamar(santaRita.admin, "PATCH", `${usuarios(santaRita)}/${boaVista.dono.id}`, { name: "Invasor", ...trocarSenha });
     expect(r.status).toBe(403);

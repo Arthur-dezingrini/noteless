@@ -2,7 +2,6 @@ import {
   atualizarUsuarioSchema,
   criarUsuarioSchema,
   papelSchema,
-  vincularUsuarioSchema,
   type Papel,
   type Usuario,
 } from "@vocare/shared";
@@ -108,42 +107,6 @@ usuariosRoutes.post("/:orgId/usuarios", async (c) => {
     }
     throw e;
   }
-});
-
-/**
- * Vincula à organização alguém que já tem conta. Um usuário pode pertencer a
- * várias organizações; senha e nome ficam como estão — só o dono da conta muda.
- */
-usuariosRoutes.post("/:orgId/usuarios/vincular", async (c) => {
-  const orgId = c.req.param("orgId");
-  const eu = await membroAtual(c.req.raw.headers, orgId);
-  if (!eu || !PODE_GERENCIAR.includes(eu.role)) {
-    return c.json({ error: "Só administradores podem vincular usuários." }, 403);
-  }
-
-  const body = vincularUsuarioSchema.safeParse(await c.req.json().catch(() => null));
-  if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
-
-  const ctx = await auth.$context;
-  const existente = await ctx.internalAdapter.findUserByEmail(body.data.email.toLowerCase());
-  if (!existente) {
-    return c.json(
-      { error: "Não existe conta com esse e-mail. Use \"Cadastrar usuário\" para criar uma." },
-      404,
-    );
-  }
-
-  const [jaMembro] = await db
-    .select({ id: member.id })
-    .from(member)
-    .where(and(eq(member.userId, existente.user.id), eq(member.organizationId, orgId)))
-    .limit(1);
-  if (jaMembro) return c.json({ error: "Essa pessoa já faz parte desta organização." }, 409);
-
-  await auth.api.addMember({
-    body: { userId: existente.user.id, organizationId: orgId, role: body.data.role },
-  });
-  return c.json({ id: existente.user.id, name: existente.user.name }, 201);
 });
 
 usuariosRoutes.patch("/:orgId/usuarios/:userId", async (c) => {

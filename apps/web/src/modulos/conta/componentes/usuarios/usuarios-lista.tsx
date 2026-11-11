@@ -9,7 +9,6 @@ import { Button, buttonClass, Card, cx, FormMessage } from "@/components/ui";
 import { AdicionarModal } from "./adicionar-modal";
 import { EditarModal } from "./editar-modal";
 import { RemoverModal } from "./remover-modal";
-import { VincularModal } from "./vincular-modal";
 
 export type Props = {
   orgId: string;
@@ -23,7 +22,6 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
   const [adicionando, setAdicionando] = useState(false);
   const [editando, setEditando] = useState<Usuario | null>(null);
   const [removendo, setRemovendo] = useState<Usuario | null>(null);
-  const [vinculando, setVinculando] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   return (
@@ -35,7 +33,6 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
           </p>
           {possoGerenciar && (
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => setVinculando(true)}>Vincular conta existente</Button>
               <Button variant="primario" onClick={() => setAdicionando(true)}>
                 Cadastrar usuário
               </Button>
@@ -107,16 +104,6 @@ export function UsuariosLista({ orgId, usuarios, meuId, possoGerenciar }: Props)
         }}
       />
 
-      <VincularModal
-        open={vinculando}
-        orgId={orgId}
-        onClose={() => setVinculando(false)}
-        onDone={(nome) => {
-          setVinculando(false);
-          setFeedback(`${nome} agora faz parte desta organização. A senha continua a que a pessoa já usa.`);
-          router.refresh();
-        }}
-      />
 
       <EditarModal
         usuario={editando}

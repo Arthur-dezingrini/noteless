@@ -8,7 +8,7 @@ import { aviarioRotas } from "./modulos/aviario";
 import { notasRotas } from "./modulos/notas";
 import { animaisRotas } from "./modulos/animais";
 import { saudeRotas } from "./modulos/saude";
-import { contaRotas, perfilRotas } from "./modulos/conta";
+import { adminRotas, contaRotas, perfilRotas } from "./modulos/conta";
 import { avisosRotas } from "./modulos/avisos";
 import { painelRotas } from "./modulos/painel";
 
@@ -43,3 +43,4 @@ app.route("/api/org", aviarioRotas);
 app.route("/api/org", avisosRotas);
 app.route("/api/org", painelRotas);
 app.route("/api/perfil", perfilRotas);
+app.route("/api/admin", adminRotas);
