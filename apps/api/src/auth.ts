@@ -30,6 +30,10 @@ export const auth = betterAuth({
     additionalFields: {
       // Função da pessoa na clínica/fazenda: Veterinária, Recepcionista, Peão…
       cargo: { type: "string", required: false, input: true },
+      // "comum" ou "super". Super usuário vincula qualquer pessoa a qualquer
+      // empresa (/api/admin). `input: false`: ninguém se marca sozinho, nem no
+      // cadastro nem no update do próprio perfil.
+      tipo: { type: "string", required: false, defaultValue: "comum", input: false },
     },
   },
 

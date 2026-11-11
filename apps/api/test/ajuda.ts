@@ -1,7 +1,9 @@
+import { eq } from "drizzle-orm";
+
 import { app } from "../src/app";
 import { auth } from "../src/auth";
 import { db } from "../src/db";
-import { member } from "../src/db/schema";
+import { member, user } from "../src/db/schema";
 import { criarUsuario } from "../src/modulos/conta";
 
 const SENHA = "senha-de-teste-123";
@@ -52,6 +54,16 @@ export async function criarFazenda(nome: string, sufixo = nome.toLowerCase().rep
     admin: await logado(admin),
     membro: await logado(membro),
   };
+}
+
+let supers = 0;
+
+/** Super usuário já logado (grava o tipo direto no Postgres em memória). */
+export async function criarSuper(nome = "Super"): Promise<Pessoa> {
+  supers += 1;
+  const p = await pessoa(nome, `super${supers}@plataforma.test`);
+  await db.update(user).set({ tipo: "super" }).where(eq(user.id, p.id));
+  return { ...p, cookie: await entrar(p.email) };
 }
 
 /** Chamada à api como uma pessoa logada (ou anônima, sem `quem`). */

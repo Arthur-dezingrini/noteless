@@ -20,7 +20,8 @@
     "auth:generate": "npx --yes @better-auth/cli generate --config src/auth.ts --output src/db/schema.ts --yes",
     "seed": "tsx src/db/seed.ts",
     "seed:hom": "cross-env APP_ENV=hom tsx src/db/seed.ts",
-    "avaliar": "tsx avaliacao/rodar.ts"
+    "avaliar": "tsx avaliacao/rodar.ts",
+    "super": "tsx src/db/super.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1",

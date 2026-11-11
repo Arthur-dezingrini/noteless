@@ -85,6 +85,13 @@
       "when": 1794319124903,
       "tag": "0011_groovy_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794398590667,
+      "tag": "0012_tipo_usuario",
+      "breakpoints": true
     }
   ]
 }

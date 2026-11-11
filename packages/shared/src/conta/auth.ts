@@ -15,6 +15,11 @@ export const loginSchema = z.object({
  * Deliberadamente menor que o que o Better Auth devolve: o front declara só o
  * que usa, e o parse garante que o back continua honrando isso.
  */
+/** Tipo da pessoa na plataforma. Super usuário vincula qualquer um a qualquer empresa. */
+export const TIPOS_USUARIO = ["comum", "super"] as const;
+export const tipoUsuarioSchema = z.enum(TIPOS_USUARIO);
+export type TipoUsuario = z.infer<typeof tipoUsuarioSchema>;
+
 export const sessionSchema = z.object({
   user: z.object({
     id: z.string(),
@@ -22,6 +27,8 @@ export const sessionSchema = z.object({
     email: z.string(),
     image: z.string().nullable().optional(),
     cargo: z.string().nullish(),
+    // Nulo (linha anterior à coluna) conta como comum.
+    tipo: tipoUsuarioSchema.nullish().transform((t) => t ?? "comum"),
   }),
   session: z.object({
     id: z.string(),

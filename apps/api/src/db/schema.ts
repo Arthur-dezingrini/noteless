@@ -20,6 +20,7 @@ export const user = pgTable("user", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
   cargo: text("cargo"),
+  tipo: text("tipo").default("comum"),
 });
 
 export const session = pgTable(
