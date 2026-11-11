@@ -169,6 +169,19 @@ describe("o que ninguém troca pela conta dos outros", () => {
     expect((await chamar(santaRita.admin, "DELETE", `${usuarios(santaRita)}/${p.id}`)).status).toBe(400);
   });
 
+  it("super usuário vinculado à fazenda: o administrador não troca a senha nem o e-mail dele", async () => {
+    // Senão bastava trocar a senha do super para entrar como ele e ganhar todas as empresas.
+    const s = await criarSuper("Super Vinculado");
+    await vincular(s, santaRita);
+    for (const corpo of [trocarSenha, { email: "invasor@fora.test" }]) {
+      const r = await chamar(santaRita.admin, "PATCH", `${usuarios(santaRita)}/${s.id}`, corpo);
+      expect(r.status).toBe(403);
+      expect(r.json.error).toBe("Senha e e-mail de super usuário só podem ser trocados por ele mesmo.");
+    }
+    await entrar(s.email);
+    expect((await chamar(s, "GET", "/api/admin/empresas")).status).toBe(200);
+  });
+
   it("membro não troca a senha de ninguém", async () => {
     const p = await cadastrar(santaRita);
     const r = await chamar(santaRita.membro, "PATCH", `${usuarios(santaRita)}/${p.id}`, trocarSenha);

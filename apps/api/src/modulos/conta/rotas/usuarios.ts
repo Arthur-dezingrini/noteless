@@ -40,6 +40,10 @@ function ehDono(role: string) {
 async function motivoParaNaoTrocarAcesso(alvoId: string, orgId: string, role: string) {
   if (ehDono(role)) return "Senha e e-mail do dono da organização só podem ser trocados pelo próprio dono.";
 
+  // Quem entrasse como super usuário ganharia todas as empresas.
+  const [alvo] = await db.select({ tipo: user.tipo }).from(user).where(eq(user.id, alvoId)).limit(1);
+  if (alvo?.tipo === "super") return "Senha e e-mail de super usuário só podem ser trocados por ele mesmo.";
+
   const [outra] = await db
     .select({ id: member.id })
     .from(member)
@@ -101,7 +105,7 @@ usuariosRoutes.post("/:orgId/usuarios", async (c) => {
   } catch (e) {
     if (e instanceof UsuarioJaExiste) {
       return c.json(
-        { error: "Já existe uma conta com esse e-mail. Use \"Vincular usuário\" para trazê-la a esta organização." },
+        { error: "Já existe uma conta com esse e-mail. Peça ao super usuário para vinculá-la a esta organização." },
         409,
       );
     }
