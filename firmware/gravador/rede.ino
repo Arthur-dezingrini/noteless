@@ -178,11 +178,20 @@ bool escolherEmpresa() {
 // arquivo não cabe inteiro na memória (5 min de áudio são 2,4 MB).
 class CorpoMultipart : public Stream {
  public:
-  CorpoMultipart(const String &ini, File &arq, const String &fim) : ini(ini), arq(arq), fim(fim), tamArq(arq.size()) {}
+  // O arquivo só abre no 1º pedaço do corpo, com a conexão segura já feita: a
+  // conta do RSA na abertura dela precisa de ~85 KB livres, e o arquivo aberto
+  // (com o buffer dele) já tirava o bastante para ela falhar.
+  CorpoMultipart(const String &ini, const String &caminho, size_t tamArq, const String &fim)
+      : ini(ini), caminho(caminho), fim(fim), tamArq(tamArq) {}
+  ~CorpoMultipart() { fechar(); }
+  void fechar() {
+    if (arq) arq.close();
+  }
 
   size_t total() const { return ini.length() + tamArq + fim.length(); }
   size_t lido() const { return pos; }             // para o registro: até onde o envio chegou
   uint32_t primeiroMs = 0;                         // millis() do 1º pedaço = conexão e cabeçalhos prontos
+  bool falhouCartao = false;                       // o arquivo não abriu ou parou de ler no meio
   // Em pedaços de 512 bytes: o HTTPClient lê o que available() diz, e cada
   // pedaço vira um pacote próprio (TCP_NODELAY). Com pacotes cheios (~1500
   // bytes), há redes que os perdem sem avisar e o envio trava no 1º pedaço.
@@ -200,8 +209,18 @@ class CorpoMultipart : public Stream {
         k = min(quer - feito, ini.length() - pos);
         memcpy(destino + feito, ini.c_str() + pos, k);
       } else if (pos < ini.length() + tamArq) {
+        if (!arq) {
+          arq = SD.open(caminho, FILE_READ);
+          if (!arq || !arq.seek(pos - ini.length())) {
+            falhouCartao = true;
+            break;
+          }
+        }
         k = arq.read((uint8_t *)destino + feito, min(quer - feito, ini.length() + tamArq - pos));
-        if (k == 0) break;
+        if (k == 0) {
+          falhouCartao = true;
+          break;
+        }
       } else {
         size_t noFim = pos - ini.length() - tamArq;
         k = min(quer - feito, fim.length() - noFim);
@@ -221,21 +240,24 @@ class CorpoMultipart : public Stream {
 
  private:
   const String &ini;
-  File &arq;
+  const String &caminho;
+  File arq;
   const String &fim;
   size_t tamArq, pos = 0;
 };
 
 Resultado enviarArquivo(const String &caminho) {
   File arq = SD.open(caminho, FILE_READ);
-  if (!arq) return TENTAR_DEPOIS;
-  if (arq.size() <= 44) {  // só o cabeçalho: nada para ouvir
-    arq.close();
-    return RECUSADO;
+  if (!arq) {
+    cartaoFalhou("abrir um áudio da fila");
+    return TENTAR_DEPOIS;
   }
+  size_t tamArq = arq.size();
+  arq.close();  // reabre só depois da conexão segura (ver CorpoMultipart)
+  if (tamArq <= 44) return RECUSADO;  // só o cabeçalho: nada para ouvir
   String base = caminho.substring(caminho.lastIndexOf('/') + 1);
   String quando = gravadoEmDe(caminho);
-  float seg = (arq.size() - 44) / (float)TAXA;
+  float seg = (tamArq - 44) / (float)TAXA;
   String ini = String("--") + FRONTEIRA + "\r\nContent-Disposition: form-data; name=\"duracaoSeg\"\r\n\r\n" +
                String((int)(seg + 0.5f)) + "\r\n";
   if (quando.length())
@@ -246,23 +268,32 @@ Resultado enviarArquivo(const String &caminho) {
 
   for (int tentativa = 0; tentativa < 2; tentativa++) {
     if (orgId.isEmpty() && !entrar()) break;
-    arq.seek(0);
-    CorpoMultipart corpo(ini, arq, fim);
+    CorpoMultipart corpo(ini, caminho, tamArq, fim);
     Conexao c;
     if (!c.abrir("/api/org/" + orgId + "/ocorrencias")) break;
     c.http.addHeader("Content-Type", String("multipart/form-data; boundary=") + FRONTEIRA);
-    registrar("Enviando %s (%.1f s%s%s) | memória livre %u (maior bloco %u)...", base.c_str(), seg,
+    registrar("Enviando %s (%.1f s%s%s) | memória livre %u (maior bloco %u) | pilha livre %u...", base.c_str(), seg,
               quando.length() ? ", gravada em " : ", sem hora", quando.c_str(), ESP.getFreeHeap(),
-              heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+              heap_caps_get_largest_free_block(MALLOC_CAP_8BIT), (unsigned)uxTaskGetStackHighWaterMark(NULL));
     uint32_t inicio = millis();
     int st = c.http.sendRequest("POST", &corpo, corpo.total());
     String resp = st > 0 ? c.http.getString() : "";
     c.http.end();
+    corpo.fechar();
 
+    // O cartão falhou no meio: o Noteless recebeu o áudio pela metade. Não é
+    // recusa (o arquivo pode estar bom): fica na fila para quando o cartão voltar.
+    if (corpo.falhouCartao) {
+      registrar("ERRO: o cartão falhou enquanto %s subia (%u de %u bytes).", base.c_str(), (unsigned)corpo.lido(), (unsigned)corpo.total());
+      cartaoFalhou("ler um áudio da fila durante o envio");
+      return TENTAR_DEPOIS;
+    }
     if (st == 201) {
-      arq.close();
-      SD.remove(caminho);
       registrar("Nota criada no Noteless em %.1f s: %s", (millis() - inicio) / 1000.0f, base.c_str());
+      if (!SD.remove(caminho)) {
+        registrar("AVISO: a nota foi criada, mas %s não saiu da fila: se o cartão voltar com ele, pode subir de novo.", base.c_str());
+        cartaoFalhou("tirar da fila um áudio enviado");
+      }
       registrar("  Transcrição: %s", campo(resp, "transcricao").c_str());
       registrar("  Resumo:      %s", campo(resp, "resumo").c_str());
       return ENVIADO;
@@ -280,18 +311,32 @@ Resultado enviarArquivo(const String &caminho) {
     else
       registrar("  o corpo nem começou a ir: caiu na conexão ou nos cabeçalhos");
     if (st < 0) c.explicar(st);
-    arq.close();
     // 400 e 413: o Noteless leu e recusou o arquivo — mandar de novo não adianta.
     return st == 400 || st == 413 ? RECUSADO : TENTAR_DEPOIS;
   }
-  arq.close();
   return TENTAR_DEPOIS;
 }
 
 void tarefaRede(void *) {
   uint32_t ultimaWifi = 0, ultimoLogin = 0, proximoEnvio = 0, espera = 0;
+  uint32_t esperaMontagem = 10000, proximaMontagem = millis() + esperaMontagem;
   bool primeiraVez = true, relogioPedido = false, nomesComHora = false, estavaNoWifi = false;
   while (true) {
+    if (falhaNoRegistro) {
+      falhaNoRegistro = false;
+      cartaoFalhou("gravar o registro");
+    }
+    // Cartão que falhou às vezes volta (mau contato, placa reiniciada com ele
+    // ocupado). Montar um cartão travado leva até ~30 s: por isso aqui, em
+    // segundo plano, cada vez mais espaçado (10 s, 20 s, 40 s, depois a cada
+    // minuto: cartão recolocado volta em até 1 min), e nunca com o loop usando.
+    if (!cartaoOk && !loopUsandoCartao && (int32_t)(millis() - proximaMontagem) >= 0) {
+      esperaMontagem = montarCartao() ? 10000 : min(esperaMontagem * 2, (uint32_t)60000);
+      proximaMontagem = millis() + esperaMontagem;
+    }
+    // Gravação que ficou como .raw (cartão falhou ao fechar, energia caiu): vira .wav.
+    if (cartaoOk && haPendentes && !gravando && !loopUsandoCartao) recuperarPendente();
+
     if (WiFi.status() != WL_CONNECTED) {
       if (estavaNoWifi) registrar("AVISO: Wi-Fi caiu (status %d).", (int)WiFi.status());
       estavaNoWifi = false;
@@ -323,7 +368,7 @@ void tarefaRede(void *) {
       if (cartaoOk) darHoraAosNomes();
     }
 
-    if (cartaoOk) naFila = contarFila();
+    atualizarFila();
     if (online && cartaoOk && naFila > 0 && (int32_t)(millis() - proximoEnvio) >= 0) {
       conferirEmpresa();
       if (orgId.isEmpty()) continue;  // a sessão caiu no aviso: entra de novo antes de enviar
@@ -341,7 +386,7 @@ void tarefaRede(void *) {
       } else {
         espera = 0;
       }
-      if (cartaoOk) naFila = contarFila();
+      atualizarFila();
       continue;  // já parte para a próxima da fila
     }
     vTaskDelay(pdMS_TO_TICKS(1000));

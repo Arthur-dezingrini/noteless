@@ -95,7 +95,10 @@ void registrar(const char *formato, ...) {
   if (arqRegistro) {
     if (arqRegistro.size() > REGISTRO_MAX) girarRegistro();
     if (arqRegistro && arqRegistro.printf("%s %s\n", c, msg) > 0) arqRegistro.flush();
-    else if (arqRegistro) arqRegistro.close();  // cartão falhou: volta quando ele montar de novo
+    else if (arqRegistro) {  // cartão falhou: a tarefa de rede trata (aqui, dentro da trava, não dá)
+      arqRegistro.close();
+      falhaNoRegistro = true;
+    }
   }
   xSemaphoreGive(travaRegistro);
 }
@@ -223,11 +226,13 @@ void atenderSerial() {
       continue;
     }
     cmd.trim();
+    loopUsandoCartao = true;  // a tarefa de rede não remonta no meio do comando
     if (cmd == "log") mostrarRegistro(false);
     else if (cmd == "log tudo") mostrarRegistro(true);
     else if (cmd == "apagar log") apagarRegistro();
     else if (cmd == "cartao") diagnosticarCartao();
     else if (cmd.length()) Serial.println("Comandos: log | log tudo | apagar log | cartao");
+    loopUsandoCartao = false;
     cmd = "";
   }
 }

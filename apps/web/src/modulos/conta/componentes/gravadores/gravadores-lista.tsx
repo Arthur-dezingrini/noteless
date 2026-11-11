@@ -1,6 +1,6 @@
 "use client";
 
-import { sinalEmPalavras, type Empresa, type Gravador } from "@vocare/shared";
+import { filaEmPalavras, sinalEmPalavras, type Empresa, type Gravador } from "@vocare/shared";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type KeyboardEvent } from "react";
 
@@ -96,7 +96,9 @@ export function GravadoresLista({
                     </span>
                   </td>
                   <td className={cx(tabela.td, "hidden sm:table-cell")}>
-                    {g.estado.fila === 0 ? <span className="text-ink-muted">Tudo enviado</span> : `${g.estado.fila} esperando`}
+                    <span className={!g.estado.cartao.ok ? "text-danger" : g.estado.fila === 0 ? "text-ink-muted" : "text-ink"}>
+                      {filaEmPalavras(g.estado, true)}
+                    </span>
                   </td>
                   <td className={cx(tabela.td, "hidden lg:table-cell")}>
                     {g.estado.cartao.ok ? (

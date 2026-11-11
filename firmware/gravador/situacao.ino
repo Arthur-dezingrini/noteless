@@ -56,19 +56,21 @@ String jsonEstado(const char *erro, uint32_t erroMs, int fila, uint32_t &errosAt
   String j = String("{\"serie\":\"") + WiFi.macAddress() + "\",\"versao\":\"" + __DATE__ " " __TIME__ + "\"";
   j += String(",\"wifi\":{\"rede\":\"") + jsonTexto(wifiNome.c_str()) + "\",\"sinalDbm\":" + String(WiFi.RSSI()) + ",\"ip\":\"" +
        WiFi.localIP().toString() + "\"}";
-  j += String(",\"fila\":") + String(fila) + ",\"recusadas\":" + String(cartaoOk ? contar(PASTA_ERRO) : 0);
+  j += String(",\"fila\":") + String(fila) + ",\"recusadas\":" + String(cartaoOk ? max(0, contar(PASTA_ERRO)) : 0);
   j += String(",\"cartao\":{\"ok\":") + (cartaoGravando() ? "true" : "false") + ",\"livreGb\":" +
        (cartaoOk ? String(cartaoLivreGb, 1) : String("null")) + "}";
   if (erroMs)
     j += String(",\"ultimoErro\":{\"texto\":\"") + jsonTexto(erro) + "\",\"haSeg\":" + String((millis() - erroMs) / 1000) + "}";
   else
     j += ",\"ultimoErro\":null";
-  static LinhaErro novos[ERROS_GUARDADOS];  // fora da pilha da tarefa de rede
+  // Só durante o aviso (fixa, tirava 1,6 KB da memória que o envio precisa).
+  LinhaErro *novos = new LinhaErro[ERROS_GUARDADOS];
   int n = errosDesde(errosMandados, novos, ERROS_GUARDADOS, errosAteAqui);
   j += ",\"erros\":[";
   for (int i = 0; i < n; i++)
     j += String(i ? "," : "") + "{\"texto\":\"" + jsonTexto(novos[i].texto) + "\",\"haSeg\":" + String((millis() - novos[i].ms) / 1000) + "}";
   j += "]";
+  delete[] novos;
   j += String(",\"boot\":{\"motivo\":\"") + jsonTexto(motivoDoBoot()) + "\",\"haSeg\":" + String(millis() / 1000) + "}";
   j += String(",\"empresaAtual\":") + (orgId.isEmpty() ? String("null") : String("\"") + orgId + "\"") + "}";
   return j;

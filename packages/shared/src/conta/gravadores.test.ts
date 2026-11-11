@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { estadoGravadorSchema, gravadorOnline, juntarErros, nomePadraoGravador, sinalEmPalavras } from "./gravadores";
+import { estadoGravadorSchema, filaEmPalavras, gravadorOnline, juntarErros, nomePadraoGravador, sinalEmPalavras } from "./gravadores";
 
 describe("gravadorOnline", () => {
   const agora = new Date("2026-11-11T13:00:00Z");
@@ -24,6 +24,19 @@ describe("sinalEmPalavras", () => {
 describe("nomePadraoGravador", () => {
   it("usa o fim da série (MAC), sem dois-pontos e em maiúsculas", () => {
     expect(nomePadraoGravador("a4:cf:12:9b:1a:2b")).toBe("Gravador 1A2B");
+  });
+});
+
+describe("filaEmPalavras", () => {
+  const ok = { ok: true, livreGb: 7.9 };
+  it("fila vazia é tudo enviado; com áudios, quantos esperam", () => {
+    expect(filaEmPalavras({ fila: 0, cartao: ok })).toBe("Tudo enviado");
+    expect(filaEmPalavras({ fila: 3, cartao: ok })).toBe("3 esperando para subir");
+    expect(filaEmPalavras({ fila: 3, cartao: ok }, true)).toBe("3 esperando");
+  });
+  it("cartão com problema: a fila não é conhecida (nunca 'tudo enviado')", () => {
+    expect(filaEmPalavras({ fila: 0, cartao: { ok: false, livreGb: null } })).toBe("Não dá para ler (cartão com problema)");
+    expect(filaEmPalavras({ fila: 2, cartao: { ok: false, livreGb: null } }, true)).toBe("Não dá para ler");
   });
 });
 

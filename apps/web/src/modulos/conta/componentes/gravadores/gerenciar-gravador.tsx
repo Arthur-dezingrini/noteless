@@ -1,6 +1,6 @@
 "use client";
 
-import { mudarGravadorSchema, sinalEmPalavras, type Empresa, type Gravador } from "@vocare/shared";
+import { filaEmPalavras, mudarGravadorSchema, sinalEmPalavras, type Empresa, type Gravador } from "@vocare/shared";
 import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -110,7 +110,7 @@ export function GerenciarGravador({
             {g.estado.wifi.rede} · sinal {sinalEmPalavras(g.estado.wifi.sinalDbm)} ({g.estado.wifi.sinalDbm} dBm) · IP {g.estado.wifi.ip}
           </Linha>
           <Linha rotulo="Fila">
-            {g.estado.fila === 0 ? "Tudo enviado" : `${g.estado.fila} esperando para subir`}
+            {filaEmPalavras(g.estado)}
             {g.estado.recusadas > 0 ? ` · ${g.estado.recusadas} recusada(s) guardada(s) no cartão` : ""}
           </Linha>
           <Linha rotulo="Cartão">

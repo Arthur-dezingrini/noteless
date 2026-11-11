@@ -92,6 +92,16 @@ export function sinalEmPalavras(dbm: number): "bom" | "fraco" | "muito fraco" {
   return "muito fraco";
 }
 
+/**
+ * O que a tela diz da fila. Com o cartão com problema, a placa não consegue ler
+ * a fila: o número é o último que ela viu, e "tudo enviado" seria mentira.
+ */
+export function filaEmPalavras(e: Pick<EstadoSalvo, "fila" | "cartao">, curta = false): string {
+  if (!e.cartao.ok) return curta ? "Não dá para ler" : "Não dá para ler (cartão com problema)";
+  if (e.fila === 0) return "Tudo enviado";
+  return curta ? `${e.fila} esperando` : `${e.fila} esperando para subir`;
+}
+
 /** "Gravador 1A2B": o fim do MAC, que dá para conferir na serial da placa. */
 export function nomePadraoGravador(serie: string): string {
   return `Gravador ${serie.replace(/[^0-9a-f]/gi, "").slice(-4).toUpperCase()}`;

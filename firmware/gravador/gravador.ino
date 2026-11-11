@@ -81,6 +81,9 @@ volatile bool cartaoOk = false;
 volatile bool online = false;  // Wi-Fi + login no Noteless
 volatile int naFila = 0;       // gravações esperando envio
 float cartaoLivreGb = 0;        // medido ao montar (medir de novo leva segundos)
+volatile bool loopUsandoCartao = false;  // gravando ou comando da serial: a tarefa de rede não remonta
+volatile bool falhaNoRegistro = false;   // a escrita do registro falhou (registro.ino avisa a tarefa de rede)
+volatile bool haPendentes = false;       // gravação que não virou .wav, guardada como .raw na fila
 
 // Últimas linhas ERRO:/AVISO: na memória (registro.ino), para o histórico no Noteless.
 const int ERROS_GUARDADOS = 10;
@@ -160,8 +163,8 @@ void comecarCaptura(Gravacao &g) {
 bool gravar(Gravacao &g) {
   File bruto = SD.open(ARQUIVO_BRUTO, FILE_WRITE);
   if (!bruto) {
-    registrar("ERRO: não consegui criar %s no cartão para gravar (%s).", ARQUIVO_BRUTO, strerror(errno));
     gravando = false;
+    cartaoFalhou("criar a gravação");
     return false;
   }
   memset(histograma, 0, sizeof(histograma));
@@ -207,7 +210,8 @@ bool gravar(Gravacao &g) {
   gravando = false;
   bruto.close();
   if (falhou) {
-    registrar("ERRO: o cartão parou de gravar (cheio, protegido ou com mau contato).");
+    // O que já foi gravado fica em ARQUIVO_BRUTO: montarCartao o guarda para recuperar.
+    cartaoFalhou("gravar o áudio (cheio, protegido ou com mau contato)");
     return false;
   }
   g.amostras = n;
@@ -227,34 +231,34 @@ String nomeDaGravacao(const Gravacao &g) {
 
 // Acerta o volume e grava o arquivo da fila: WAV PCM de 8 bits, o formato que
 // o Noteless e os navegadores tocam. O volume se baseia no percentil 99,9,
-// não no pico: um estalo do botão não deixa a fala baixinha.
-void finalizar(const Gravacao &g) {
-  size_t n = g.amostras;
-  if (n < TAXA / 2) {
-    registrar("Curto demais (menos de 0,5 s), ignorado.");
-    SD.remove(ARQUIVO_BRUTO);
-    return;
-  }
+// não no pico: um estalo do botão não deixa a fala baixinha. Escreve num .tmp
+// e só no fim dá o nome: a fila nunca pega arquivo pela metade. Devolve o que
+// falhou, ou nullptr. Usada no fim da gravação (loop) e na recuperação (rede).
+const char *escreverWav(const char *caminhoBruto, size_t n, const uint32_t *hist, const String &nome, float &db) {
   int faixa = 255;
   for (uint32_t acumulado = 0; faixa > 0; faixa--) {
-    acumulado += histograma[faixa];
+    acumulado += hist[faixa];
     if (acumulado > n / 1000) break;
   }
   float ref = (faixa + 1) * 128.0f;
   float escala = 120.0f / ref;
+  db = 20 * log10f(ref / 32768);
 
-  String nome = nomeDaGravacao(g);
-  String temporario = nome + ".tmp";  // a fila só pega .wav: nunca sobe arquivo pela metade
-  File bruto = SD.open(ARQUIVO_BRUTO, FILE_READ);
+  String temporario = nome + ".tmp";
+  // Na memória só durante a conversão (e não fixos: as duas tarefas usam).
+  int16_t *entrada = (int16_t *)malloc(1024 * sizeof(int16_t));
+  uint8_t *pcm8 = (uint8_t *)malloc(1024);
+  File bruto = SD.open(caminhoBruto, FILE_READ);
   File saida = SD.open(temporario, FILE_WRITE);
-  const char *erro = !bruto ? "abrir a gravação" : !saida ? "criar o arquivo" : nullptr;
+  const char *erro = !entrada || !pcm8 ? "separar memória para converter"
+                     : !bruto           ? "abrir a gravação"
+                     : !saida           ? "criar o arquivo"
+                                        : nullptr;
   if (!erro) {
     uint8_t cab[44];
     cabecalhoWav(cab, n);
     if (saida.write(cab, sizeof(cab)) != sizeof(cab)) erro = "escrever o cabeçalho";
   }
-  static int16_t entrada[1024];
-  static uint8_t pcm8[1024];
   for (size_t feitas = 0; !erro && feitas < n; feitas += min((size_t)1024, n - feitas)) {
     size_t m = min((size_t)1024, n - feitas);
     if (bruto.read((uint8_t *)entrada, m * sizeof(int16_t)) != m * sizeof(int16_t)) {
@@ -264,23 +268,38 @@ void finalizar(const Gravacao &g) {
     for (size_t i = 0; i < m; i++) pcm8[i] = constrain((int)lroundf(entrada[i] * escala), -127, 127) + 128;
     if (saida.write(pcm8, m) != m) erro = "escrever o áudio";
   }
-  size_t tamBruto = bruto ? bruto.size() : 0;
+  free(entrada);
+  free(pcm8);
   if (bruto) bruto.close();
   if (saida) saida.close();
   if (!erro && !SD.rename(temporario, nome)) erro = "dar nome ao arquivo";
+  if (erro) SD.remove(temporario);
+  return erro;
+}
+
+void finalizar(const Gravacao &g) {
+  size_t n = g.amostras;
+  if (n < TAXA / 2) {
+    registrar("Curto demais (menos de 0,5 s), ignorado.");
+    SD.remove(ARQUIVO_BRUTO);
+    return;
+  }
+  String nome = nomeDaGravacao(g);
+  float db;
+  const char *erro = escreverWav(ARQUIVO_BRUTO, n, histograma, nome, db);
   if (erro) {
-    registrar("ERRO: não consegui %s no cartão (%s; gravação com %u de %u bytes).\n", erro, strerror(errno),
-                  (unsigned)tamBruto, (unsigned)(n * sizeof(int16_t)));
-    SD.remove(temporario);
-    cartaoOk = false;
-    avisarFalha();
+    // Não apaga nada: o bruto fica na fila como .raw e vira .wav quando o cartão
+    // voltar (se nem renomear der, montarCartao o guarda no próximo boot).
+    String raw = nome.substring(0, nome.length() - 4) + ".raw";
+    if (SD.rename(ARQUIVO_BRUTO, raw)) haPendentes = true;
+    cartaoFalhou(erro);
+    registrar("AVISO: a gravação de %.1f s ficou guardada no cartão e sobe quando ele voltar.", (float)n / TAXA);
     return;
   }
   SD.remove(ARQUIVO_BRUTO);
   naFila = naFila + 1;
-  float db = 20 * log10f(ref / 32768);
   registrar("Gravou %.1f s | volume %.0f dBFS%s -> %s\n", (float)n / TAXA, db, db < -40 ? " — baixo, fale mais perto" : "",
-                nome.c_str());
+            nome.c_str());
   if (perdidas) registrar("AVISO: %lu amostras perdidas — o cartão demorou para gravar.\n", (unsigned long)perdidas);
 }
 
@@ -337,7 +356,9 @@ void setup() {
   // 2 s de áudio de folga para o cartão; o loop acorda a cada 64 ms para ver o botão.
   sbAudio = xStreamBufferCreate(32 * 1024, 1024);
   xTaskCreatePinnedToCore(tarefaCaptura, "captura", 4096, nullptr, 5, nullptr, 1);
-  xTaskCreatePinnedToCore(tarefaRede, "rede", 16384, nullptr, 1, nullptr, 1);
+  // Pilha da rede: medida, a conexão segura usa ~4 KB dela (o resto vem do
+  // heap); 10 KB dá folga e deixa mais heap para o envio, que precisa de ~85 KB.
+  xTaskCreatePinnedToCore(tarefaRede, "rede", 10240, nullptr, 1, nullptr, 1);
   registrar("Pronto: segure o botão para gravar e solte para parar (até %d min, microfone no canal %s).\n",
                 LIMITE_SEG / 60, canal ? "direito" : "esquerdo");
 }
@@ -371,33 +392,30 @@ void tratarBotao() {
   }
 
   cliques = 0;
-  if (!cartaoOk && !montarCartao()) {
+  // Marca antes de olhar o cartão: a tarefa de rede só remonta com ele livre.
+  loopUsandoCartao = true;
+  if (!cartaoOk) {
+    // Não tenta montar aqui: com o cartão travado, montar leva até ~30 s e o
+    // botão ficaria sem resposta. A tarefa de rede tenta de novo sozinha.
+    loopUsandoCartao = false;
     gravando = false;
-    registrar("Sem cartão, não dá para gravar: confira se ele está encaixado até o clique.");
+    registrar("Sem cartão, não dá para gravar: confira se ele está encaixado até o clique (se ele travou, desligue e ligue a USB).");
     while (digitalRead(BOTAO) == LOW) delay(10);
     avisarFalha();
     return;
   }
   bool ok = gravar(g);
   while (digitalRead(BOTAO) == LOW) delay(10);  // no limite de tempo, ainda pode estar segurando
-  if (ok) {
-    finalizar(g);
-  } else {
-    cartaoOk = false;
-    avisarFalha();
-  }
+  if (ok) finalizar(g);
+  loopUsandoCartao = false;
+  if (!ok) avisarFalha();  // o cartão falhou: cartaoFalhou já avisou o quê
 }
 
 void loop() {
   atenderSerial();
   led(ledParado() ? 255 : 0);
   if (digitalRead(BOTAO) == LOW) tratarBotao();
-  // Cartão que falhou às vezes volta (mau contato, placa reiniciada com ele
-  // ocupado). Sem esperar alguém apertar o botão: sem cartão, a fila não sobe.
-  static uint32_t tentouCartao = 0;
-  if (!cartaoOk && millis() - tentouCartao > 10000) {
-    tentouCartao = millis();
-    montarCartao();
-  }
+  // Cartão que falhou: quem tenta montar de novo é a tarefa de rede (rede.ino),
+  // para o botão nunca ficar preso esperando um cartão travado.
   delay(10);
 }
