@@ -4,5 +4,5 @@
     "types": ["node"],
     "noEmit": true
   },
-  "include": ["src", "test", "drizzle.config.ts", "tsup.config.ts", "vitest.config.mts"]
+  "include": ["src", "test", "avaliacao", "drizzle.config.ts", "tsup.config.ts", "vitest.config.mts"]
 }
