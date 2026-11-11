@@ -83,7 +83,7 @@ String procurarRedes() {
       opcoes += "<option value=\"" + e + "\">" + e + " · " + sinal + (tipo == WIFI_AUTH_OPEN ? " · aberta" : "") + "</option>";
   }
   WiFi.scanDelete();
-  Serial.printf("Portal: %d redes ao alcance.\n", n);
+  registrar("Portal: %d redes ao alcance.\n", n);
   return opcoes;
 }
 
@@ -187,7 +187,7 @@ void configurarWifi() {
       servidor.send(303);
       return;
     }
-    Serial.printf("Portal: testando \"%s\"...\n", nome.c_str());
+    registrar("Portal: testando \"%s\"...\n", nome.c_str());
     WiFi.disconnect();
     ultimoMotivo = 0;
     WiFi.begin(nome.c_str(), senha.c_str());
@@ -208,7 +208,7 @@ void configurarWifi() {
       return;
     }
     salvarRede(nome, senha);
-    Serial.printf("Portal: \"%s\" salva sem testar.\n", nome.c_str());
+    registrar("Portal: \"%s\" salva sem testar.\n", nome.c_str());
     servidor.send(200, "text/html; charset=utf-8", paginaSalvo(nome));
     reiniciarEm = millis() + 3000;
   });
@@ -218,7 +218,7 @@ void configurarWifi() {
     servidor.send(302);
   });
   servidor.begin();
-  Serial.printf("Modo configuração: conecte o celular na rede \"%s\" e escolha o Wi-Fi na página que abrir (ou entre em http://%s).\n",
+  registrar("Modo configuração: conecte o celular na rede \"%s\" e escolha o Wi-Fi na página que abrir (ou entre em http://%s).\n",
                 nomeAp, ip.toString().c_str());
 
   // Com uma rede já salva há para onde voltar: um clique ou 5 min sem o celular
@@ -234,12 +234,12 @@ void configurarWifi() {
         salvarRede(nome, senha);
         estado = CONECTADO;
         reiniciarEm = millis() + 8000;  // dá tempo da página mostrar "Pronto"
-        Serial.printf("Portal: conectou em \"%s\" (IP %s). Rede salva.\n", nome.c_str(), WiFi.localIP().toString().c_str());
+        registrar("Portal: conectou em \"%s\" (IP %s). Rede salva.\n", nome.c_str(), WiFi.localIP().toString().c_str());
       } else if (millis() - desde > 20000) {
         motivo = motivoFalha(ultimoMotivo);
         estado = FALHOU;
         WiFi.disconnect();
-        Serial.printf("Portal: não conectou em \"%s\": %s.\n", nome.c_str(), motivo.c_str());
+        registrar("Portal: não conectou em \"%s\": %s.\n", nome.c_str(), motivo.c_str());
       }
     }
     if (!wifiNome.isEmpty() && estado != CONECTANDO && !reiniciarEm) {
@@ -248,20 +248,20 @@ void configurarWifi() {
       if (digitalRead(BOTAO) == HIGH) {
         if (!soltouEm) soltouEm = millis();
       } else if (soltouEm && millis() - soltouEm > 300 && millis() - inicio > 10000) {
-        Serial.println("Portal: cancelado pelo botão; voltando para a rede salva.");
+        registrar("Portal: cancelado pelo botão; voltando para a rede salva.");
         delay(100);
         ESP.restart();
       } else {
         soltouEm = 0;
       }
       if (millis() - mexeu > 5UL * 60 * 1000) {
-        Serial.println("Portal: 5 min sem ninguém na página; voltando para a rede salva.");
+        registrar("Portal: 5 min sem ninguém na página; voltando para a rede salva.");
         delay(100);
         ESP.restart();
       }
     }
     if (reiniciarEm && (int32_t)(millis() - reiniciarEm) > 0) {
-      Serial.println("Portal: reiniciando com a rede nova.");
+      registrar("Portal: reiniciando com a rede nova.");
       delay(100);
       ESP.restart();
     }

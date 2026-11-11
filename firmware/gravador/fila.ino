@@ -8,6 +8,7 @@ bool montarCartao() {
     spiCartao.begin(CARTAO_SCK, CARTAO_MISO, CARTAO_MOSI, -1);
     spiPronto = true;
   }
+  fecharRegistro();  // o arquivo não pode ficar aberto com o cartão desmontado
   SD.end();
   // 1 MHz: com os fios da protoboard, a 4 MHz o cartão monta e funciona, mas
   // troca bytes calado (3060 errados em 256 KB) — estalos no áudio e, uma vez,
@@ -15,11 +16,12 @@ bool montarCartao() {
   cartaoOk = SD.begin(CARTAO_CS, spiCartao, 1000000);
   if (!cartaoOk) {
     // O loop() tenta de novo a cada 10 s: avisa só na primeira.
-    if (!avisou) Serial.println("ERRO: o cartão não respondeu. Confira se ele está encaixado e os fios (firmware/cartao testa um a um).");
+    if (!avisou) registrar("ERRO: o cartão não respondeu. Confira se ele está encaixado e os fios (firmware/cartao testa um a um).");
     avisou = true;
     return false;
   }
   avisou = false;
+  abrirRegistro();
   SD.mkdir(PASTA_FILA);
   SD.mkdir(PASTA_ERRO);
   // Placa desligada no meio de uma gravação: o bruto não tem volume acertado
@@ -28,9 +30,9 @@ bool montarCartao() {
   apagarTemporarios();
   naFila = contar(PASTA_FILA);
   int recusadas = contar(PASTA_ERRO);
-  Serial.printf("Cartão: %.1f GB livres | %d na fila", (SD.totalBytes() - SD.usedBytes()) / 1e9, naFila);
-  if (recusadas) Serial.printf(" | %d recusada(s) guardada(s) em %s", recusadas, PASTA_ERRO);
-  Serial.println();
+  char extra[64] = "";
+  if (recusadas) snprintf(extra, sizeof(extra), " | %d recusada(s) guardada(s) em %s", recusadas, PASTA_ERRO);
+  registrar("Cartão montado: %.1f GB livres | %d na fila%s", (SD.totalBytes() - SD.usedBytes()) / 1e9, naFila, extra);
   return true;
 }
 
@@ -119,6 +121,6 @@ void darHoraAosNomes() {
     if (!ms) continue;  // de um boot anterior: sem como saber a hora
     char para[48];
     snprintf(para, sizeof(para), "%s/t%llu.wav", PASTA_FILA, (unsigned long long)ms);
-    if (SD.rename(de, para)) Serial.printf("  %s gravada em %s\n", de.c_str(), isoDe(ms).c_str());
+    if (SD.rename(de, para)) registrar("  %s gravada em %s\n", de.c_str(), isoDe(ms).c_str());
   }
 }

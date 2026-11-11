@@ -149,6 +149,7 @@ void comecarCaptura(Gravacao &g) {
 bool gravar(Gravacao &g) {
   File bruto = SD.open(ARQUIVO_BRUTO, FILE_WRITE);
   if (!bruto) {
+    registrar("ERRO: não consegui criar %s no cartão para gravar (%s).", ARQUIVO_BRUTO, strerror(errno));
     gravando = false;
     return false;
   }
@@ -163,7 +164,7 @@ bool gravar(Gravacao &g) {
   size_t n = 0;
   bool falhou = false;
 
-  Serial.println("Gravando... (solte o botão para parar)");
+  registrar("Gravando... (solte o botão para parar)");
   while (true) {
     size_t m = xStreamBufferReceive(sbAudio, bloco, sizeof(bloco), pdMS_TO_TICKS(300)) / sizeof(int16_t);
     for (size_t i = 0; i < m; i++, n++) {
@@ -188,7 +189,7 @@ bool gravar(Gravacao &g) {
       if (digitalRead(BOTAO) == HIGH) break;
     }
     if (n >= (size_t)LIMITE_SEG * TAXA) {
-      Serial.printf("Limite de %d min atingido: parou sozinho.\n", LIMITE_SEG / 60);
+      registrar("Limite de %d min atingido: parou sozinho.\n", LIMITE_SEG / 60);
       break;
     }
   }
@@ -196,7 +197,7 @@ bool gravar(Gravacao &g) {
   bruto.close();
   digitalWrite(LED, LOW);
   if (falhou) {
-    Serial.println("ERRO: o cartão parou de gravar (cheio, protegido ou com mau contato).");
+    registrar("ERRO: o cartão parou de gravar (cheio, protegido ou com mau contato).");
     return false;
   }
   g.amostras = n;
@@ -220,7 +221,7 @@ String nomeDaGravacao(const Gravacao &g) {
 void finalizar(const Gravacao &g) {
   size_t n = g.amostras;
   if (n < TAXA / 2) {
-    Serial.println("Curto demais (menos de 0,5 s), ignorado.");
+    registrar("Curto demais (menos de 0,5 s), ignorado.");
     SD.remove(ARQUIVO_BRUTO);
     return;
   }
@@ -258,7 +259,7 @@ void finalizar(const Gravacao &g) {
   if (saida) saida.close();
   if (!erro && !SD.rename(temporario, nome)) erro = "dar nome ao arquivo";
   if (erro) {
-    Serial.printf("ERRO: não consegui %s no cartão (%s; gravação com %u de %u bytes).\n", erro, strerror(errno),
+    registrar("ERRO: não consegui %s no cartão (%s; gravação com %u de %u bytes).\n", erro, strerror(errno),
                   (unsigned)tamBruto, (unsigned)(n * sizeof(int16_t)));
     SD.remove(temporario);
     cartaoOk = false;
@@ -268,9 +269,9 @@ void finalizar(const Gravacao &g) {
   SD.remove(ARQUIVO_BRUTO);
   naFila = naFila + 1;
   float db = 20 * log10f(ref / 32768);
-  Serial.printf("Gravou %.1f s | volume %.0f dBFS%s -> %s\n", (float)n / TAXA, db, db < -40 ? " — baixo, fale mais perto" : "",
+  registrar("Gravou %.1f s | volume %.0f dBFS%s -> %s\n", (float)n / TAXA, db, db < -40 ? " — baixo, fale mais perto" : "",
                 nome.c_str());
-  if (perdidas) Serial.printf("AVISO: %lu amostras perdidas — o cartão demorou para gravar.\n", (unsigned long)perdidas);
+  if (perdidas) registrar("AVISO: %lu amostras perdidas — o cartão demorou para gravar.\n", (unsigned long)perdidas);
 }
 
 // O LED com o botão solto.
@@ -286,7 +287,8 @@ void setup() {
   pinMode(BOTAO, INPUT_PULLUP);
   Serial.begin(115200);
   delay(500);
-  Serial.println("\n=== Noteless - gravador de campo ===");
+  Serial.println();
+  iniciarRegistro();
 
   prefs.begin("noteless", false);
   bootId = prefs.getUInt("boot", 0) + 1;
@@ -295,16 +297,19 @@ void setup() {
   if (trocarWifi) prefs.remove("trocarWifi");
   prefs.end();
 
+  registrar("=== Noteless - gravador de campo === boot %lu: %s | memória livre %u", (unsigned long)bootId, motivoDoBoot(),
+            ESP.getFreeHeap());
+
   // Sem rede salva (ou depois dos 5 cliques): configurar pelo celular antes de
   // tudo. configurarWifi() não volta — reinicia a placa no fim.
   carregarRede();
   if (wifiNome.isEmpty() || trocarWifi) configurarWifi();
-  Serial.printf("Rede salva: \"%s\" (para trocar, clique %d vezes seguidas no botão)\n", wifiNome.c_str(), CLIQUES_PARA_TROCAR_WIFI);
+  registrar("Rede salva: \"%s\" (para trocar, clique %d vezes seguidas no botão)\n", wifiNome.c_str(), CLIQUES_PARA_TROCAR_WIFI);
 
   // Microfone: I2S padrão, 32 bits por canal. Fica rodando direto; gravar é só ler.
   i2s.setPins(PINO_SCK, PINO_WS, -1, PINO_SD);
   if (!i2s.begin(I2S_MODE_STD, TAXA, I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO)) {
-    Serial.println("ERRO: o I2S não iniciou.");
+    registrar("ERRO: o I2S não iniciou.");
     while (true) avisarFalha();
   }
   delay(200);  // o INMP441 leva ~85 ms para acordar
@@ -317,7 +322,7 @@ void setup() {
   }
   canal = energia[1] > energia[0] ? 1 : 0;
   if (energia[0] == 0 && energia[1] == 0)
-    Serial.println("AVISO: microfone mudo. Confira SD, SCK, WS e a alimentação (3V3 e GND).");
+    registrar("AVISO: microfone mudo. Confira SD, SCK, WS e a alimentação (3V3 e GND).");
 
   montarCartao();
 
@@ -325,7 +330,7 @@ void setup() {
   sbAudio = xStreamBufferCreate(32 * 1024, 1024);
   xTaskCreatePinnedToCore(tarefaCaptura, "captura", 4096, nullptr, 5, nullptr, 1);
   xTaskCreatePinnedToCore(tarefaRede, "rede", 16384, nullptr, 1, nullptr, 1);
-  Serial.printf("Pronto: segure o botão para gravar e solte para parar (até %d min, microfone no canal %s).\n",
+  registrar("Pronto: segure o botão para gravar e solte para parar (até %d min, microfone no canal %s).\n",
                 LIMITE_SEG / 60, canal ? "direito" : "esquerdo");
 }
 
@@ -349,7 +354,7 @@ void tratarBotao() {
     gravando = false;
     cliques = millis() - ultimoClique < ENTRE_CLIQUES_MS ? cliques + 1 : 1;
     ultimoClique = millis();
-    Serial.printf("Clique %d de %d para trocar o Wi-Fi.\n", cliques, CLIQUES_PARA_TROCAR_WIFI);
+    registrar("Clique %d de %d para trocar o Wi-Fi.\n", cliques, CLIQUES_PARA_TROCAR_WIFI);
     if (cliques >= CLIQUES_PARA_TROCAR_WIFI) pedirTrocaDeWifi();  // não volta: reinicia direto no modo configuração
     return;
   }
@@ -357,7 +362,7 @@ void tratarBotao() {
   cliques = 0;
   if (!cartaoOk && !montarCartao()) {
     gravando = false;
-    Serial.println("Sem cartão, não dá para gravar: confira se ele está encaixado até o clique.");
+    registrar("Sem cartão, não dá para gravar: confira se ele está encaixado até o clique.");
     while (digitalRead(BOTAO) == LOW) delay(10);
     avisarFalha();
     return;
@@ -373,6 +378,7 @@ void tratarBotao() {
 }
 
 void loop() {
+  atenderSerial();
   digitalWrite(LED, ledParado());
   if (digitalRead(BOTAO) == LOW) tratarBotao();
   // Cartão que falhou às vezes volta (mau contato, placa reiniciada com ele

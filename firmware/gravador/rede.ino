@@ -22,23 +22,24 @@ String hostServidor() {
 void garantirDns() {
   IPAddress ip;
   if (WiFi.hostByName(hostServidor().c_str(), ip) == 1) return;
-  Serial.printf("DNS da rede (%s) não respondeu; usando 1.1.1.1 e 8.8.8.8.\n", WiFi.dnsIP(0).toString().c_str());
+  registrar("DNS da rede (%s) não respondeu; usando 1.1.1.1 e 8.8.8.8.\n", WiFi.dnsIP(0).toString().c_str());
   WiFi.STA.dnsIP(0, IPAddress(1, 1, 1, 1));
   WiFi.STA.dnsIP(1, IPAddress(8, 8, 8, 8));
 }
 
 bool conectarWifi() {
   if (WiFi.status() == WL_CONNECTED) return true;
-  Serial.printf("Wi-Fi \"%s\"", wifiNome.c_str());
+  registrar("Wi-Fi \"%s\": conectando...", wifiNome.c_str());
   WiFi.mode(WIFI_STA);
   // Sem economia de energia: consumo constante (~100 mA) que não deixa powerbank
   // desligar sozinha, e o envio responde mais rápido.
   WiFi.setSleep(false);
   WiFi.disconnect();  // encerra tentativa anterior ainda em andamento ("sta is connecting")
   WiFi.begin(wifiNome.c_str(), wifiSenha.c_str());
-  for (int i = 0; i < 40 && WiFi.status() != WL_CONNECTED; i++) { delay(250); Serial.print("."); }
+  for (int i = 0; i < 40 && WiFi.status() != WL_CONNECTED; i++) delay(250);
   bool ok = WiFi.status() == WL_CONNECTED;
-  Serial.println(ok ? " ok, IP " + WiFi.localIP().toString() : " fora de alcance");
+  if (ok) registrar("Wi-Fi \"%s\": ok, IP %s, sinal %d dBm", wifiNome.c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
+  else registrar("ERRO: Wi-Fi \"%s\" fora de alcance ou senha errada (status %d).", wifiNome.c_str(), (int)WiFi.status());
   if (ok) garantirDns();
   return ok;
 }
@@ -85,11 +86,11 @@ struct Conexao {
     String host = hostServidor();
     IPAddress ip;
     bool dns = WiFi.hostByName(host.c_str(), ip) == 1;
-    Serial.printf("  %s | DNS de %s (servidor %s): %s | memória livre %u (maior bloco %u)\n",
+    registrar("  %s | DNS de %s (servidor %s): %s | memória livre %u (maior bloco %u)\n",
                   HTTPClient::errorToString(st).c_str(), host.c_str(), WiFi.dnsIP(0).toString().c_str(),
                   dns ? ip.toString().c_str() : "FALHOU", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     char erro[120];
-    if (seguro.lastError(erro, sizeof(erro)) != 0) Serial.printf("  TLS: %s\n", erro);
+    if (seguro.lastError(erro, sizeof(erro)) != 0) registrar("  TLS: %s\n", erro);
   }
 };
 
@@ -104,7 +105,7 @@ bool entrar() {
     String resp = c.http.getString();
     c.http.end();
     if (st != 200) {
-      Serial.printf("Login falhou (HTTP %d): %s\n", st, resp.substring(0, 160).c_str());
+      registrar("ERRO: login falhou (HTTP %d): %s\n", st, resp.substring(0, 160).c_str());
       if (st < 0) c.explicar(st);
       return false;
     }
@@ -115,8 +116,8 @@ bool entrar() {
   String sessao = st == 200 ? c.http.getString() : "";
   c.http.end();
   orgId = campo(sessao, "activeOrganizationId");
-  if (orgId.isEmpty()) { Serial.printf("Sessão sem organização (HTTP %d).\n", st); return false; }
-  Serial.printf("Logado no Noteless como %s (org %s)\n", CONTA_EMAIL, orgId.c_str());
+  if (orgId.isEmpty()) { registrar("ERRO: sessão sem organização (HTTP %d).\n", st); return false; }
+  registrar("Logado no Noteless como %s (org %s)\n", CONTA_EMAIL, orgId.c_str());
   return true;
 }
 
@@ -127,13 +128,19 @@ class CorpoMultipart : public Stream {
   CorpoMultipart(const String &ini, File &arq, const String &fim) : ini(ini), arq(arq), fim(fim), tamArq(arq.size()) {}
 
   size_t total() const { return ini.length() + tamArq + fim.length(); }
-  int available() override { return total() - pos; }
+  size_t lido() const { return pos; }             // para o registro: até onde o envio chegou
+  uint32_t primeiroMs = 0;                         // millis() do 1º pedaço = conexão e cabeçalhos prontos
+  // Em pedaços de 512 bytes: o HTTPClient lê o que available() diz, e cada
+  // pedaço vira um pacote próprio (TCP_NODELAY). Com pacotes cheios (~1500
+  // bytes), há redes que os perdem sem avisar e o envio trava no 1º pedaço.
+  int available() override { return min(total() - pos, (size_t)512); }
 
   // O HTTPClient conta como enviado o que pediu, não o que veio: tem que vir
   // tudo de uma vez, atravessando as três partes. Cartão que falha no meio
   // deixa o envio curto, e ele é refeito depois.
   size_t readBytes(char *destino, size_t quer) override {
     size_t feito = 0;
+    if (!primeiroMs) primeiroMs = millis();
     while (feito < quer && pos < total()) {
       size_t k;
       if (pos < ini.length()) {
@@ -191,7 +198,10 @@ Resultado enviarArquivo(const String &caminho) {
     Conexao c;
     if (!c.abrir("/api/org/" + orgId + "/ocorrencias")) break;
     c.http.addHeader("Content-Type", String("multipart/form-data; boundary=") + FRONTEIRA);
-    Serial.printf("Enviando %s (%.1f s%s%s)...\n", base.c_str(), seg, quando.length() ? ", gravada em " : ", sem hora", quando.c_str());
+    registrar("Enviando %s (%.1f s%s%s) | memória livre %u (maior bloco %u)...", base.c_str(), seg,
+              quando.length() ? ", gravada em " : ", sem hora", quando.c_str(), ESP.getFreeHeap(),
+              heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    uint32_t inicio = millis();
     int st = c.http.sendRequest("POST", &corpo, corpo.total());
     String resp = st > 0 ? c.http.getString() : "";
     c.http.end();
@@ -199,13 +209,23 @@ Resultado enviarArquivo(const String &caminho) {
     if (st == 201) {
       arq.close();
       SD.remove(caminho);
-      Serial.println("Nota criada no Noteless!");
-      Serial.println("  Transcrição: " + campo(resp, "transcricao"));
-      Serial.println("  Resumo:      " + campo(resp, "resumo"));
+      registrar("Nota criada no Noteless em %.1f s: %s", (millis() - inicio) / 1000.0f, base.c_str());
+      registrar("  Transcrição: %s", campo(resp, "transcricao").c_str());
+      registrar("  Resumo:      %s", campo(resp, "resumo").c_str());
       return ENVIADO;
     }
-    if (st == 401 || st == 403) { orgId = ""; continue; }  // sessão expirou: entra de novo
-    Serial.printf("Falhou (HTTP %d): %s\n", st, resp.substring(0, 200).c_str());
+    if (st == 401 || st == 403) {  // sessão expirou: entra de novo
+      registrar("Sessão recusada (HTTP %d): entrando de novo.", st);
+      orgId = "";
+      continue;
+    }
+    registrar("ERRO: envio de %s falhou depois de %.1f s (HTTP %d): %s", base.c_str(), (millis() - inicio) / 1000.0f, st,
+              resp.substring(0, 200).c_str());
+    if (corpo.primeiroMs)
+      registrar("  conexão + cabeçalhos: %.1f s | corpo: %u de %u bytes lidos em %.1f s", (corpo.primeiroMs - inicio) / 1000.0f,
+                (unsigned)corpo.lido(), (unsigned)corpo.total(), (millis() - corpo.primeiroMs) / 1000.0f);
+    else
+      registrar("  o corpo nem começou a ir: caiu na conexão ou nos cabeçalhos");
     if (st < 0) c.explicar(st);
     arq.close();
     // 400 e 413: o Noteless leu e recusou o arquivo — mandar de novo não adianta.
@@ -217,9 +237,11 @@ Resultado enviarArquivo(const String &caminho) {
 
 void tarefaRede(void *) {
   uint32_t ultimaWifi = 0, ultimoLogin = 0, proximoEnvio = 0, espera = 0;
-  bool primeiraVez = true, relogioPedido = false, nomesComHora = false;
+  bool primeiraVez = true, relogioPedido = false, nomesComHora = false, estavaNoWifi = false;
   while (true) {
     if (WiFi.status() != WL_CONNECTED) {
+      if (estavaNoWifi) registrar("AVISO: Wi-Fi caiu (status %d).", (int)WiFi.status());
+      estavaNoWifi = false;
       online = false;
       // Sem rede, tenta de novo a cada 30 s.
       if (primeiraVez || millis() - ultimaWifi > 30000) {
@@ -229,6 +251,7 @@ void tarefaRede(void *) {
       }
     }
     if (WiFi.status() == WL_CONNECTED) {
+      estavaNoWifi = true;
       if (!relogioPedido) {
         configTime(0, 0, "pool.ntp.org", "a.st1.ntp.br", "time.google.com");  // em UTC; o Noteless converte
         relogioPedido = true;
@@ -242,7 +265,7 @@ void tarefaRede(void *) {
     }
     if (!nomesComHora && relogioValido()) {
       nomesComHora = true;
-      Serial.printf("Relógio acertado pela internet: %s\n", isoDe(agoraEpochMs()).c_str());
+      registrar("Relógio acertado pela internet: %s\n", isoDe(agoraEpochMs()).c_str());
       if (cartaoOk) darHoraAosNomes();
     }
 
@@ -251,14 +274,14 @@ void tarefaRede(void *) {
       String caminho = proximaDaFila();
       Resultado r = caminho.isEmpty() ? TENTAR_DEPOIS : enviarArquivo(caminho);
       if (r == RECUSADO) {
-        if (moverParaErro(caminho)) Serial.printf("Recusada pelo Noteless: guardada em %s, fora da fila.\n", PASTA_ERRO);
+        if (moverParaErro(caminho)) registrar("ERRO: recusada pelo Noteless: guardada em %s, fora da fila.\n", PASTA_ERRO);
         else r = TENTAR_DEPOIS;
       }
       if (r == TENTAR_DEPOIS) {
         // Espera cada vez mais entre as tentativas: 15 s, 30 s... até 5 min.
         espera = espera ? min(espera * 2, (uint32_t)(5 * 60 * 1000)) : 15000;
         proximoEnvio = millis() + espera;
-        Serial.printf("Tenta enviar de novo em %lu s (%d na fila).\n", (unsigned long)(espera / 1000), (int)naFila);
+        registrar("Tenta enviar de novo em %lu s (%d na fila).\n", (unsigned long)(espera / 1000), (int)naFila);
       } else {
         espera = 0;
       }
