@@ -6,6 +6,7 @@ import * as schema from "./schema";
 import * as animais from "./tabelas/animais";
 import * as aviario from "./tabelas/aviario";
 import * as avisos from "./tabelas/avisos";
+import * as conta from "./tabelas/conta";
 import * as historico from "./tabelas/historico";
 import * as notas from "./tabelas/notas";
 import * as saude from "./tabelas/saude";
@@ -22,4 +23,4 @@ import * as saude from "./tabelas/saude";
  */
 const pool = new Pool({ connectionString: env.DATABASE_URL });
 
-export const db = drizzle(pool, { schema: { ...schema, ...animais, ...saude, ...notas, ...historico, ...avisos, ...aviario } });
+export const db = drizzle(pool, { schema: { ...schema, ...animais, ...saude, ...notas, ...historico, ...avisos, ...aviario, ...conta } });

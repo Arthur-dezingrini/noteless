@@ -7,3 +7,8 @@
 // Conta de quem "grava" as notas. Precisa ser membro de uma organização.
 #define CONTA_EMAIL "gravador@exemplo.com"
 #define CONTA_SENHA "senha"
+
+// Empresa que recebe as notas até o Noteless responder a escolhida em
+// Configurações › Gravadores. Nome como aparece no Noteless (ou o slug).
+// Vazio: a mais antiga da conta.
+#define CONTA_EMPRESA ""

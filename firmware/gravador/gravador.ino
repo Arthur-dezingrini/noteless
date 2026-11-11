@@ -82,6 +82,7 @@ volatile uint32_t perdidas = 0;  // amostras que não couberam (cartão lento de
 volatile bool cartaoOk = false;
 volatile bool online = false;  // Wi-Fi + login no Noteless
 volatile int naFila = 0;       // gravações esperando envio
+float cartaoLivreGb = 0;        // medido ao montar (medir de novo leva segundos)
 
 uint32_t histograma[256];  // |amostra| em faixas de 128, para acertar o volume
 

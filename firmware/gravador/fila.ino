@@ -32,7 +32,8 @@ bool montarCartao() {
   int recusadas = contar(PASTA_ERRO);
   char extra[64] = "";
   if (recusadas) snprintf(extra, sizeof(extra), " | %d recusada(s) guardada(s) em %s", recusadas, PASTA_ERRO);
-  registrar("Cartão montado: %.1f GB livres | %d na fila%s", (SD.totalBytes() - SD.usedBytes()) / 1e9, naFila, extra);
+  cartaoLivreGb = (SD.totalBytes() - SD.usedBytes()) / 1e9;
+  registrar("Cartão montado: %.1f GB livres | %d na fila%s", cartaoLivreGb, naFila, extra);
   return true;
 }
 

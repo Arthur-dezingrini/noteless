@@ -22,6 +22,8 @@ const size_t REGISTRO_FIM = 16 * 1024;  // o que "log" mostra
 const long FUSO_SEG = -3 * 3600;        // Brasília (sem horário de verão desde 2019)
 
 SemaphoreHandle_t travaRegistro = nullptr;
+char ultimoErroTexto[200] = "";  // última linha ERRO:/AVISO:, para o aviso de estado
+uint32_t ultimoErroMs = 0;
 File arqRegistro;
 
 void iniciarRegistro() { travaRegistro = xSemaphoreCreateMutex(); }
@@ -74,6 +76,10 @@ void registrar(const char *formato, ...) {
   }
   xSemaphoreTake(travaRegistro, portMAX_DELAY);
   Serial.printf("%s %s\n", c, msg);
+  if (!strncmp(msg, "ERRO:", 5) || !strncmp(msg, "AVISO:", 6)) {
+    strlcpy(ultimoErroTexto, msg, sizeof(ultimoErroTexto));
+    ultimoErroMs = millis() | 1;  // 0 = nenhum erro desde que ligou
+  }
   if (arqRegistro) {
     if (arqRegistro.size() > REGISTRO_MAX) girarRegistro();
     if (arqRegistro && arqRegistro.printf("%s %s\n", c, msg) > 0) arqRegistro.flush();
@@ -83,6 +89,23 @@ void registrar(const char *formato, ...) {
 }
 
 // Por que a placa (re)ligou: queda de energia e travamento aparecem aqui.
+// Última linha ERRO:/AVISO: (copiada em "texto") e quando foi, em millis(); 0 se não houve.
+uint32_t ultimoErro(char *texto, size_t tam) {
+  xSemaphoreTake(travaRegistro, portMAX_DELAY);
+  strlcpy(texto, ultimoErroTexto, tam);
+  uint32_t ms = ultimoErroMs;
+  xSemaphoreGive(travaRegistro);
+  return ms;
+}
+
+// O cartão monta, mas há falhas em que nada se grava nele: o registro fecha.
+bool registroAberto() {
+  xSemaphoreTake(travaRegistro, portMAX_DELAY);
+  bool aberto = arqRegistro;
+  xSemaphoreGive(travaRegistro);
+  return aberto;
+}
+
 const char *motivoDoBoot() {
   switch (esp_reset_reason()) {
     case ESP_RST_POWERON: return "ligada na energia";

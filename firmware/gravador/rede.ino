@@ -5,6 +5,10 @@
 
 const char *FRONTEIRA = "----noteless-esp32";
 
+#ifndef CONTA_EMPRESA
+#define CONTA_EMPRESA ""  // segredos.h antigo, sem a empresa: a mais antiga da conta
+#endif
+
 CookieJar cookies;  // sessão do Better Auth, guardada após o login
 String orgId;
 
@@ -110,14 +114,63 @@ bool entrar() {
       return false;
     }
   }
-  Conexao c;
-  if (!c.abrir("/api/auth/get-session")) return false;
-  int st = c.http.GET();
-  String sessao = st == 200 ? c.http.getString() : "";
-  c.http.end();
-  orgId = campo(sessao, "activeOrganizationId");
-  if (orgId.isEmpty()) { registrar("ERRO: sessão sem organização (HTTP %d).\n", st); return false; }
+  {
+    Conexao c;  // fecha antes da próxima: duas conexões seguras de uma vez não abrem
+    if (!c.abrir("/api/auth/get-session")) return false;
+    int st = c.http.GET();
+    String sessao = st == 200 ? c.http.getString() : "";
+    c.http.end();
+    orgId = campo(sessao, "activeOrganizationId");
+    if (orgId.isEmpty()) { registrar("ERRO: sessão sem organização (HTTP %d).\n", st); return false; }
+  }
+  if (strlen(CONTA_EMPRESA) && !escolherEmpresa()) { orgId = ""; return false; }
   registrar("Logado no Noteless como %s (org %s)\n", CONTA_EMAIL, orgId.c_str());
+  avisarLogo();  // antes de enviar a fila: o sistema diz para qual empresa as notas vão
+  return true;
+}
+
+// Id da empresa com esse nome (ou slug) na lista de empresas da conta; vazio se
+// ela não estiver vinculada. Em "nomes" ficam todas, para o registro.
+String acharEmpresa(const String &lista, const char *nome, String &nomes) {
+  String achou;
+  for (int i = lista.indexOf('{'); i >= 0; i = lista.indexOf('{', i + 1)) {
+    int f = lista.indexOf('}', i);
+    if (f < 0) break;
+    String org = lista.substring(i, f + 1);
+    String n = campo(org, "name");
+    if (n.isEmpty()) continue;
+    if (!nomes.isEmpty()) nomes += ", ";
+    nomes += n;
+    if (achou.isEmpty() && (n.equalsIgnoreCase(nome) || campo(org, "slug").equalsIgnoreCase(nome))) achou = campo(org, "id");
+  }
+  return achou;
+}
+
+// O login deixa ativa a empresa mais antiga da conta. Com CONTA_EMPRESA, as
+// notas começam indo para essa — até o aviso de estado responder a escolhida
+// no Noteless. A rota de notas recebe a empresa na URL e confere o vínculo,
+// então basta o id (não precisa trocar a empresa ativa da sessão).
+bool escolherEmpresa() {
+  Conexao c;
+  if (!c.abrir("/api/auth/organization/list")) return false;
+  int st = c.http.GET();
+  String lista = st == 200 ? c.http.getString() : "";
+  c.http.end();
+  if (st != 200) {
+    registrar("ERRO: não consegui ver as empresas da conta (HTTP %d).", st);
+    if (st < 0) c.explicar(st);
+    return false;
+  }
+  String nomes;
+  String id = acharEmpresa(lista, CONTA_EMPRESA, nomes);
+  if (id.isEmpty()) {
+    // Não trava: a empresa escolhida no Noteless (aviso de estado) vale mais que esta.
+    registrar("AVISO: a conta %s não está vinculada à empresa \"%s\" (vinculada a: %s); fica a do Noteless.",
+              CONTA_EMAIL, CONTA_EMPRESA, nomes.isEmpty() ? "nenhuma" : nomes.c_str());
+    return true;
+  }
+  orgId = id;
+  registrar("Notas vão para a empresa \"%s\".", CONTA_EMPRESA);
   return true;
 }
 
@@ -262,6 +315,7 @@ void tarefaRede(void *) {
         entrar();
       }
       online = !orgId.isEmpty();
+      if (online && avisoDevido()) avisarEstado();
     }
     if (!nomesComHora && relogioValido()) {
       nomesComHora = true;

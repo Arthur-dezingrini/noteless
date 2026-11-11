@@ -12,7 +12,7 @@ export default async function ConfiguracoesLayout({ children }: LayoutProps<"/co
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Configurações" description="Dados da conta e quem tem acesso." />
+      <PageHeader title="Configurações" description="Dados da conta, quem tem acesso e os gravadores." />
       {admin || ehSuper ? (
         <>
           <ConfigNav admin={admin} ehSuper={ehSuper} />

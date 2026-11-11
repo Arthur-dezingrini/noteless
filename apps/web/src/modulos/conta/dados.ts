@@ -7,6 +7,8 @@ import {
   usuarioAdminListaSchema,
   type Empresa,
   type UsuarioAdmin,
+  gravadorListaSchema,
+  type Gravador,
 } from "@vocare/shared";
 import { cache } from "react";
 
@@ -40,5 +42,21 @@ export const getEmpresas = cache(async (): Promise<Empresa[]> => {
   const res = await apiFetch("/api/admin/empresas");
   if (!res.ok) return [];
   const parsed = empresaListaSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : [];
+});
+
+/** Gravadores que mandam notas para a empresa (administrador; senão, lista vazia). */
+export const getGravadores = cache(async (organizationId: string): Promise<Gravador[]> => {
+  const res = await apiFetch(`/api/org/${encodeURIComponent(organizationId)}/gravadores`);
+  if (!res.ok) return [];
+  const parsed = gravadorListaSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : [];
+});
+
+/** Todos os gravadores da plataforma (só super usuário; senão, lista vazia). */
+export const getGravadoresAdmin = cache(async (): Promise<Gravador[]> => {
+  const res = await apiFetch("/api/admin/gravadores");
+  if (!res.ok) return [];
+  const parsed = gravadorListaSchema.safeParse(await res.json());
   return parsed.success ? parsed.data : [];
 });
