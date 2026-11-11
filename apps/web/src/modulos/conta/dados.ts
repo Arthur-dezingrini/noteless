@@ -3,6 +3,10 @@ import "server-only";
 import {
   usuarioListaSchema,
   type Usuario,
+  empresaListaSchema,
+  usuarioAdminListaSchema,
+  type Empresa,
+  type UsuarioAdmin,
 } from "@vocare/shared";
 import { cache } from "react";
 
@@ -21,3 +25,20 @@ export const getUsuarios = cache(
     return parsed.success ? parsed.data : [];
   },
 );
+
+/** Todos os usuários da plataforma com os vínculos (só super usuário; senão, lista vazia). */
+export const getUsuariosAdmin = cache(async (busca?: string): Promise<UsuarioAdmin[]> => {
+  const q = busca?.trim() ? `?busca=${encodeURIComponent(busca.trim())}` : "";
+  const res = await apiFetch(`/api/admin/usuarios${q}`);
+  if (!res.ok) return [];
+  const parsed = usuarioAdminListaSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : [];
+});
+
+/** Todas as empresas da plataforma (só super usuário; senão, lista vazia). */
+export const getEmpresas = cache(async (): Promise<Empresa[]> => {
+  const res = await apiFetch("/api/admin/empresas");
+  if (!res.ok) return [];
+  const parsed = empresaListaSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : [];
+});

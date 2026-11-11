@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import { getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 import { getUsuarios } from "@/modulos/conta/dados";
 
@@ -25,6 +27,7 @@ export default async function UsuariosPage() {
   const papelNaLista = usuarios.find((usuario) => usuario.id === user.id)?.role;
   const papelAtual = papel?.role ?? papelNaLista;
   const possoGerenciar = papelAtual === "owner" || papelAtual === "admin";
+  if (!possoGerenciar && user.tipo === "super") redirect("/configuracoes/vinculos");
 
   return (
     <UsuariosLista

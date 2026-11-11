@@ -41,7 +41,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         user={user}
         subtitulo={user.cargo || rotuloPapel(member?.role)}
         pendentes={pendentes}
-        admin={admin}
+        admin={admin || user.tipo === "super"}
         temInstalacao={instalacoes.length > 0}
       />
       <div className="flex min-w-0 flex-1 flex-col">

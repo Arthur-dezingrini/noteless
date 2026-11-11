@@ -6,16 +6,18 @@ import { usePathname } from "next/navigation";
 
 import { cx } from "@/components/ui";
 
-const ABAS: { href: Route; label: string }[] = [
-  { href: "/configuracoes", label: "Conta" },
-  { href: "/configuracoes/usuarios", label: "Usuários" },
+const ABAS: { href: Route; label: string; de: "admin" | "super" }[] = [
+  { href: "/configuracoes", label: "Conta", de: "admin" },
+  { href: "/configuracoes/usuarios", label: "Usuários", de: "admin" },
+  { href: "/configuracoes/vinculos", label: "Vínculos", de: "super" },
 ];
 
-export function ConfigNav() {
+/** Conta e Usuários são do administrador da empresa; Vínculos, do super usuário. */
+export function ConfigNav({ admin, ehSuper }: { admin: boolean; ehSuper: boolean }) {
   const pathname = usePathname();
   return (
     <nav aria-label="Seções de configuração" className="flex gap-6 border-b border-line">
-      {ABAS.map((aba) => {
+      {ABAS.filter((aba) => (aba.de === "admin" ? admin : ehSuper)).map((aba) => {
         const ativa = pathname === aba.href;
         return (
           <Link
