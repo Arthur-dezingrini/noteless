@@ -325,6 +325,8 @@ void tarefaRede(void *) {
 
     if (cartaoOk) naFila = contarFila();
     if (online && cartaoOk && naFila > 0 && (int32_t)(millis() - proximoEnvio) >= 0) {
+      conferirEmpresa();
+      if (orgId.isEmpty()) continue;  // a sessão caiu no aviso: entra de novo antes de enviar
       String caminho = proximaDaFila();
       Resultado r = caminho.isEmpty() ? TENTAR_DEPOIS : enviarArquivo(caminho);
       if (r == RECUSADO) {

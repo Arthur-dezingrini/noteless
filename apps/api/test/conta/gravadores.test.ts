@@ -63,6 +63,24 @@ describe("POST /api/gravadores/estado", () => {
     expect(iguais[0]!.estado).toMatchObject({ fila: 0, ultimoErro: null });
   });
 
+  it("guarda o histórico de erros, do mais novo para o mais antigo, sem duplicar o reenvio", async () => {
+    const erros = [
+      { texto: "AVISO: Wi-Fi caiu (status 5).", haSeg: 600 },
+      { texto: "ERRO: login falhou (HTTP 401)", haSeg: 300 },
+    ];
+    await avisar(placa, estado("cc:cc:cc:cc:00:01", { erros }));
+    // resposta perdida: a placa manda os mesmos de novo, junto com um novo
+    await avisar(placa, estado("cc:cc:cc:cc:00:01", { erros: [...erros, { texto: "ERRO: o cartão não respondeu.", haSeg: 10 }] }));
+
+    const g = await achar("cc:cc:cc:cc:00:01");
+    expect(g.estado.erros.map((x: { texto: string }) => x.texto)).toEqual([
+      "ERRO: o cartão não respondeu.",
+      "ERRO: login falhou (HTTP 401)",
+      "AVISO: Wi-Fi caiu (status 5).",
+    ]);
+    expect(new Date(g.estado.erros[0].em).getTime()).toBeGreaterThan(new Date(g.estado.erros[1].em).getTime());
+  });
+
   it("outra conta não toma a placa (409)", async () => {
     const r = await avisar(b.membro, estado("a4:cf:12:9b:1a:2b", { empresaAtual: b.orgId }));
     expect(r.status).toBe(409);

@@ -1,4 +1,12 @@
-import { nomePadraoGravador, type EstadoGravadorInput, type EstadoSalvo, type MudarGravadorInput, type RespostaEstado } from "@vocare/shared";
+import {
+  juntarErros,
+  nomePadraoGravador,
+  type ErroSalvo,
+  type EstadoGravadorInput,
+  type EstadoSalvo,
+  type MudarGravadorInput,
+  type RespostaEstado,
+} from "@vocare/shared";
 import { and, eq } from "drizzle-orm";
 
 import { falha, ok, type Resultado } from "../../../base/resultado";
@@ -17,8 +25,8 @@ async function vinculada(userId: string, organizationId: string): Promise<boolea
   return Boolean(m);
 }
 
-/** "Há N segundos" (relógio da placa) vira data e hora (relógio do servidor). */
-function salvar(e: EstadoGravadorInput, agora: Date): EstadoSalvo {
+/** "Há N segundos" (relógio da placa) vira data e hora (relógio do servidor); os erros novos entram no histórico. */
+function salvar(e: EstadoGravadorInput, agora: Date, errosAntigos: ErroSalvo[]): EstadoSalvo {
   const ha = (seg: number) => new Date(agora.getTime() - seg * 1000).toISOString();
   return {
     versao: e.versao,
@@ -27,6 +35,10 @@ function salvar(e: EstadoGravadorInput, agora: Date): EstadoSalvo {
     recusadas: e.recusadas,
     cartao: e.cartao,
     ultimoErro: e.ultimoErro ? { texto: e.ultimoErro.texto, em: ha(e.ultimoErro.haSeg) } : null,
+    erros: juntarErros(
+      errosAntigos,
+      e.erros.map((x) => ({ texto: x.texto, em: ha(x.haSeg) })),
+    ),
     boot: { motivo: e.boot.motivo, em: ha(e.boot.haSeg) },
   };
 }
@@ -45,9 +57,10 @@ async function destinoDe(userId: string, organizationId: string | null): Promise
  * usando (se a conta for vinculada a ela); depois, quem escolhe é o sistema.
  */
 export async function receberEstado(userId: string, e: EstadoGravadorInput, agora = new Date()): Promise<Resultado<RespostaEstado>> {
-  const estado = salvar(e, agora);
   const [atual] = await db.select().from(gravador).where(eq(gravador.serie, e.serie)).limit(1);
   if (atual && atual.userId !== userId) return falha(409, OUTRA_CONTA);
+  // Estado gravado antes do histórico existir não tem `erros`.
+  const estado = salvar(e, agora, (atual?.estado as Partial<EstadoSalvo> | undefined)?.erros ?? []);
 
   if (atual) {
     await db.update(gravador).set({ estado, vistoEm: agora }).where(eq(gravador.id, atual.id));

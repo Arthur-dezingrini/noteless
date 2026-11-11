@@ -38,10 +38,10 @@ sair/entrar da sessão).
   em http://192.168.4.1). Se não conectar, a página diz o motivo.
   `SERVIDOR_URL` é o Noteless publicado (https) ou, para testar com a api local
   (`npm run dev:hom`), o IP do notebook na mesma rede.
-  LED: aceso = pronto e tudo enviado; apagado = sem Wi-Fi ou sem servidor;
-  piscando = gravando; uma piscadinha a cada 2 s = gravação esperando para
-  subir; piscando rápido sem parar = problema no cartão (ela tenta de novo
-  sozinha a cada 10 s).
+  LED: aceso fixo = tudo certo (Wi-Fi, login e cartão); apagado = algum
+  problema — sem Wi-Fi, sem login ou cartão (ela tenta de novo sozinha; o
+  monitor serial diz qual); respirando = botão apertado, gravando; piscando
+  rápido = modo configuração do Wi-Fi.
 - `microfone/` — teste do microfone I2S (INMP441: VDD 3V3, GND e L/R no GND,
   SCK D23, WS D22, SD D21): segura o botão, fala, solta; o áudio vem pela USB e
   `receber.py` salva como .wav. Diz em qual canal o microfone fala e avisa se

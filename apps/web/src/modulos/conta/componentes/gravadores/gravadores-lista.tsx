@@ -2,16 +2,13 @@
 
 import { sinalEmPalavras, type Empresa, type Gravador } from "@vocare/shared";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useState, useTransition, type KeyboardEvent } from "react";
 
-import { Card, cx, EmptyState, StatusText, tabela } from "@/components/ui";
+import { Button, Card, cx, EmptyState, StatusText, tabela } from "@/components/ui";
 import { haQuantoTempo } from "@/lib/datas";
 
 import { GerenciarGravador } from "./gerenciar-gravador";
 import { Destino, Situacao } from "./situacao";
-
-/** A placa avisa a cada 1 min; a tela confere a cada 30 s. */
-const ATUALIZAR_MS = 30_000;
 
 /**
  * Configurações › Gravadores: o estado de cada placa de campo. Super usuário
@@ -32,10 +29,8 @@ export function GravadoresLista({
   const [abertoId, setAbertoId] = useState<string | null>(null);
   const aberto = gravadores.find((g) => g.id === abertoId) ?? null;
 
-  useEffect(() => {
-    const t = setInterval(() => router.refresh(), ATUALIZAR_MS);
-    return () => clearInterval(t);
-  }, [router]);
+  // Sem atualizar sozinha: cada busca é uma requisição na Vercel e acorda o banco.
+  const [atualizando, start] = useTransition();
 
   const teclas = (e: KeyboardEvent, id: string) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -46,6 +41,14 @@ export function GravadoresLista({
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-ink-muted">
+          A placa avisa quando algo muda e, fora isso, a cada 15 min. Sem contato há mais de 20 min: desligada, sem Wi-Fi ou sem conseguir entrar.
+        </p>
+        <Button variant="pequeno" loading={atualizando} onClick={() => start(() => router.refresh())}>
+          Atualizar
+        </Button>
+      </div>
       <Card className="overflow-hidden">
         {gravadores.length === 0 ? (
           <EmptyState

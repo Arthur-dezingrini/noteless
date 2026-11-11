@@ -8,9 +8,32 @@ import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 
 import { Button, ConfirmBar, Field, FormMessage, Input, Modal, Select } from "@/components/ui";
 import { chamarApi } from "@/lib/api-client";
-import { haQuantoTempo } from "@/lib/datas";
+import { haQuantoTempo, TZ } from "@/lib/datas";
 
 import { Destino, Situacao } from "./situacao";
+
+const DIA_HORA = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: TZ });
+
+/** O que a placa registrou como ERRO:/AVISO:, do mais novo para o mais antigo (até 50). */
+function ErrosRecentes({ g }: { g: Gravador }) {
+  return (
+    <section className="flex flex-col gap-2 border-t border-line pt-4">
+      <h3 className="text-[15px] font-semibold text-ink">Erros recentes</h3>
+      {g.estado.erros.length === 0 ? (
+        <p className="text-[15px] text-ink-muted">Nenhum erro registrado.</p>
+      ) : (
+        <ul className="flex max-h-64 flex-col divide-y divide-line overflow-y-auto rounded-field border border-line">
+          {g.estado.erros.map((e, i) => (
+            <li key={`${e.em}-${i}`} className="flex gap-3 px-3.5 py-2 text-sm">
+              <span className="w-24 shrink-0 text-ink-muted tabular-nums">{DIA_HORA.format(new Date(e.em))}</span>
+              <span className={e.texto.startsWith("ERRO:") ? "text-danger" : "text-ink"}>{e.texto.replace(/^(ERRO|AVISO): /, "")}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 function Linha({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   return (
@@ -93,12 +116,13 @@ export function GerenciarGravador({
           <Linha rotulo="Cartão">
             {g.estado.cartao.ok ? `Ok${g.estado.cartao.livreGb !== null ? ` · ${g.estado.cartao.livreGb.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} GB livres` : ""}` : "Com problema: não está gravando"}
           </Linha>
-          <Linha rotulo="Último erro">{g.estado.ultimoErro ? `${ha(g.estado.ultimoErro.em)} · ${g.estado.ultimoErro.texto}` : "Nenhum"}</Linha>
           <Linha rotulo="Ligou">
             {ha(g.estado.boot.em)} · {g.estado.boot.motivo}
           </Linha>
           <Linha rotulo="Firmware">{g.estado.versao}</Linha>
         </dl>
+
+        <ErrosRecentes g={g} />
 
         {podeMexer && (
           <form onSubmit={salvar} className="flex flex-col gap-3 border-t border-line pt-4">
@@ -125,8 +149,8 @@ export function GerenciarGravador({
               </Button>
             </div>
             <p className="text-sm text-ink-muted">
-              Só aparecem as empresas a que a conta do gravador está vinculada (<Link href={vinculos}>vincular a outra</Link>). A troca vale no
-              próximo aviso da placa, em até 1 min.
+              Só aparecem as empresas a que a conta do gravador está vinculada (<Link href={vinculos}>vincular a outra</Link>). A placa confere
+              a empresa antes de enviar as notas; parada, recebe a troca em até 15 min.
             </p>
           </form>
         )}

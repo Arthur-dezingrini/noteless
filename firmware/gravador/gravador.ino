@@ -14,12 +14,10 @@
 // cliques seguidos = trocar o Wi-Fi pelo celular (ver configuracao.ino). Sem rede
 // salva, a placa já liga nesse modo, abrindo a rede "Noteless-XXXX".
 //
-// LED azul: aceso = pronto e tudo enviado | apagado = sem Wi-Fi ou sem servidor
-// (tenta de novo sozinho) | piscando = gravando | uma piscadinha a cada 2 s =
-// gravação guardada esperando para subir | piscando rápido sem parar = problema
-// no cartão | 3 piscadas lentas = não deu para gravar | invertido enquanto o botão
-// está apertado = o aperto foi percebido | piscando devagar sem parar = esperando
-// o Wi-Fi ser configurado.
+// LED azul: aceso fixo = tudo certo (Wi-Fi, login no Noteless e cartão) |
+// apagado = algum problema: sem Wi-Fi, sem login ou cartão (tenta de novo
+// sozinho; o monitor serial diz qual) | respirando (acende e apaga suave) =
+// botão apertado, gravando | piscando rápido = modo configuração do Wi-Fi.
 //
 // Três tarefas: a de captura lê o microfone sem parar (o cartão às vezes demora
 // para gravar, e o microfone não espera); o loop cuida do botão e grava no
@@ -84,6 +82,13 @@ volatile bool online = false;  // Wi-Fi + login no Noteless
 volatile int naFila = 0;       // gravações esperando envio
 float cartaoLivreGb = 0;        // medido ao montar (medir de novo leva segundos)
 
+// Últimas linhas ERRO:/AVISO: na memória (registro.ino), para o histórico no Noteless.
+const int ERROS_GUARDADOS = 10;
+struct LinhaErro {
+  char texto[160];
+  uint32_t ms;
+};
+
 uint32_t histograma[256];  // |amostra| em faixas de 128, para acertar o volume
 
 void escrever32(uint8_t *p, uint32_t v) { for (int i = 0; i < 4; i++) p[i] = v >> (8 * i); }
@@ -107,13 +112,18 @@ uint64_t agoraEpochMs() {
   return (uint64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
-// Sem o monitor serial, o LED é o único jeito de saber que algo deu errado.
-void avisarFalha() {
-  for (int i = 0; i < 3; i++) {
-    digitalWrite(LED, HIGH); delay(300);
-    digitalWrite(LED, LOW); delay(300);
-  }
+// Todo o LED passa por aqui: com brilho (PWM) no pino, digitalWrite não vale mais.
+void led(uint8_t brilho) { analogWrite(LED, brilho); }
+
+// Brilho de "respirando" (gravando): acende e apaga suave, uma vez por segundo,
+// começando apagado — o aperto aparece na hora, com o LED aceso ou não.
+uint8_t respirando(uint32_t ms) {
+  float onda = (1 - cosf(2 * PI * (ms % 1000) / 1000.0f)) / 2;
+  return (uint8_t)(255 * onda * onda);  // ao quadrado: o olho vê a subida mais por igual
 }
+
+// Deu errado: o LED apaga (é o sinal de problema) e o monitor serial diz o quê.
+void avisarFalha() { led(0); }
 
 // Lê o microfone sem parar; gravando, passa as amostras para o loop por um
 // buffer de 2 s — o cartão às vezes leva centenas de ms para gravar, e o
@@ -183,7 +193,7 @@ bool gravar(Gravacao &g) {
       falhou = true;
       break;
     }
-    digitalWrite(LED, (millis() / 250) % 2);
+    led(respirando(millis() - g.inicioMs));
     // Soltou. A segunda leitura descarta um contato falhando por um instante.
     if (digitalRead(BOTAO) == HIGH) {
       delay(20);
@@ -196,7 +206,6 @@ bool gravar(Gravacao &g) {
   }
   gravando = false;
   bruto.close();
-  digitalWrite(LED, LOW);
   if (falhou) {
     registrar("ERRO: o cartão parou de gravar (cheio, protegido ou com mau contato).");
     return false;
@@ -275,13 +284,8 @@ void finalizar(const Gravacao &g) {
   if (perdidas) registrar("AVISO: %lu amostras perdidas — o cartão demorou para gravar.\n", (unsigned long)perdidas);
 }
 
-// O LED com o botão solto.
-bool ledParado() {
-  uint32_t t = millis();
-  if (!cartaoOk) return (t / 100) % 2;   // problema no cartão
-  if (naFila > 0) return t % 2000 < 80;  // gravação esperando para subir
-  return online;                         // aceso = pronto e tudo enviado
-}
+// O LED com o botão solto: aceso só com tudo certo (Wi-Fi, login e cartão).
+bool ledParado() { return cartaoOk && online; }
 
 void setup() {
   pinMode(LED, OUTPUT);
@@ -311,7 +315,10 @@ void setup() {
   i2s.setPins(PINO_SCK, PINO_WS, -1, PINO_SD);
   if (!i2s.begin(I2S_MODE_STD, TAXA, I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO)) {
     registrar("ERRO: o I2S não iniciou.");
-    while (true) avisarFalha();
+    while (true) {
+      avisarFalha();
+      delay(1000);
+    }
   }
   delay(200);  // o INMP441 leva ~85 ms para acordar
   static int32_t quadros[2 * QUADROS];
@@ -343,13 +350,16 @@ void tratarBotao() {
 
   Gravacao g;
   comecarCaptura(g);
-  digitalWrite(LED, !ledParado());  // resposta na hora, inclusive para o clique
-  delay(30);                        // debounce
+  led(respirando(0));  // resposta na hora, inclusive para o clique
+  delay(30);           // debounce
   if (digitalRead(BOTAO) != LOW) {
     gravando = false;
     return;
   }
-  while (digitalRead(BOTAO) == LOW && millis() - g.inicioMs < CLIQUE_MS) delay(5);
+  while (digitalRead(BOTAO) == LOW && millis() - g.inicioMs < CLIQUE_MS) {
+    led(respirando(millis() - g.inicioMs));
+    delay(5);
+  }
 
   if (digitalRead(BOTAO) != LOW) {
     gravando = false;
@@ -380,7 +390,7 @@ void tratarBotao() {
 
 void loop() {
   atenderSerial();
-  digitalWrite(LED, ledParado());
+  led(ledParado() ? 255 : 0);
   if (digitalRead(BOTAO) == LOW) tratarBotao();
   // Cartão que falhou às vezes volta (mau contato, placa reiniciada com ele
   // ocupado). Sem esperar alguém apertar o botão: sem cartão, a fila não sobe.

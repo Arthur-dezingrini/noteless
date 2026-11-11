@@ -228,7 +228,7 @@ void configurarWifi() {
   while (true) {
     dns.processNextRequest();
     servidor.handleClient();
-    digitalWrite(LED, (millis() / 600) % 2);  // piscando devagar = esperando configuração
+    led((millis() / 100) % 2 ? 255 : 0);  // piscando rápido = esperando configuração
     if (estado == CONECTANDO) {
       if (WiFi.status() == WL_CONNECTED) {
         salvarRede(nome, senha);

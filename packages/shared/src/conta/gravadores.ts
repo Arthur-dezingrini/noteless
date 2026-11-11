@@ -2,12 +2,16 @@ import { z } from "zod";
 
 /**
  * Gravadores de campo: a placa (ESP32) que grava e manda as notas. Ela entra
- * com uma conta comum e avisa o estado a cada minuto; o sistema responde para
- * qual empresa as notas vão.
+ * com uma conta comum e avisa o estado; o sistema responde para qual empresa
+ * as notas vão.
  */
 
-/** Depois disto sem aviso, a placa aparece como offline (ela avisa a cada 1 min). */
-export const GRAVADOR_ONLINE_SEG = 180;
+/**
+ * Depois disto sem aviso, a placa aparece "sem contato". Ela avisa quando algo
+ * muda e, fora isso, a cada 15 min — pouco, de propósito: cada aviso é uma
+ * requisição na Vercel e acorda o banco.
+ */
+export const GRAVADOR_ONLINE_SEG = 20 * 60;
 
 /**
  * O que a placa manda (POST /api/gravadores/estado). Os tempos vêm em "há N
@@ -21,14 +25,27 @@ export const estadoGravadorSchema = z.object({
   recusadas: z.number().int().min(0),
   cartao: z.object({ ok: z.boolean(), livreGb: z.number().nullable() }),
   ultimoErro: z.object({ texto: z.string().max(400), haSeg: z.number().int().min(0) }).nullable(),
+  /** Linhas ERRO:/AVISO: ainda não mandadas, da mais antiga para a mais nova (firmware antigo não manda). */
+  erros: z
+    .array(z.object({ texto: z.string().max(400), haSeg: z.number().int().min(0) }))
+    .max(20)
+    .default([]),
   boot: z.object({ motivo: z.string().max(80), haSeg: z.number().int().min(0) }),
   empresaAtual: z.string().nullable(),
 });
 export type EstadoGravadorInput = z.infer<typeof estadoGravadorSchema>;
 
 /** O estado como fica guardado: os "há N segundos" viram data e hora. */
-export const estadoSalvoSchema = estadoGravadorSchema.omit({ serie: true, ultimoErro: true, boot: true, empresaAtual: true }).extend({
-  ultimoErro: z.object({ texto: z.string(), em: z.string() }).nullable(),
+const erroSalvoSchema = z.object({ texto: z.string(), em: z.string() });
+export type ErroSalvo = z.infer<typeof erroSalvoSchema>;
+
+/** Quantos erros ficam guardados por placa (o resto está no registro do cartão). */
+export const GRAVADOR_MAX_ERROS = 50;
+
+export const estadoSalvoSchema = estadoGravadorSchema.omit({ serie: true, ultimoErro: true, erros: true, boot: true, empresaAtual: true }).extend({
+  ultimoErro: erroSalvoSchema.nullable(),
+  /** Do mais novo para o mais antigo. */
+  erros: z.array(erroSalvoSchema),
   boot: z.object({ motivo: z.string(), em: z.string() }),
 });
 export type EstadoSalvo = z.infer<typeof estadoSalvoSchema>;
@@ -78,4 +95,16 @@ export function sinalEmPalavras(dbm: number): "bom" | "fraco" | "muito fraco" {
 /** "Gravador 1A2B": o fim do MAC, que dá para conferir na serial da placa. */
 export function nomePadraoGravador(serie: string): string {
   return `Gravador ${serie.replace(/[^0-9a-f]/gi, "").slice(-4).toUpperCase()}`;
+}
+
+/**
+ * Histórico de erros da placa: os novos (do mais antigo para o mais novo, como
+ * a placa manda) entram no topo. Se a resposta de um aviso se perdeu, a placa
+ * manda os mesmos de novo, com hora alguns segundos diferente: esses não
+ * duplicam.
+ */
+export function juntarErros(antigos: ErroSalvo[], novos: ErroSalvo[], max = GRAVADOR_MAX_ERROS): ErroSalvo[] {
+  const repetido = (e: ErroSalvo) =>
+    antigos.some((a) => a.texto === e.texto && Math.abs(new Date(a.em).getTime() - new Date(e.em).getTime()) < 10_000);
+  return [...novos.filter((e) => !repetido(e)).reverse(), ...antigos].slice(0, max);
 }

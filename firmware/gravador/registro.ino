@@ -24,6 +24,14 @@ const long FUSO_SEG = -3 * 3600;        // Brasília (sem horário de verão des
 SemaphoreHandle_t travaRegistro = nullptr;
 char ultimoErroTexto[200] = "";  // última linha ERRO:/AVISO:, para o aviso de estado
 uint32_t ultimoErroMs = 0;
+
+// As últimas linhas ERRO:/AVISO: na memória, para o histórico de erros no
+// Noteless: chegam lá mesmo sem cartão e, quando o Wi-Fi ou o login voltam,
+// junto vão as do tempo em que a placa ficou fora.
+// (ERROS_GUARDADOS e LinhaErro ficam em gravador.ino: o Arduino declara as
+// funções antes deste arquivo.)
+LinhaErro errosRecentes[ERROS_GUARDADOS];
+uint32_t errosContados = 0;  // desde que ligou; a linha n fica em n % ERROS_GUARDADOS
 File arqRegistro;
 
 void iniciarRegistro() { travaRegistro = xSemaphoreCreateMutex(); }
@@ -79,6 +87,10 @@ void registrar(const char *formato, ...) {
   if (!strncmp(msg, "ERRO:", 5) || !strncmp(msg, "AVISO:", 6)) {
     strlcpy(ultimoErroTexto, msg, sizeof(ultimoErroTexto));
     ultimoErroMs = millis() | 1;  // 0 = nenhum erro desde que ligou
+    LinhaErro &e = errosRecentes[errosContados % ERROS_GUARDADOS];
+    strlcpy(e.texto, msg, sizeof(e.texto));
+    e.ms = ultimoErroMs;
+    errosContados++;
   }
   if (arqRegistro) {
     if (arqRegistro.size() > REGISTRO_MAX) girarRegistro();
@@ -96,6 +108,19 @@ uint32_t ultimoErro(char *texto, size_t tam) {
   uint32_t ms = ultimoErroMs;
   xSemaphoreGive(travaRegistro);
   return ms;
+}
+
+// Copia as linhas de erro de número "desde" em diante (só as que ainda estão na
+// memória), da mais antiga para a mais nova. Devolve quantas copiou; em "total",
+// quantas houve desde que ligou.
+int errosDesde(uint32_t desde, LinhaErro *saida, int quantos, uint32_t &total) {
+  xSemaphoreTake(travaRegistro, portMAX_DELAY);
+  total = errosContados;
+  uint32_t ini = max(desde, total > (uint32_t)ERROS_GUARDADOS ? total - ERROS_GUARDADOS : 0u);
+  int n = 0;
+  for (uint32_t i = ini; i < total && n < quantos; i++) saida[n++] = errosRecentes[i % ERROS_GUARDADOS];
+  xSemaphoreGive(travaRegistro);
+  return n;
 }
 
 // O cartão monta, mas há falhas em que nada se grava nele: o registro fecha.
