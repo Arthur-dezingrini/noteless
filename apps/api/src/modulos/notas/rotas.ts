@@ -65,13 +65,17 @@ notasRotas.post("/:orgId/ocorrencias", async (c) => {
     // Áudio que não deu para entender vira ocorrência mesmo assim: quem
     // confere escreve o que foi dito (POST /:id/texto).
     const analise = transcricao ? await analisar(transcricao, dia, animais, grupos, galpoes) : null;
+    // A IA corrige palavra mal ouvida ("parca" → "porca"); o que o Whisper
+    // ouviu fica guardado ao lado.
+    const texto = analise?.transcricao ?? transcricao;
 
     const [nova] = await db
       .insert(ocorrencia)
       .values({
         organizationId: orgId,
         criadoPorId: eu.userId,
-        transcricao,
+        transcricao: texto,
+        transcricaoOriginal: analise?.transcricao ? transcricao : null,
         resumo: analise?.resumo ?? "",
         duracaoSeg,
         operacoes: analise?.operacoes ?? [],
@@ -88,7 +92,7 @@ notasRotas.post("/:orgId/ocorrencias", async (c) => {
 
     await notificar(orgId, await administradores(orgId, eu.userId), {
       texto: `${eu.nome} gravou uma nota`,
-      detalhe: transcricao ? transcricao.slice(0, 80) : "Áudio não entendido",
+      detalhe: texto ? texto.slice(0, 80) : "Áudio não entendido",
       link: `/notas?id=${nova!.id}`,
     });
 
@@ -123,7 +127,8 @@ notasRotas.post("/:orgId/ocorrencias/:id/texto", async (c) => {
     const analise = await analisar(body.data.texto, hojeISO(alvo.createdAt), await animaisDaOrg(orgId), await gruposDaOrg(orgId), await galpoesDaOrg(orgId, hojeISO(alvo.createdAt)));
     await db
       .update(ocorrencia)
-      .set({ transcricao: body.data.texto, resumo: analise.resumo, operacoes: analise.operacoes })
+      // Texto escrito por quem confere vale como está: a correção da IA é só para o áudio.
+      .set({ transcricao: body.data.texto, transcricaoOriginal: null, resumo: analise.resumo, operacoes: analise.operacoes })
       .where(and(eq(ocorrencia.id, id), eq(ocorrencia.organizationId, orgId)));
   } catch (e) {
     if (e instanceof IaNaoConfigurada) return c.json({ error: e.message }, 503);

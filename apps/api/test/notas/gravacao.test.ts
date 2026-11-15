@@ -11,7 +11,11 @@ import { chamar, criarFazenda, type Pessoa } from "../ajuda";
 // A IA fica de fora: o que está em teste é a data que ela recebe, não o que entende.
 const ia = vi.hoisted(() => ({
   transcrever: vi.fn(async (_audio: File) => "Nasceu um bezerro da Mimosa hoje."),
-  analisar: vi.fn(async (_transcricao: string, _hoje: string, ..._contexto: unknown[]) => ({ resumo: "Parto da Mimosa.", operacoes: [] })),
+  analisar: vi.fn(async (_transcricao: string, _hoje: string, ..._contexto: unknown[]) => ({
+    transcricao: null as string | null,
+    resumo: "Parto da Mimosa.",
+    operacoes: [],
+  })),
 }));
 vi.mock("../../src/modulos/notas/ia/transcrever", async (original) => ({
   ...(await original<typeof import("../../src/modulos/notas/ia/transcrever")>()),
@@ -48,7 +52,7 @@ async function enviarAudio(quem: Pessoa | null, campos: Record<string, string> =
     headers: quem ? { Cookie: quem.cookie } : {},
     body: form,
   });
-  return { status: res.status, json: (await res.json()) as { id: string; createdAt: string } };
+  return { status: res.status, json: (await res.json()) as { id: string; createdAt: string; transcricao: string; transcricaoOriginal: string | null } };
 }
 
 describe("áudio gravado sem sinal e enviado depois", () => {
@@ -114,6 +118,30 @@ describe("áudio gravado sem sinal e enviado depois", () => {
     expect((await enviarAudio(vizinha.dono, { gravadoEm })).status).toBe(403);
     expect((await enviarAudio(null, { gravadoEm })).status).toBe(403);
     expect(ia.transcrever).not.toHaveBeenCalled();
+  });
+});
+
+describe("transcrição corrigida pela IA", () => {
+  it("a nota mostra o texto corrigido e guarda como o áudio foi ouvido", async () => {
+    ia.transcrever.mockResolvedValueOnce("A parca 7 pariu 12 deitões.");
+    ia.analisar.mockResolvedValueOnce({ transcricao: "A porca 7 pariu 12 leitões.", resumo: "Parto.", operacoes: [] });
+    const r = await enviarAudio(f.membro);
+    expect(r.status).toBe(201);
+    expect(r.json).toMatchObject({ transcricao: "A porca 7 pariu 12 leitões.", transcricaoOriginal: "A parca 7 pariu 12 deitões." });
+
+    // Sem correção, só a do Whisper.
+    const sem = await enviarAudio(f.membro);
+    expect(sem.json).toMatchObject({ transcricao: "Nasceu um bezerro da Mimosa hoje.", transcricaoOriginal: null });
+  });
+
+  it("texto escrito por quem confere fica como foi escrito", async () => {
+    const [o] = await db
+      .insert(ocorrencia)
+      .values({ organizationId: f.orgId, criadoPorId: f.membro.id, transcricao: "A porca", transcricaoOriginal: "A parca", resumo: "", operacoes: [] })
+      .returning({ id: ocorrencia.id });
+    ia.analisar.mockResolvedValueOnce({ transcricao: "A Mimosa pariu hoje.", resumo: "Parto.", operacoes: [] });
+    const r = await chamar(f.membro, "POST", `/api/org/${f.orgId}/ocorrencias/${o!.id}/texto`, { texto: "A Mimoza pariu hoje." });
+    expect(r.json).toMatchObject({ transcricao: "A Mimoza pariu hoje.", transcricaoOriginal: null });
   });
 });
 

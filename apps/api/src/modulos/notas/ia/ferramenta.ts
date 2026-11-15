@@ -75,6 +75,11 @@ const FERRAMENTA_BASE = {
   input_schema: {
     type: "object",
     properties: {
+      // Antes do resumo: o modelo escreve na ordem do schema, e interpreta
+      // melhor já tendo acertado as palavras.
+      transcricaoCorrigida: textoOuNulo(
+        "A transcrição com os erros de reconhecimento de voz corrigidos ('parca 7' → 'porca 7', 'deitões' → 'leitões', nome do cadastro escrito errado). Só isso: não resuma, não reescreva, não acrescente; números ficam como vieram. Null se não há o que corrigir.",
+      ),
       resumo: {
         type: "string",
         description: "Uma frase, em português, resumindo o que o operador relatou.",
@@ -109,7 +114,8 @@ const FERRAMENTA_BASE = {
             remedio: textoOuNulo("registrar_remedio: nome do remédio."),
             dias: inteiroOuNulo("registrar_remedio: por quantos dias, a partir de hoje."),
             carenciaDias: inteiroOuNulo("registrar_remedio: carência em dias, se foi dita."),
-            crias: inteiroOuNulo("registrar_parto: quantas crias nasceram."),
+            crias: inteiroOuNulo("registrar_parto: quantas crias nasceram vivas."),
+            nomesCrias: textoOuNulo("registrar_parto: nomes ditos para as crias, separados por vírgula ('Faísca'); null se nenhum."),
             nome: textoOuNulo(
               "cadastrar_animal: o nome ou o número dito ('Mimosa', 'brinco 45'). Descrição não é nome ('porco novo', 'uma vaca', a raça): null.",
             ),

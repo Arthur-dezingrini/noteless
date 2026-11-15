@@ -36,12 +36,14 @@ export function CamposEditaveis({
   function abrir(c: CampoCorrigivel) {
     setErro(null);
     setEditando(c);
-    setRascunho(atual[c] == null ? "" : String(atual[c]));
+    setRascunho(typeof atual[c] === "boolean" ? (atual[c] ? "sim" : "nao") : atual[c] == null ? "" : String(atual[c]));
   }
 
   function confirmar(c: CampoCorrigivel, bruto = rascunho) {
     let valor: unknown = bruto.trim();
-    if (valor === "") {
+    if (c === "cadastrarCrias") {
+      valor = bruto === "sim";
+    } else if (valor === "") {
       if (!opcional(op.tipo, c)) return setErro("Este campo não pode ficar vazio.");
       valor = null;
     } else if (c === "pesoKg") {

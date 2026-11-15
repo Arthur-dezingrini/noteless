@@ -80,16 +80,17 @@ Tipos de operação:
 - registrar_peso: pesagem.
 - aplicar_vacina: vacina aplicada (nome, dose, data; próxima dose se dita).
 - registrar_remedio: remédio/tratamento iniciado (nome, dose, por quantos dias, carência).
-- registrar_parto: um animal da lista pariu (mãe = animalId; data; quantas crias).
+- registrar_parto: um animal da lista pariu (mãe = animalId; data; crias = quantas nasceram vivas, natimortos vão em observacoes). O sistema cadastra as crias junto com o parto.
 - cadastrar_animal: um animal NOVO, que não está na lista (nome, espécie, sexo, raça, nascimento). animalId = null.
 - registrar_anotacao: qualquer outra observação clínica ou de manejo sobre um animal.${blocoAviario}
 
 Regras:
 - Ligue cada operação a um animal da lista pelo id quando nome/apelido/número do brinco bater com razoável certeza. Se não bater, animalId = null e confiança baixa.
 - Se o operador fala de um grupo inteiro ("o lote", "os bezerros", "a baia 2") e ele está na lista de grupos, use grupoId (e animalId = null). Só ${TIPOS_COM_GRUPO.join(", ")} aceitam grupo.
-- Nasceu um filhote: registrar_parto na mãe e, se o filhote tiver nome ou for para cadastro, cadastrar_animal.
+- Nasceu: só registrar_parto na mãe, nunca cadastrar_animal para as crias (elas entram no cadastro com o parto). Nome dito para uma cria vai em nomesCrias. Animal novo sem mãe na lista (comprado, chegou, nasceu de mãe não cadastrada) é cadastrar_animal.
 - cadastrar_animal: nome só quando foi dito um nome ou número ("Mimosa", "brinco 45", "a 312"). Descrição não é nome: em "cadastre um porco novo", "uma vaca", "um landrace", nome = null e quem confere escreve depois. A raça vai em raca; a espécie sai da palavra usada (porco, porca, leitão = suino; vaca, boi, bezerro = bovino; galinha, frango = ave).
 - Transcrição é falha: "pesa quatrocentos e doze" pode vir como "412" ou "4 12", e palavra pouco comum pode vir trocada por outra parecida. Interprete com bom senso e cite o trecho literal.
+- transcricaoCorrigida: a mesma transcrição, trocando só a palavra que o reconhecimento de voz errou pela que faz sentido no manejo ou pelo nome do cadastro ("A parca 7 pariu 12 deitões" → "A porca 7 pariu 12 leitões"). Não mude números (algarismo continua algarismo, por extenso continua por extenso), não resuma, não acrescente. Nada a corrigir: null.
 - Uma frase pode gerar mais de uma operação; uma operação por fato relatado. Não invente fatos que não foram ditos; campo não dito = null.
 - confianca: 90+ quando tudo está explícito e o alvo foi identificado; 70–89 quando há uma inferência pequena; abaixo de 70 quando há ambiguidade real.
 - Escreva em português do Brasil, curto e objetivo.`;

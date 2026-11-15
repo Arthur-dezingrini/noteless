@@ -23,6 +23,8 @@ export const ocorrencia = pgTable(
     criadoPorId: text("criado_por_id").references(() => user.id, { onDelete: "set null" }),
     status: text("status").notNull().default("pendente"),
     transcricao: text("transcricao").notNull(),
+    // Como o Whisper ouviu, quando a IA corrigiu palavras ("parca" → "porca"); null = sem correção.
+    transcricaoOriginal: text("transcricao_original"),
     resumo: text("resumo").notNull(),
     duracaoSeg: integer("duracao_seg"),
     // Forma: Operacao[] do @vocare/shared, validada na leitura.

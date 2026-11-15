@@ -34,6 +34,8 @@ export const ROTULO_CAMPO: Record<CampoCorrigivel, string> = {
   dias: "Duração",
   carenciaDias: "Carência",
   crias: "Crias",
+  cadastrarCrias: "Cadastrar as crias",
+  nomesCrias: "Nomes das crias",
   nome: "Nome",
   especie: "Espécie",
   raca: "Raça",
@@ -57,10 +59,10 @@ export const CAMPOS_INTEIROS: CampoCorrigivel[] = [
 export const CAMPOS_DECIMAIS: CampoCorrigivel[] = ["pesoMedioG", "uniformidadePct", "racaoKg", "aguaL"];
 /** Podem ficar vazios (null). */
 export const CAMPOS_OPCIONAIS: CampoCorrigivel[] = [
-  "data", "hora", "observacoes", "dose", "proximaData", "dias", "carenciaDias", "crias", "raca", "sexo", "nascimento",
+  "data", "hora", "observacoes", "dose", "proximaData", "dias", "carenciaDias", "crias", "nomesCrias", "raca", "sexo", "nascimento",
   "uniformidadePct", "amostra", "via", ...CAMPOS_APONTAMENTO,
 ];
-export const CAMPOS_ESCOLHA: CampoCorrigivel[] = ["animalId", "grupoId", "instalacaoId", "loteId", "tipoConsulta", "especie", "sexo"];
+export const CAMPOS_ESCOLHA: CampoCorrigivel[] = ["animalId", "grupoId", "instalacaoId", "loteId", "tipoConsulta", "especie", "sexo", "cadastrarCrias"];
 /** O alvo aparece na linha "nº 07 Thor → …"; na tabela, só quando falta, foi corrigido ou é grupo. */
 export const CAMPOS_ALVO: CampoCorrigivel[] = ["animalId", "grupoId", "instalacaoId", "loteId"];
 
@@ -113,6 +115,13 @@ export function deAlvo(op: Exclude<Operacao, { tipo: "apontar_galpao" | "pesar_l
   return `${prep} ${a?.nome || (a ? rotulo(a) : op.alvo)}`;
 }
 
+/** Quantas crias o parto põe no cadastro ao salvar (as ditas pelo nome contam, mesmo sem o número). */
+export function criasNovas(op: Operacao) {
+  if (op.tipo !== "registrar_parto" || !op.cadastrarCrias) return 0;
+  const nomes = (op.nomesCrias ?? "").split(",").filter((n) => n.trim()).length;
+  return Math.max(op.crias ?? 0, nomes);
+}
+
 export function juntar(partes: string[]) {
   if (partes.length <= 1) return partes.join("");
   return `${partes.slice(0, -1).join(", ")} e ${partes.at(-1)}`;
@@ -142,8 +151,10 @@ export function efeito(op: Operacao, cad: Cadastro): string {
       return `a vacina ${op.vacina} no histórico ${de}`;
     case "registrar_remedio":
       return `o tratamento com ${op.remedio} no histórico ${de}`;
-    case "registrar_parto":
-      return `o parto no histórico ${de}`;
+    case "registrar_parto": {
+      const n = criasNovas(op);
+      return `o parto no histórico ${de}${n ? ` e ${n === 1 ? "a cria" : `${n} crias`} no cadastro de animais` : ""}`;
+    }
     case "cadastrar_animal":
       return `${op.nome || "o animal novo"} no cadastro de animais`;
     default:
@@ -186,6 +197,8 @@ export function formatarCampo(c: CampoCorrigivel, valor: unknown, cad: Cadastro,
     case "dias":
     case "carenciaDias":
       return `${valor} ${valor === 1 ? "dia" : "dias"}`;
+    case "cadastrarCrias":
+      return valor ? "Sim" : "Não";
     case "data":
     case "proximaData":
     case "nascimento":
@@ -211,6 +224,11 @@ export function opcoesDe(c: CampoCorrigivel, cad: Cadastro): { v: string; r: str
       return ESPECIES.map((e) => ({ v: e, r: ROTULO_ESPECIE[e] }));
     case "sexo":
       return SEXOS.map((x) => ({ v: x, r: ROTULO_SEXO[x] }));
+    case "cadastrarCrias":
+      return [
+        { v: "sim", r: "Sim" },
+        { v: "nao", r: "Não" },
+      ];
     default:
       return [];
   }
@@ -220,8 +238,11 @@ export function opcoesDe(c: CampoCorrigivel, cad: Cadastro): { v: string; r: str
 export function camposDe(op: Operacao): CampoCorrigivel[] {
   const todos = CAMPOS_CORRIGIVEIS[op.tipo] as readonly CampoCorrigivel[];
   const corrigido = op.original ?? {};
+  // Sem cria, nada a cadastrar; com o cadastro desligado, os nomes não importam.
+  const semCadastro = (c: CampoCorrigivel) =>
+    op.tipo === "registrar_parto" && ((c === "cadastrarCrias" && !op.crias && !op.nomesCrias) || (c === "nomesCrias" && !op.cadastrarCrias));
   return [
-    ...todos.filter((c) => !CAMPOS_ALVO.includes(c)),
+    ...todos.filter((c) => !CAMPOS_ALVO.includes(c) && !semCadastro(c)),
     ...todos.filter((c) => {
       if (c === "instalacaoId" || c === "loteId") return !temAlvo(op) || c in corrigido;
       if (ehAviario(op)) return false;

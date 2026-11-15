@@ -114,6 +114,22 @@ describe("corrigirOperacao", () => {
   });
 });
 
+describe("parto", () => {
+  const parto = { ...base, tipo: "registrar_parto", animalId: "a1", data: null, crias: 7, observacoes: null };
+
+  it("parto gravado antes de existir o cadastro das crias também as cadastra", () => {
+    expect(operacaoSchema.parse(parto)).toMatchObject({ cadastrarCrias: true, nomesCrias: null });
+  });
+
+  it("quem confere pode desligar o cadastro das crias e escrever os nomes", () => {
+    const op = operacaoSchema.parse(parto);
+    const r = corrigirOperacao(op, { cadastrarCrias: false });
+    expect(r).toMatchObject({ ok: true, op: { cadastrarCrias: false, original: { cadastrarCrias: true } } });
+    expect(corrigirOperacao(op, { nomesCrias: "Faísca, Estrela" })).toMatchObject({ ok: true, op: { nomesCrias: "Faísca, Estrela" } });
+    expect(corrigirOperacao(op, { cadastrarCrias: "sim" }).ok).toBe(false);
+  });
+});
+
 describe("confirmarOcorrenciaSchema", () => {
   it("aceita índices e correções por índice", () => {
     expect(confirmarOcorrenciaSchema.safeParse({ operacoes: [0, 2], correcoes: { "0": { pesoKg: 462 } } }).success).toBe(true);

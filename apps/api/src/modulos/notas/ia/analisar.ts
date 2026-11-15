@@ -2,6 +2,7 @@ import { type Operacao } from "@vocare/shared";
 import { z } from "zod";
 
 import type { GalpaoParaIa } from "../../aviario";
+import { transcricaoCorrigida } from "./correcao";
 import { ferramenta, type Ferramenta } from "./ferramenta";
 import { instrucoes, type AnimalParaIa, type GrupoParaIa } from "./instrucoes";
 import { normalizar } from "./normalizar";
@@ -9,12 +10,15 @@ import { interpretacao, type Interpretacao } from "./provedor";
 import { IaNaoConfigurada } from "./transcrever";
 
 export type Analise = {
+  /** A transcrição com as palavras mal ouvidas corrigidas; null = fica a do Whisper. */
+  transcricao: string | null;
   resumo: string;
   operacoes: Operacao[];
 };
 
 /** Forma solta do que o modelo devolve; a normalização aperta. */
 const saidaSchema = z.object({
+  transcricaoCorrigida: z.string().nullish(),
   resumo: z.string(),
   operacoes: z.array(z.record(z.string(), z.unknown())),
 });
@@ -122,6 +126,7 @@ export async function analisar(
       const saida = saidaSchema.safeParse(bruto);
       if (!saida.success) throw new ForaDoFormato("A IA respondeu fora do formato esperado.");
       return {
+        transcricao: transcricaoCorrigida(transcricao, saida.data.transcricaoCorrigida),
         resumo: saida.data.resumo.trim(),
         operacoes: saida.data.operacoes
           .map((op) => normalizar(op, idsAnimais, idsGrupos, galpoes))

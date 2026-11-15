@@ -10,6 +10,7 @@ import { grupo, grupoAnimal, parto, pesagem, tratamento, vacina } from "../../..
 import { anotacaoAnimal, ocorrencia } from "../../../db/tabelas/notas";
 import { aplicarAviario } from "../../aviario";
 import { falha, ok, type Resultado } from "../../../base/resultado";
+import { cadastrarCrias } from "./crias";
 
 const HORA_PADRAO = "08:00";
 
@@ -130,9 +131,12 @@ export async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: strin
         })),
       );
       return null;
-    case "registrar_parto":
-      await tx.insert(parto).values({ ...origem, animalId: um, data: op.data ?? dia, crias: op.crias, observacoes: op.observacoes });
+    case "registrar_parto": {
+      const data = op.data ?? dia;
+      await tx.insert(parto).values({ ...origem, animalId: um, data, crias: op.crias, observacoes: op.observacoes });
+      if (op.cadastrarCrias) await cadastrarCrias(tx, orgId, um, { data, crias: op.crias, nomesCrias: op.nomesCrias });
       return null;
+    }
   }
 }
 

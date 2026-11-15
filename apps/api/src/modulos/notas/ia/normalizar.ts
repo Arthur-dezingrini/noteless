@@ -33,6 +33,13 @@ export function nomeDito(valor: unknown, raca: unknown): string {
   return resto.length ? nome : "";
 }
 
+/** Nomes das crias, só os que são nome: "Faísca, um macho" → "Faísca". */
+export function nomesDitos(valor: unknown): string | null {
+  if (typeof valor !== "string") return null;
+  const nomes = valor.split(",").map((n) => nomeDito(n, null)).filter(Boolean);
+  return nomes.length ? nomes.join(", ") : null;
+}
+
 /**
  * O modelo pode chutar id, mandar 95.7 de confiança ou esquecer um campo.
  * Aqui tudo vira uma `Operacao` válida ou é descartado — a tela nunca vê
@@ -89,7 +96,15 @@ export function normalizar(
       candidata = { ...base, tipo, remedio: bruta.remedio, dose: nulo(bruta.dose), dias: inteiro(bruta.dias), carenciaDias: inteiro(bruta.carenciaDias) };
       break;
     case "registrar_parto":
-      candidata = { ...base, tipo, data: nulo(bruta.data), crias: inteiro(bruta.crias), observacoes: nulo(bruta.observacoes) };
+      candidata = {
+        ...base,
+        tipo,
+        data: nulo(bruta.data),
+        crias: inteiro(bruta.crias),
+        observacoes: nulo(bruta.observacoes),
+        cadastrarCrias: true,
+        nomesCrias: nomesDitos(bruta.nomesCrias),
+      };
       break;
     case "cadastrar_animal": {
       const raca = nulo(bruta.raca);

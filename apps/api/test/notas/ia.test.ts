@@ -2,12 +2,14 @@ import { temAlvo } from "@vocare/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { analisar } from "../../src/modulos/notas/ia/analisar";
+import { transcricaoCorrigida } from "../../src/modulos/notas/ia/correcao";
 import { ferramenta } from "../../src/modulos/notas/ia/ferramenta";
 import { calendario, instrucoes, type AnimalParaIa } from "../../src/modulos/notas/ia/instrucoes";
-import { nomeDito, normalizar } from "../../src/modulos/notas/ia/normalizar";
+import { nomeDito, nomesDitos, normalizar } from "../../src/modulos/notas/ia/normalizar";
 import { pareceFala, transcrever } from "../../src/modulos/notas/ia/transcrever";
 import { LIMITE_VOCABULARIO, vocabulario } from "../../src/modulos/notas/ia/vocabulario";
 import type { GalpaoParaIa } from "../../src/modulos/aviario";
+import { nomesDasCrias } from "../../src/modulos/notas/regras/crias";
 
 // Sem chave nos testes: o provedor finge um Groq, e o fetch é trocado em cada caso.
 vi.mock("../../src/modulos/notas/ia/provedor", () => ({
@@ -171,7 +173,7 @@ describe("interpretação fora do formato", () => {
   it("tenta de novo uma vez", async () => {
     const fetch = vi.fn().mockResolvedValueOnce(recusada()).mockResolvedValueOnce(certa());
     vi.stubGlobal("fetch", fetch);
-    await expect(analisar("A Mimosa pariu.", "2026-11-10", [])).resolves.toEqual({ resumo: "Parto.", operacoes: [] });
+    await expect(analisar("A Mimosa pariu.", "2026-11-10", [])).resolves.toEqual({ transcricao: null, resumo: "Parto.", operacoes: [] });
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
@@ -187,5 +189,55 @@ describe("interpretação fora do formato", () => {
     vi.stubGlobal("fetch", fetch);
     await expect(analisar("A Mimosa pariu.", "2026-11-10", [])).rejects.toThrow("IA falhou (429)");
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("correção da transcrição", () => {
+  const ouvida = "A parca 7 pariu 12 deitões landrace hoje na maternidade.";
+
+  it("aceita troca de palavra mal ouvida", () => {
+    expect(transcricaoCorrigida(ouvida, " A porca 7 pariu 12 leitões Landrace hoje na maternidade. ")).toBe(
+      "A porca 7 pariu 12 leitões Landrace hoje na maternidade.",
+    );
+  });
+
+  it("recusa número mudado, texto reescrito, igual ou vazio", () => {
+    expect(transcricaoCorrigida(ouvida, "A porca 7 pariu 17 leitões landrace hoje na maternidade.")).toBeNull();
+    expect(transcricaoCorrigida("A porca sete pariu doze leitões.", "A porca 7 pariu 12 leitões.")).toBeNull();
+    expect(transcricaoCorrigida(ouvida, "Parto: 12 leitões da porca 7.")).toBeNull();
+    expect(transcricaoCorrigida(ouvida, ouvida)).toBeNull();
+    expect(transcricaoCorrigida(ouvida, "")).toBeNull();
+    expect(transcricaoCorrigida(ouvida, null)).toBeNull();
+  });
+
+  it("vem na análise, já conferida", async () => {
+    const resposta = (transcricaoCorrigida: string) =>
+      Response.json({
+        choices: [{ message: { tool_calls: [{ function: { name: "registrar_ocorrencia", arguments: JSON.stringify({ transcricaoCorrigida, resumo: "Parto.", operacoes: [] }) } }] } }],
+      });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(resposta("A porca 7 pariu 12 leitões.")).mockResolvedValueOnce(resposta("Nasceram leitões.")));
+    expect((await analisar("A parca 7 pariu 12 leitões.", "2026-11-15", [])).transcricao).toBe("A porca 7 pariu 12 leitões.");
+    expect((await analisar("A parca 7 pariu 12 leitões.", "2026-11-15", [])).transcricao).toBeNull();
+  });
+});
+
+describe("crias do parto", () => {
+  it("as ditas têm nome; as outras levam o da mãe", () => {
+    expect(nomesDasCrias(3, "Faísca", "Pintada")).toEqual(["Faísca", "Cria 2 da Pintada", "Cria 3 da Pintada"]);
+    expect(nomesDasCrias(1, null, "Mimosa")).toEqual(["Cria da Mimosa"]);
+    expect(nomesDasCrias(0, null, "Mimosa")).toEqual([]);
+    // Nome dito sem o número de crias: cadastra quem tem nome.
+    expect(nomesDasCrias(0, "Faísca, Estrela", "Pintada")).toEqual(["Faísca", "Estrela"]);
+  });
+
+  it("da IA, só o que é nome", () => {
+    expect(nomesDitos("Faísca, um macho")).toBe("Faísca");
+    expect(nomesDitos("uma bezerra")).toBeNull();
+    expect(nomesDitos(null)).toBeNull();
+  });
+
+  it("o parto da IA já vem para cadastrar as crias", () => {
+    const bruta = { tipo: "registrar_parto", titulo: "", alvo: "Pintada", animalId: "a-Pintada", detalhe: "", trecho: "", confianca: 90, crias: 2, nomesCrias: "Faísca" };
+    expect(normalizar(bruta, new Set(["a-Pintada"]), vazio)).toMatchObject({ crias: 2, cadastrarCrias: true, nomesCrias: "Faísca" });
   });
 });

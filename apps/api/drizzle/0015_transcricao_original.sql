@@ -1,0 +1,1 @@
+ALTER TABLE "ocorrencia" ADD COLUMN "transcricao_original" text;

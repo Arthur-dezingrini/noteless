@@ -4,7 +4,7 @@ import { DESTINO_OPERACAO, temAlvo, type CampoCorrigivel, type Operacao, type St
 import { Check, ChevronDown } from "lucide-react";
 import Link from "next/link";
 
-import { LIMIAR_ATENCAO, ehAviario, nomeAlvo, formatarCampo, camposDe } from "./descricao";
+import { LIMIAR_ATENCAO, criasNovas, ehAviario, nomeAlvo, formatarCampo, camposDe } from "./descricao";
 import { type Cadastro } from "../tipos";
 import { CamposEditaveis } from "./campos-editaveis";
 
@@ -71,6 +71,7 @@ export function LinhaOperacao({
             <span className="text-base font-semibold text-ink">{salva && op.aplicada !== false ? d.feito : d.acao}</span>
             <span className="text-sm text-ink-muted">
               {nomeAlvo(op, cad)} → {d.onde}
+              {criasNovas(op) > 0 && " e Animais"}
             </span>
             {!aberta && (
               <span className="truncate text-sm text-ink-soft">

@@ -212,18 +212,15 @@ export const CASOS: Caso[] = [
   // — parto e cadastro
   {
     id: "parto-sem-nome",
-    testa: "parto ontem, filhote sem nome não vira cadastro",
+    testa: "parto ontem; a cria entra pelo parto, não por cadastrar_animal",
     transcricao: "a Mimosa pariu ontem à noite, uma bezerra",
     esperado: [{ tipo: "registrar_parto", animalId: "a-mimosa", campos: { data: "2026-11-09", crias: 1 } }],
   },
   {
     id: "parto-com-cadastro",
-    testa: "parto + cadastro do filhote com nome",
+    testa: "o nome dito para a cria vai no parto, que cadastra as crias; nada de cadastrar_animal",
     transcricao: "a Pintada pariu hoje dois cabritinhos, um macho que vai se chamar Faísca",
-    esperado: [
-      { tipo: "registrar_parto", animalId: "a-pintada", campos: { crias: 2 } },
-      { tipo: "cadastrar_animal", campos: { nome: "Faísca", especie: "caprino", sexo: "macho" } },
-    ],
+    esperado: [{ tipo: "registrar_parto", animalId: "a-pintada", campos: { crias: 2, nomesCrias: "Faísca" } }],
   },
   {
     id: "cadastro-egua",

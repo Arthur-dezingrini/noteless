@@ -128,6 +128,12 @@ export function Detalhe({
           <span className={`font-semibold ${status.cor}`}>{status.rotulo}</span>
         </div>
         {!falhou && <blockquote className="text-[17px] leading-relaxed text-pretty text-ink">“{oc.transcricao}”</blockquote>}
+        {!falhou && oc.transcricaoOriginal && (
+          <details className="-mt-1.5 text-sm text-ink-muted">
+            <summary className="cursor-pointer">A IA corrigiu palavras mal ouvidas · ver como o áudio foi ouvido</summary>
+            <p className="mt-1">“{oc.transcricaoOriginal}”</p>
+          </details>
+        )}
         <Audio src={oc.temAudio ? `/api/org/${orgId}/ocorrencias/${oc.id}/audio` : null} duracaoSeg={oc.duracaoSeg} />
       </div>
 

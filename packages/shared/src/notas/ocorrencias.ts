@@ -85,8 +85,13 @@ export const operacaoSchema = z.discriminatedUnion("tipo", [
   baseOperacao.extend({
     tipo: z.literal("registrar_parto"),
     data: dataIso.nullable(),
+    /** Nascidas vivas. */
     crias: z.number().int().min(0).max(30, "Número de crias fora do normal.").nullable(),
     observacoes: textoOpcional,
+    /** Ao salvar, cada cria entra no cadastro de animais (espécie, raça e local da mãe). */
+    cadastrarCrias: z.boolean().default(true),
+    /** Nomes ditos para as crias, separados por vírgula ("Faísca"); as outras ficam "Cria 2 da Pintada". */
+    nomesCrias: textoOpcional.default(null),
   }),
   baseOperacao.extend({
     tipo: z.literal("cadastrar_animal"),
@@ -173,6 +178,8 @@ export const ocorrenciaSchema = z.object({
   id: z.string(),
   status: statusOcorrenciaSchema,
   transcricao: z.string(),
+  /** Como o áudio foi ouvido, quando a IA corrigiu palavras na transcrição ("parca" → "porca"). */
+  transcricaoOriginal: z.string().nullish(),
   /** Uma frase da IA resumindo o que foi dito. */
   resumo: z.string(),
   duracaoSeg: z.number().nullish(),
@@ -199,7 +206,7 @@ export const CAMPOS_CORRIGIVEIS = {
   agendar_consulta: ["animalId", "grupoId", "tipoConsulta", "data", "hora", "observacoes"],
   aplicar_vacina: ["animalId", "grupoId", "vacina", "dose", "data", "proximaData"],
   registrar_remedio: ["animalId", "grupoId", "remedio", "dose", "dias", "carenciaDias"],
-  registrar_parto: ["animalId", "data", "crias", "observacoes"],
+  registrar_parto: ["animalId", "data", "crias", "cadastrarCrias", "nomesCrias", "observacoes"],
   cadastrar_animal: ["nome", "especie", "raca", "sexo", "nascimento"],
   apontar_galpao: ["instalacaoId", "data", ...CAMPOS_APONTAMENTO, "observacoes"],
   pesar_lote: ["loteId", "data", "sexo", "pesoMedioG", "uniformidadePct", "amostra"],

@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { db } from "../../src/db";
 import { notificacao } from "../../src/db/tabelas/avisos";
-import { pesagem } from "../../src/db/tabelas/historico";
+import { parto as partoTabela, pesagem } from "../../src/db/tabelas/historico";
 import { ocorrencia } from "../../src/db/tabelas/notas";
 import { chamar, criarFazenda } from "../ajuda";
 
@@ -105,6 +105,55 @@ describe("conferência de ocorrências", () => {
     expect(ok.json.operacoes[0]).toMatchObject({ aplicada: true, nome: "Bezerro 140", original: { nome: "" } });
     const animais = (await chamar(f.admin, "GET", `${org()}/animais`)).json as { nome: string }[];
     expect(animais.map((a) => a.nome)).toContain("Bezerro 140");
+  });
+
+  it("parto salvo cadastra as crias com os dados da mãe e as junta num grupo", async () => {
+    const porca = (await chamar(f.dono, "POST", `${org()}/animais`, { nome: "Porca 7", especie: "suino", raca: "Landrace", local: "Maternidade" })).json.id;
+    const parto: Operacao = {
+      ...base,
+      tipo: "registrar_parto",
+      alvo: "porca 7",
+      animalId: porca,
+      data: "2026-11-15",
+      crias: 3,
+      observacoes: null,
+      cadastrarCrias: true,
+      nomesCrias: "Faísca",
+    };
+    const id = await ocorrenciaDoMembro([parto]);
+    expect((await chamar(f.admin, "POST", `${org()}/ocorrencias/${id}/confirmar`, { operacoes: [0] })).status).toBe(200);
+
+    const animais = (await chamar(f.admin, "GET", `${org()}/animais`)).json as { id: string; nome: string; especie: string; raca: string; local: string; nascimento: string }[];
+    const crias = animais.filter((a) => ["Faísca", "Cria 2 da Porca 7", "Cria 3 da Porca 7"].includes(a.nome));
+    expect(crias).toHaveLength(3);
+    for (const c of crias) expect(c).toMatchObject({ especie: "suino", raca: "Landrace", local: "Maternidade", nascimento: "2026-11-15" });
+    const grupos = (await chamar(f.admin, "GET", `${org()}/grupos`)).json as { nome: string; animalIds: string[] }[];
+    const grupo = grupos.find((g) => g.nome === "Crias da Porca 7 · 15/11");
+    expect(grupo?.animalIds.sort()).toEqual(crias.map((c) => c.id).sort());
+  });
+
+  it("com o cadastro das crias desligado por quem confere, só o parto entra", async () => {
+    const vaca = (await chamar(f.dono, "POST", `${org()}/animais`, { nome: "Estrela", especie: "bovino" })).json.id;
+    const parto: Operacao = { ...base, tipo: "registrar_parto", alvo: "Estrela", animalId: vaca, data: null, crias: 1, observacoes: null, cadastrarCrias: true, nomesCrias: null };
+    const id = await ocorrenciaDoMembro([parto]);
+    const r = await chamar(f.admin, "POST", `${org()}/ocorrencias/${id}/confirmar`, { operacoes: [0], correcoes: { "0": { cadastrarCrias: false } } });
+    expect(r.status).toBe(200);
+    const animais = (await chamar(f.admin, "GET", `${org()}/animais`)).json as { nome: string }[];
+    expect(animais.map((a) => a.nome)).not.toContain("Cria da Estrela");
+    const [p] = await db.select().from(partoTabela).where(eq(partoTabela.ocorrenciaId, id));
+    expect(p).toMatchObject({ animalId: vaca, crias: 1 });
+  });
+
+  it("parto na mãe de outra fazenda não salva nem cadastra cria nenhuma", async () => {
+    const vizinha = await criarFazenda("Vizinha do parto");
+    const alheia = (await chamar(vizinha.dono, "POST", `/api/org/${vizinha.orgId}/animais`, { nome: "Alheia", especie: "bovino" })).json.id;
+    const parto: Operacao = { ...base, tipo: "registrar_parto", alvo: "Alheia", animalId: alheia, data: null, crias: 2, observacoes: null, cadastrarCrias: true, nomesCrias: null };
+    const id = await ocorrenciaDoMembro([parto]);
+    const r = await chamar(f.admin, "POST", `${org()}/ocorrencias/${id}/confirmar`, { operacoes: [0] });
+    expect(r.status).toBe(400);
+    const nossos = (await chamar(f.admin, "GET", `${org()}/animais`)).json as { nome: string }[];
+    const deles = (await chamar(vizinha.dono, "GET", `/api/org/${vizinha.orgId}/animais`)).json as { nome: string }[];
+    expect([...nossos, ...deles].map((a) => a.nome).filter((n) => n.includes("Alheia") && n !== "Alheia")).toEqual([]);
   });
 
   it("correção inválida volta dizendo qual ação", async () => {
