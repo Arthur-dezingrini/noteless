@@ -63,6 +63,7 @@ export async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: strin
   const origem = { organizationId: orgId, ocorrenciaId, criadoPorId: userId };
 
   if (op.tipo === "cadastrar_animal") {
+    if (!op.nome.trim()) return "Informe o nome do animal.";
     await tx.insert(animal).values({
       organizationId: orgId,
       nome: op.nome,

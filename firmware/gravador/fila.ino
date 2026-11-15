@@ -109,8 +109,9 @@ bool montarCartao() {
   return true;
 }
 
-// Uma gravação guardada como .raw vira .wav (o volume é medido aqui, numa
-// primeira passada, como a gravação faria). Uma por vez, em segundo plano.
+// Uma gravação guardada como .raw vira .wav: ela já é o .wav, só falta o
+// tamanho no cabeçalho (a gravação parou antes de acertá-lo). Uma por vez, em
+// segundo plano.
 void recuperarPendente() {
   File p = memoria.open(PASTA_FILA);
   if (!p) return cartaoFalhou("ler a fila");
@@ -125,40 +126,31 @@ void recuperarPendente() {
     haPendentes = false;
     return;
   }
-  File b = memoria.open(raw, FILE_READ);
+  File b = memoria.open(raw, "r+");
   if (!b) return cartaoFalhou("abrir uma gravação para recuperar");
-  size_t n = b.size() / sizeof(int16_t);
-  uint32_t *hist = (uint32_t *)calloc(256, sizeof(uint32_t));
-  int16_t *bloco = (int16_t *)malloc(1024 * sizeof(int16_t));
-  bool ok = hist && bloco;
-  // Como na gravação: os 100 ms de cada ponta (barulho do botão) ficam fora.
-  for (size_t lidas = 0; ok && lidas < n;) {
-    size_t m = min((size_t)1024, n - lidas);
-    if (b.read((uint8_t *)bloco, m * sizeof(int16_t)) != m * sizeof(int16_t)) ok = false;
-    for (size_t i = 0; ok && i < m; i++)
-      if (lidas + i >= TAXA / 10 && lidas + i + TAXA / 10 < n) hist[min(255, abs(bloco[i]) / 128)]++;
-    lidas += m;
+  char riff[4] = {0};
+  bool temCabecalho = b.read((uint8_t *)riff, 4) == 4 && !memcmp(riff, "RIFF", 4);
+  size_t n = b.size() > CABECALHO_WAV ? (b.size() - CABECALHO_WAV) / sizeof(int16_t) : 0;
+  if (!temCabecalho) {
+    // Bruto sem cabeçalho, do firmware de antes dos 16 kHz: não vira .wav
+    // aqui. Fica guardado fora da fila.
+    b.close();
+    String para = String(PASTA_ERRO) + raw.substring(raw.lastIndexOf('/'));
+    if (!memoria.rename(raw, para)) return cartaoFalhou("guardar uma gravação antiga");
+    registrar("AVISO: gravação interrompida de um firmware antigo guardada em %s (não sobe sozinha).", para.c_str());
+    return;
   }
-  b.close();
-  if (!ok) {
-    const char *oQue = hist && bloco ? "ler uma gravação para recuperar" : "separar memória para recuperar";
-    free(hist);
-    free(bloco);
-    return cartaoFalhou(oQue);
-  }
-  free(bloco);
   if (n < TAXA / 2) {
-    free(hist);
+    b.close();
     memoria.remove(raw);
     registrar("Gravação interrompida com menos de 0,5 s: descartada.");
     return;
   }
+  bool ok = fecharWav(b, n);
+  b.close();
+  if (!ok) return cartaoFalhou("recuperar uma gravação");
   String nome = raw.substring(0, raw.length() - 4) + ".wav";
-  float db;
-  const char *erro = escreverWav(raw.c_str(), n, hist, nome, db);
-  free(hist);
-  if (erro) return cartaoFalhou(erro);
-  memoria.remove(raw);
+  if (!memoria.rename(raw, nome)) return cartaoFalhou("dar nome a uma gravação recuperada");
   naFila = naFila + 1;
   registrar("Gravação recuperada: %.1f s -> %s", (float)n / TAXA, nome.c_str());
 }

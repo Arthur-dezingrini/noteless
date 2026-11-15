@@ -90,7 +90,8 @@ export const operacaoSchema = z.discriminatedUnion("tipo", [
   }),
   baseOperacao.extend({
     tipo: z.literal("cadastrar_animal"),
-    nome: z.string().trim().min(1, "Informe o nome do animal."),
+    /** Vazio = não foi dito nome ("cadastre um porco novo"); quem confere escreve antes de salvar. */
+    nome: z.string().trim(),
     especie: especieSchema,
     raca: textoOpcional,
     sexo: sexoSchema.nullable(),
@@ -159,8 +160,9 @@ export function precisaAlvo(op: Operacao): boolean {
   return op.tipo !== "cadastrar_animal";
 }
 
-/** Tem alvo resolvido — pode ser marcada para salvar. */
+/** Tem alvo resolvido e o que falta para salvar — pode ser marcada para salvar. */
 export function temAlvo(op: Operacao): boolean {
+  if (op.tipo === "cadastrar_animal") return op.nome.trim() !== "";
   if (op.tipo === "apontar_galpao") return !!op.instalacaoId;
   if (op.tipo === "pesar_lote") return !!op.loteId && op.pesoMedioG != null;
   if (op.tipo === "vacinar_lote") return !!op.loteId && op.vacina.trim() !== "";

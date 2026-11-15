@@ -82,7 +82,7 @@ export function gruposDaOrg(orgId: string) {
 /** Animais ativos da organização — o contexto que a IA usa para ligar nomes a ids. */
 export function animaisDaOrg(orgId: string) {
   return db
-    .select({ id: animal.id, nome: animal.nome, especie: animal.especie, raca: animal.raca, tutor: animal.tutor })
+    .select({ id: animal.id, nome: animal.nome, numero: animal.numero, especie: animal.especie, raca: animal.raca, tutor: animal.tutor })
     .from(animal)
     .where(and(eq(animal.organizationId, orgId), eq(animal.status, "ativo")))
     .orderBy(asc(animal.nome));

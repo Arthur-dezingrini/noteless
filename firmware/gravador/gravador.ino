@@ -42,7 +42,7 @@
 
 // Onde ficam as gravações. Os cartões microSD testados na protoboard falharam
 // (11/2026): por enquanto, a memória interna da placa, em LittleFS na partição
-// de partitions.csv (2,5 MB, perto de 1,5 min por nota com a fila vazia). Com
+// de partitions.csv (2,5 MB, perto de 1 min e 15 s por nota com a fila vazia). Com
 // um cartão bom, USAR_CARTAO 1 volta para o microSD.
 #define USAR_CARTAO 0
 #if USAR_CARTAO
@@ -59,15 +59,19 @@ const int BOTAO = 18;
 const int PINO_SCK = 23, PINO_WS = 22, PINO_SD = 21;                          // microfone
 const int CARTAO_CS = 5, CARTAO_SCK = 17, CARTAO_MOSI = 16, CARTAO_MISO = 4;  // microSD
 
-const int TAXA = 8000;       // Hz — o Whisper não precisa de mais para voz
-const int QUADROS = 256;     // quadros estéreo lidos do I2S por vez (32 ms)
-const int LIMITE_SEG = 300;  // botão preso ou esquecido: para sozinho em 5 min
+// A taxa do Whisper. A 8 kHz somem os sons de s, z, f e x ("fazenda" saía
+// "fadazinha"); 16 bits por amostra, 32 KB por segundo.
+const int TAXA = 16000;      // Hz
+const int QUADROS = 256;     // quadros estéreo lidos do I2S por vez (16 ms)
+// Botão preso ou esquecido: para sozinho. O Noteless (Vercel) recebe até 4,5 MB
+// por envio; 2 min são 3,8 MB.
+const int LIMITE_SEG = 120;
 const int CLIQUE_MS = 500;   // solto antes disso é clique, não gravação
 const int CLIQUES_PARA_TROCAR_WIFI = 5;
 const int ENTRE_CLIQUES_MS = 1000;  // mais que isso entre um e outro: a contagem recomeça
 const char *PASTA_FILA = "/fila";             // prontas, esperando envio
 const char *PASTA_ERRO = "/erro";             // recusadas pelo Noteless: guardadas, fora da fila
-const char *ARQUIVO_BRUTO = "/gravando.raw";  // a gravação em andamento, antes do volume
+const char *ARQUIVO_BRUTO = "/gravando.raw";  // a gravação em andamento (já é o .wav; o tamanho entra no fim)
 
 // Uma gravação terminada, antes de virar arquivo da fila.
 struct Gravacao {
@@ -112,17 +116,26 @@ struct LinhaErro {
   uint32_t ms;
 };
 
-uint32_t histograma[256];  // |amostra| em faixas de 128, para acertar o volume
+uint32_t histograma[256];  // |amostra| em faixas de 128, para medir o volume
 
 void escrever32(uint8_t *p, uint32_t v) { for (int i = 0; i < 4; i++) p[i] = v >> (8 * i); }
 void escrever16(uint8_t *p, uint16_t v) { p[0] = v; p[1] = v >> 8; }
 
-// WAV PCM mono, 8 bits sem sinal (128 = silêncio).
+// WAV PCM mono, 16 bits com sinal; n = bytes de áudio depois do cabeçalho.
+const size_t CABECALHO_WAV = 44;
 void cabecalhoWav(uint8_t *p, uint32_t n) {
   memcpy(p, "RIFF", 4); escrever32(p + 4, 36 + n); memcpy(p + 8, "WAVEfmt ", 8);
   escrever32(p + 16, 16); escrever16(p + 20, 1); escrever16(p + 22, 1);
-  escrever32(p + 24, TAXA); escrever32(p + 28, TAXA); escrever16(p + 32, 1); escrever16(p + 34, 8);
+  escrever32(p + 24, TAXA); escrever32(p + 28, TAXA * 2); escrever16(p + 32, 2); escrever16(p + 34, 16);
   memcpy(p + 36, "data", 4); escrever32(p + 40, n);
+}
+
+// Põe o tamanho certo no cabeçalho de um .wav que já está escrito (gravação
+// terminada, ou interrompida e recuperada).
+bool fecharWav(File &f, size_t amostras) {
+  uint8_t cab[CABECALHO_WAV];
+  cabecalhoWav(cab, amostras * sizeof(int16_t));
+  return f.seek(0) && f.write(cab, sizeof(cab)) == sizeof(cab);
 }
 
 // O relógio é acertado pela internet (rede.ino). Antes disso, conta de 1970.
@@ -178,18 +191,19 @@ void comecarCaptura(Gravacao &g) {
 
 // Grava no cartão o que está sendo capturado até soltar o botão (ou até o
 // limite), já sem os graves (passa-alta ~100 Hz: deriva lenta e zumbido de 60
-// Hz). O volume só é acertado no fim (finalizar), quando se sabe o quanto a fala
-// subiu.
+// Hz). O arquivo já é o .wav: o cabeçalho vai na frente e ganha o tamanho no
+// fim. Volume não se acerta — em 16 bits a fala tem folga de sobra, e o
+// Whisper não depende dele.
 bool gravar(Gravacao &g) {
   size_t limite = (size_t)LIMITE_SEG * TAXA;
 #if !USAR_CARTAO
-  // A memória interna é pequena: a gravação para antes de enchê-la. Até virar
-  // .wav, cada amostra ocupa 3 bytes (2 no bruto, 1 no .wav); a folga fica para
-  // o registro (até 2 x 64 KB, registro.ino) e para o próprio LittleFS.
+  // A memória interna é pequena: a gravação para antes de enchê-la (2 bytes
+  // por amostra). A folga fica para o registro (até 2 x 64 KB, registro.ino) e
+  // para o próprio LittleFS.
   const size_t FOLGA = 160 * 1024;
   size_t livre = memoria.totalBytes() - memoria.usedBytes();
   cartaoLivreGb = livre / 1e9;
-  limite = min(limite, livre > FOLGA ? (livre - FOLGA) / 3 : 0);
+  limite = min(limite, livre > FOLGA ? (livre - FOLGA) / sizeof(int16_t) : 0);
   if (limite < (size_t)TAXA) {
     gravando = false;
     registrar("AVISO: memória cheia (%u KB livres): espere as notas da fila subirem.", (unsigned)(livre / 1024));
@@ -197,8 +211,11 @@ bool gravar(Gravacao &g) {
   }
 #endif
   File bruto = memoria.open(ARQUIVO_BRUTO, FILE_WRITE);
-  if (!bruto) {
+  uint8_t cab[CABECALHO_WAV];
+  cabecalhoWav(cab, 0);
+  if (!bruto || bruto.write(cab, sizeof(cab)) != sizeof(cab)) {
     gravando = false;
+    if (bruto) bruto.close();
     cartaoFalhou("criar a gravação");
     return false;
   }
@@ -208,7 +225,7 @@ bool gravar(Gravacao &g) {
   // aqui até deixarem de ser o fim.
   static uint8_t recentes[TAXA / 10];
   static int16_t bloco[2048];
-  const float k = 0.927f;  // RC/(RC+dt) para ~100 Hz a 8 kHz
+  const float k = 1 / (1 + 2 * PI * 100.0f / TAXA);  // RC/(RC+dt) para ~100 Hz
   float ant = 0, y = 0;
   size_t n = 0;
   bool falhou = false;
@@ -244,6 +261,7 @@ bool gravar(Gravacao &g) {
     }
   }
   gravando = false;
+  if (!falhou && !fecharWav(bruto, n)) falhou = true;
   bruto.close();
   if (falhou) {
     // O que já foi gravado fica em ARQUIVO_BRUTO: montarCartao o guarda para recuperar.
@@ -265,54 +283,19 @@ String nomeDaGravacao(const Gravacao &g) {
   return nome;
 }
 
-// Acerta o volume e grava o arquivo da fila: WAV PCM de 8 bits, o formato que
-// o Noteless e os navegadores tocam. O volume se baseia no percentil 99,9,
-// não no pico: um estalo do botão não deixa a fala baixinha. Escreve num .tmp
-// e só no fim dá o nome: a fila nunca pega arquivo pela metade. Devolve o que
-// falhou, ou nullptr. Usada no fim da gravação (loop) e na recuperação (rede).
-const char *escreverWav(const char *caminhoBruto, size_t n, const uint32_t *hist, const String &nome, float &db) {
+// Volume da fala em dBFS, pelo percentil 99,9 e não pelo pico: um estalo do
+// botão não conta. Só para o registro ("baixo, fale mais perto").
+float volumeDb(const uint32_t *hist, size_t n) {
   int faixa = 255;
   for (uint32_t acumulado = 0; faixa > 0; faixa--) {
     acumulado += hist[faixa];
     if (acumulado > n / 1000) break;
   }
-  float ref = (faixa + 1) * 128.0f;
-  float escala = 120.0f / ref;
-  db = 20 * log10f(ref / 32768);
-
-  String temporario = nome + ".tmp";
-  // Na memória só durante a conversão (e não fixos: as duas tarefas usam).
-  int16_t *entrada = (int16_t *)malloc(1024 * sizeof(int16_t));
-  uint8_t *pcm8 = (uint8_t *)malloc(1024);
-  File bruto = memoria.open(caminhoBruto, FILE_READ);
-  File saida = memoria.open(temporario, FILE_WRITE);
-  const char *erro = !entrada || !pcm8 ? "separar memória para converter"
-                     : !bruto           ? "abrir a gravação"
-                     : !saida           ? "criar o arquivo"
-                                        : nullptr;
-  if (!erro) {
-    uint8_t cab[44];
-    cabecalhoWav(cab, n);
-    if (saida.write(cab, sizeof(cab)) != sizeof(cab)) erro = "escrever o cabeçalho";
-  }
-  for (size_t feitas = 0; !erro && feitas < n; feitas += min((size_t)1024, n - feitas)) {
-    size_t m = min((size_t)1024, n - feitas);
-    if (bruto.read((uint8_t *)entrada, m * sizeof(int16_t)) != m * sizeof(int16_t)) {
-      erro = "ler a gravação";
-      break;
-    }
-    for (size_t i = 0; i < m; i++) pcm8[i] = constrain((int)lroundf(entrada[i] * escala), -127, 127) + 128;
-    if (saida.write(pcm8, m) != m) erro = "escrever o áudio";
-  }
-  free(entrada);
-  free(pcm8);
-  if (bruto) bruto.close();
-  if (saida) saida.close();
-  if (!erro && !memoria.rename(temporario, nome)) erro = "dar nome ao arquivo";
-  if (erro) memoria.remove(temporario);
-  return erro;
+  return 20 * log10f((faixa + 1) * 128.0f / 32768);
 }
 
+// A gravação já é o .wav: entrar na fila é só ganhar o nome (renomear não
+// copia nada, e a fila nunca pega arquivo pela metade).
 void finalizar(const Gravacao &g) {
   size_t n = g.amostras;
   if (n < TAXA / 2) {
@@ -321,19 +304,15 @@ void finalizar(const Gravacao &g) {
     return;
   }
   String nome = nomeDaGravacao(g);
-  float db;
-  const char *erro = escreverWav(ARQUIVO_BRUTO, n, histograma, nome, db);
-  if (erro) {
-    // Não apaga nada: o bruto fica na fila como .raw e vira .wav quando o cartão
-    // voltar (se nem renomear der, montarCartao o guarda no próximo boot).
-    String raw = nome.substring(0, nome.length() - 4) + ".raw";
-    if (memoria.rename(ARQUIVO_BRUTO, raw)) haPendentes = true;
-    cartaoFalhou(erro);
+  if (!memoria.rename(ARQUIVO_BRUTO, nome)) {
+    // Não apaga nada: ARQUIVO_BRUTO fica, e montarCartao o guarda na fila para
+    // recuperar quando o cartão voltar.
+    cartaoFalhou("dar nome à gravação");
     registrar("AVISO: a gravação de %.1f s ficou guardada no cartão e sobe quando ele voltar.", (float)n / TAXA);
     return;
   }
-  memoria.remove(ARQUIVO_BRUTO);
   naFila = naFila + 1;
+  float db = volumeDb(histograma, n);
   registrar("Gravou %.1f s | volume %.0f dBFS%s -> %s\n", (float)n / TAXA, db, db < -40 ? " — baixo, fale mais perto" : "",
             nome.c_str());
   if (perdidas) registrar("AVISO: %lu amostras perdidas — o cartão demorou para gravar.\n", (unsigned long)perdidas);
@@ -390,7 +369,7 @@ void setup() {
 
   montarCartao();
 
-  // 2 s de áudio de folga para o cartão; o loop acorda a cada 64 ms para ver o botão.
+  // 1 s de áudio de folga para o cartão; o loop acorda a cada 32 ms para ver o botão.
   sbAudio = xStreamBufferCreate(32 * 1024, 1024);
   xTaskCreatePinnedToCore(tarefaCaptura, "captura", 4096, nullptr, 5, nullptr, 1);
   // Pilha da rede: medida, a conexão segura usa ~4 KB dela (o resto vem do

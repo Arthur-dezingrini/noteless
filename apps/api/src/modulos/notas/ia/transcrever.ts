@@ -13,18 +13,29 @@ export class IaNaoConfigurada extends Error {
  */
 const ALUCINACOES = [/^obrigad[oa]\.?$/i, /amara\.org/i, /^legendas? (por|pela)/i, /^tchau\.?$/i, /inscreva-se/i];
 
-function pareceFala(texto: string) {
+const comparavel = (s: string) =>
+  s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+/**
+ * Com vocabulário no prompt, o áudio sem fala pode sair como um pedaço do
+ * próprio prompt ("Anotação de manejo dos animais: Mimosa, ..."). Três
+ * palavras ou mais iguais a um trecho dele não são fala.
+ */
+export function pareceFala(texto: string, prompt = "") {
   if (!/\p{L}{2,}/u.test(texto)) return false;
-  return !ALUCINACOES.some((r) => r.test(texto));
+  if (ALUCINACOES.some((r) => r.test(texto))) return false;
+  const t = comparavel(texto);
+  return !(prompt && t.split(" ").length >= 3 && comparavel(prompt).includes(t));
 }
 
 /**
  * Áudio → texto, pela API de transcrição compatível com a OpenAI
  * (`/audio/transcriptions`). Serve Groq, OpenAI e afins — muda só a base e o
  * modelo no .env. Português forçado: o Whisper acerta mais quando sabe a
- * língua, e sotaque de campo já é desafio suficiente.
+ * língua, e sotaque de campo já é desafio suficiente. O `vocabulario`
+ * (vocabulario.ts) ensina como escrever os nomes e termos da empresa.
  */
-export async function transcrever(audio: File): Promise<string> {
+export async function transcrever(audio: File, vocabulario = ""): Promise<string> {
   const cfg = transcricao();
   if (!cfg) throw new IaNaoConfigurada("A transcrição de áudio (GROQ_API_KEY)");
 
@@ -33,6 +44,8 @@ export async function transcrever(audio: File): Promise<string> {
   form.set("model", cfg.modelo);
   form.set("language", "pt");
   form.set("response_format", "json");
+  form.set("temperature", "0");
+  if (vocabulario) form.set("prompt", vocabulario);
 
   const res = await fetch(`${cfg.baseUrl}/audio/transcriptions`, {
     method: "POST",
@@ -47,5 +60,5 @@ export async function transcrever(audio: File): Promise<string> {
 
   const { text } = (await res.json()) as { text?: string };
   const limpo = (text ?? "").trim();
-  return pareceFala(limpo) ? limpo : "";
+  return pareceFala(limpo, vocabulario) ? limpo : "";
 }

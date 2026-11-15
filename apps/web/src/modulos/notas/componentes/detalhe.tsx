@@ -56,10 +56,13 @@ export function Detalhe({
     return novo;
   }
 
+  const liberaAcao = (c: CampoCorrigivel) => CAMPOS_ALVO.includes(c) || c === "nome";
+
   function corrigir(i: number, c: CampoCorrigivel, valor: unknown) {
     setCorrecoes((x) => ({ ...x, [i]: { ...x[i], [c]: valor } }));
-    // Escolher o animal (ou grupo) que faltava libera a ação: já deixa marcada.
-    if (CAMPOS_ALVO.includes(c) && valor) setMarcadas((s) => new Set(s).add(i));
+    // Escolher o animal (ou grupo) que faltava, ou dar nome ao animal novo,
+    // libera a ação: já deixa marcada.
+    if (liberaAcao(c) && valor) setMarcadas((s) => new Set(s).add(i));
   }
 
   function desfazer(i: number, c: CampoCorrigivel) {
@@ -69,7 +72,7 @@ export function Detalhe({
       return { ...x, [i]: resto };
     });
     const base = oc.operacoes[i];
-    if (CAMPOS_ALVO.includes(c) && base && !temAlvo(base)) {
+    if (liberaAcao(c) && base && !temAlvo(base)) {
       setMarcadas((s) => {
         const novo = new Set(s);
         novo.delete(i);

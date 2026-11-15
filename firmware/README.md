@@ -21,8 +21,9 @@ sair/entrar da sessão).
 - `wifi/` — conecta no Wi-Fi de `segredos.h` e mostra o IP. A ESP32 só tem
   2,4 GHz: rede só em 5 GHz não aparece.
 - `gravador/` — segure o botão (D18) para gravar no microfone I2S (INMP441,
-  mesmas ligações do `microfone/`) e solte para parar (até 5 min). Clique
-  (menos de 0,5 s) não grava.
+  mesmas ligações do `microfone/`) e solte para parar (até 2 min). Clique
+  (menos de 0,5 s) não grava. O áudio é WAV de 16 kHz e 16 bits (a taxa do
+  Whisper; a 8 kHz a transcrição trocava s, z, f e x).
   A gravação vai para o cartão microSD (mesmas ligações do `cartao/`) e entra
   na fila em `/fila`; com Wi-Fi, sobe sozinha para o Noteless como nota,
   da mais antiga para a mais nova. Sem Wi-Fi, espera no cartão; o

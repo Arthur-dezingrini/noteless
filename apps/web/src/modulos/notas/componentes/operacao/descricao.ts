@@ -89,7 +89,7 @@ export function rotulo(a: { numero: string | null; nome: string }) {
 
 /** Nome do alvo: animal do cadastro, grupo, animal novo, ou o que foi dito. */
 export function nomeAlvo(op: Operacao, cad: Cadastro): string {
-  if (op.tipo === "cadastrar_animal") return op.nome;
+  if (op.tipo === "cadastrar_animal") return op.nome || "Animal novo, sem nome";
   if (op.tipo === "apontar_galpao") {
     return (op.instalacaoId && cad.galpoes.get(op.instalacaoId)?.nome) || `${op.alvo} (não encontrado)`;
   }
@@ -145,7 +145,7 @@ export function efeito(op: Operacao, cad: Cadastro): string {
     case "registrar_parto":
       return `o parto no histórico ${de}`;
     case "cadastrar_animal":
-      return `${op.nome} no cadastro de animais`;
+      return `${op.nome || "o animal novo"} no cadastro de animais`;
     default:
       return "";
   }

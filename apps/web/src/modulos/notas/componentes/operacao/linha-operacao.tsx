@@ -98,11 +98,13 @@ export function LinhaOperacao({
         {bloqueada && (
           <p className="flex flex-wrap items-baseline gap-3 text-sm">
             <span className="text-danger">
-              {ehAviario(op)
-                ? `Não achamos “${op.alvo}” entre os ${op.tipo === "apontar_galpao" ? "galpões" : "lotes"}. Abra os detalhes e escolha ${op.tipo === "apontar_galpao" ? "o galpão" : "o lote"}.`
-                : `Não achamos “${op.alvo}” no cadastro.`}
+              {op.tipo === "cadastrar_animal"
+                ? "Falta o nome do animal. Abra os detalhes e escreva o nome ou o número."
+                : ehAviario(op)
+                  ? `Não achamos “${op.alvo}” entre os ${op.tipo === "apontar_galpao" ? "galpões" : "lotes"}. Abra os detalhes e escolha ${op.tipo === "apontar_galpao" ? "o galpão" : "o lote"}.`
+                  : `Não achamos “${op.alvo}” no cadastro.`}
             </span>
-            {!ehAviario(op) && (
+            {!ehAviario(op) && op.tipo !== "cadastrar_animal" && (
               <button type="button" onClick={onCadastrarNovo} className="cursor-pointer font-semibold text-ink underline underline-offset-[3px]">
                 Cadastrar como animal novo
               </button>

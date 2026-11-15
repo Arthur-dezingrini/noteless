@@ -1,4 +1,5 @@
-import type { AnimalParaIa, GrupoParaIa } from "../src/modulos/notas/ia/analisar";
+import type { GalpaoParaIa } from "../src/modulos/aviario";
+import type { AnimalParaIa, GrupoParaIa } from "../src/modulos/notas/ia/instrucoes";
 import type { OperacaoEsperada } from "../src/modulos/notas/ia/avaliar";
 
 /**
@@ -21,6 +22,9 @@ export const ANIMAIS: AnimalParaIa[] = [
   { id: "a-bolinha", nome: "Bolinha", especie: "suino", raca: null, tutor: null },
   { id: "a-thor", nome: "Thor", especie: "cao", raca: "Labrador", tutor: "Carla" },
   { id: "a-mel", nome: "Mel", especie: "gato", raca: "SRD", tutor: "Rafael" },
+  { id: "a-porca7", nome: "Porca 7", especie: "suino", raca: "Landrace", tutor: null },
+  // Só com número, como muita matriz de granja.
+  { id: "a-312", nome: "", numero: "312", especie: "suino", raca: "Large White", tutor: null },
 ];
 
 export const GRUPOS: GrupoParaIa[] = [
@@ -28,8 +32,15 @@ export const GRUPOS: GrupoParaIa[] = [
   { id: "g-baia2", nome: "Baia 2", animais: 8 },
 ];
 
+/** Só os casos com `aviario` recebem os galpões (a organização sem galpão não vê os tipos do aviário). */
+export const GALPOES: GalpaoParaIa[] = [
+  { instalacaoId: "i-g1", nome: "Galpão 1", loteId: "l-05", loteCodigo: "L-05", semana: 28, femeas: 9800, machos: 1000 },
+  { instalacaoId: "i-g3", nome: "Galpão 3", loteId: "l-07", loteCodigo: "L-07", semana: 31, femeas: 9850, machos: 1020 },
+];
+
 export type Caso = {
   id: string;
+  aviario?: boolean;
   /** O que o caso testa, para ler o relatório sem abrir este arquivo. */
   testa: string;
   transcricao: string;
@@ -250,5 +261,84 @@ export const CASOS: Caso[] = [
     testa: "teste de microfone",
     transcricao: "testando, testando, um dois três",
     esperado: [],
+  },
+
+  // — suínos
+  {
+    id: "suino-parto",
+    testa: "parto de matriz com o número por extenso",
+    transcricao: "a porca sete pariu hoje doze leitões",
+    esperado: [{ tipo: "registrar_parto", animalId: "a-porca7", campos: { crias: 12 } }],
+  },
+  {
+    id: "suino-so-numero",
+    testa: "matriz cadastrada só com número",
+    transcricao: "a 312 tá mancando da pata de trás",
+    esperado: [{ tipo: "registrar_anotacao", animalId: "a-312" }],
+  },
+  {
+    id: "suino-vacina-numero",
+    testa: "número por extenso acha a matriz",
+    transcricao: "dei a vacina de circovírus na trezentos e doze",
+    esperado: [{ tipo: "aplicar_vacina", animalId: "a-312", campos: { vacina: "circovirus" } }],
+  },
+
+  // — das notas de verdade (Granja Borello, 2026-11-15)
+  {
+    id: "real-cadastro-sem-nome",
+    testa: "descrição não vira nome",
+    transcricao: "Eu quero que cadastre um porco novo dentro da minha fazenda.",
+    esperado: [{ tipo: "cadastrar_animal", campos: { nome: "", especie: "suino" } }],
+  },
+  {
+    id: "real-cadastro-raca-sem-nome",
+    testa: "raça não vira nome",
+    transcricao: "Eu quero que cadastre um landrace dentro da minha fazenda.",
+    esperado: [{ tipo: "cadastrar_animal", campos: { nome: "", especie: "suino", raca: "Landrace" } }],
+  },
+  {
+    id: "real-cadastro-vaca",
+    testa: "espécie pela palavra, sem nome",
+    transcricao: "Eu quero que cadastre uma vaca nova dentro da minha fazenda.",
+    esperado: [{ tipo: "cadastrar_animal", campos: { nome: "", especie: "bovino" } }],
+  },
+  {
+    id: "real-sem-acao-duvida",
+    testa: "pensou alto e desistiu",
+    transcricao: "Eu não sei se cadastro um animal... Não.",
+    esperado: [],
+  },
+
+  // — aviário
+  {
+    id: "aviario-apontamento",
+    aviario: true,
+    testa: "números do dia de um galpão",
+    transcricao: "galpão três hoje: doze fêmeas mortas, dois machos mortos e cinco fêmeas eliminadas",
+    esperado: [{ tipo: "apontar_galpao", campos: { instalacaoId: "i-g3", mortasFemeas: 12, mortasMachos: 2, eliminadasFemeas: 5 } }],
+  },
+  {
+    id: "aviario-dois-galpoes",
+    aviario: true,
+    testa: "um apontamento por galpão",
+    transcricao: "no galpão um morreram oito fêmeas e no galpão três foram quatro",
+    esperado: [
+      { tipo: "apontar_galpao", campos: { instalacaoId: "i-g1", mortasFemeas: 8 } },
+      { tipo: "apontar_galpao", campos: { instalacaoId: "i-g3", mortasFemeas: 4 } },
+    ],
+  },
+  {
+    id: "aviario-pesagem",
+    aviario: true,
+    testa: "peso em quilos vira gramas",
+    transcricao: "pesei as fêmeas do lote sete, média de dois quilos e cem, uniformidade oitenta e dois por cento",
+    esperado: [{ tipo: "pesar_lote", campos: { loteId: "l-07", sexo: "femea", pesoMedioG: 2100, uniformidadePct: 82 } }],
+  },
+  {
+    id: "aviario-vacina",
+    aviario: true,
+    testa: "vacina do lote, com a via",
+    transcricao: "vacinei o lote sete contra bronquite na água",
+    esperado: [{ tipo: "vacinar_lote", campos: { loteId: "l-07", vacina: "bronquite", via: "agua" } }],
   },
 ];

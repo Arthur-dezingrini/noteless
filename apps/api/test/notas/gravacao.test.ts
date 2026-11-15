@@ -116,3 +116,14 @@ describe("áudio gravado sem sinal e enviado depois", () => {
     expect(ia.transcrever).not.toHaveBeenCalled();
   });
 });
+
+describe("vocabulário da transcrição", () => {
+  it("leva os nomes do cadastro da fazenda, e não os da vizinha", async () => {
+    await chamar(vizinha.dono, "POST", `/api/org/${vizinha.orgId}/animais`, { nome: "Trovoada", especie: "equino" });
+    ia.transcrever.mockClear();
+    expect((await enviarAudio(f.membro)).status).toBe(201);
+    const [, vocab] = ia.transcrever.mock.calls[0] as unknown as [File, string];
+    expect(vocab).toContain("Mimosa");
+    expect(vocab).not.toContain("Trovoada");
+  });
+});

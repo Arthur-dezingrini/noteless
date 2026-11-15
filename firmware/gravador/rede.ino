@@ -127,7 +127,7 @@ struct Conexao {
 };
 
 // Corpo multipart lido aos pedaços: campos + arquivo do cartão + fim. O
-// arquivo não cabe inteiro na memória (5 min de áudio são 2,4 MB).
+// arquivo não cabe inteiro na memória (2 min de áudio são 3,8 MB).
 class CorpoMultipart : public Stream {
  public:
   // O arquivo só abre no 1º pedaço do corpo, com a conexão segura já feita: a
@@ -206,10 +206,10 @@ Resultado enviarArquivo(const String &caminho) {
   }
   size_t tamArq = arq.size();
   arq.close();  // reabre só depois da conexão segura (ver CorpoMultipart)
-  if (tamArq <= 44) return RECUSADO;  // só o cabeçalho: nada para ouvir
+  if (tamArq <= CABECALHO_WAV) return RECUSADO;  // só o cabeçalho: nada para ouvir
   String base = caminho.substring(caminho.lastIndexOf('/') + 1);
   String quando = gravadoEmDe(caminho);
-  float seg = (tamArq - 44) / (float)TAXA;
+  float seg = (tamArq - CABECALHO_WAV) / (float)(TAXA * sizeof(int16_t));
   String ini = String("--") + FRONTEIRA + "\r\nContent-Disposition: form-data; name=\"duracaoSeg\"\r\n\r\n" +
                String((int)(seg + 0.5f)) + "\r\n";
   if (quando.length())

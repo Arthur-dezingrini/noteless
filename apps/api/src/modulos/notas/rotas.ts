@@ -7,6 +7,7 @@ import { db } from "../../db";
 import { ocorrencia, ocorrenciaAudio } from "../../db/tabelas/notas";
 import { analisar } from "./ia/analisar";
 import { IaNaoConfigurada, transcrever } from "./ia/transcrever";
+import { vocabulario } from "./ia/vocabulario";
 import { gravadorNaEmpresa } from "../../base/gravador-atual";
 import { membroAtual } from "../../base/membro-atual";
 import { galpoesDaOrg } from "../aviario";
@@ -56,12 +57,14 @@ notasRotas.post("/:orgId/ocorrencias", async (c) => {
   const gravadoEm = quandoFoiGravado(body?.gravadoEm);
 
   try {
-    const transcricao = await transcrever(audio);
+    const dia = hojeISO(gravadoEm ?? undefined);
+    // O cadastro serve às duas etapas: a transcrição aprende a escrever os
+    // nomes dele, e a interpretação liga o que foi dito aos ids.
+    const [animais, grupos, galpoes] = await Promise.all([animaisDaOrg(orgId), gruposDaOrg(orgId), galpoesDaOrg(orgId, dia)]);
+    const transcricao = await transcrever(audio, vocabulario(animais, grupos, galpoes));
     // Áudio que não deu para entender vira ocorrência mesmo assim: quem
     // confere escreve o que foi dito (POST /:id/texto).
-    const analise = transcricao
-      ? await analisar(transcricao, hojeISO(gravadoEm ?? undefined), await animaisDaOrg(orgId), await gruposDaOrg(orgId), await galpoesDaOrg(orgId, hojeISO(gravadoEm ?? undefined)))
-      : null;
+    const analise = transcricao ? await analisar(transcricao, dia, animais, grupos, galpoes) : null;
 
     const [nova] = await db
       .insert(ocorrencia)

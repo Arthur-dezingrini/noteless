@@ -93,6 +93,20 @@ describe("conferência de ocorrências", () => {
     expect(o!.status).toBe("pendente");
   });
 
+  it("animal novo sem nome não é cadastrado; com o nome escrito por quem confere, é", async () => {
+    const semNome: Operacao = { ...bezerro, alvo: "um bezerro novo", nome: "" };
+    const id = await ocorrenciaDoMembro([semNome]);
+    const r = await chamar(f.admin, "POST", `${org()}/ocorrencias/${id}/confirmar`, { operacoes: [0] });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toBe("Informe o nome do animal.");
+
+    const ok = await chamar(f.admin, "POST", `${org()}/ocorrencias/${id}/confirmar`, { operacoes: [0], correcoes: { "0": { nome: "Bezerro 140" } } });
+    expect(ok.status).toBe(200);
+    expect(ok.json.operacoes[0]).toMatchObject({ aplicada: true, nome: "Bezerro 140", original: { nome: "" } });
+    const animais = (await chamar(f.admin, "GET", `${org()}/animais`)).json as { nome: string }[];
+    expect(animais.map((a) => a.nome)).toContain("Bezerro 140");
+  });
+
   it("correção inválida volta dizendo qual ação", async () => {
     const id = await ocorrenciaDoMembro([{ ...pesarMimosa, animalId: mimosaId }]);
     const r = await chamar(f.admin, "POST", `${org()}/ocorrencias/${id}/confirmar`, { operacoes: [0], correcoes: { "0": { pesoKg: -1 } } });

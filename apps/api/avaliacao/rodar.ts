@@ -1,7 +1,7 @@
 import { analisar } from "../src/modulos/notas/ia/analisar";
 import { avaliarCaso, consolidar, type ResultadoCaso } from "../src/modulos/notas/ia/avaliar";
 import { interpretacao } from "../src/modulos/notas/ia/provedor";
-import { ANIMAIS, CASOS, GRUPOS, HOJE } from "./casos";
+import { ANIMAIS, CASOS, GALPOES, GRUPOS, HOJE } from "./casos";
 
 /**
  * Roda o conjunto de avaliação contra a IA configurada no .env e imprime o
@@ -34,7 +34,7 @@ for (const caso of casos) {
   let r: ResultadoCaso;
   let erro = "";
   try {
-    const analise = await analisar(caso.transcricao, HOJE, ANIMAIS, GRUPOS);
+    const analise = await analisar(caso.transcricao, HOJE, ANIMAIS, GRUPOS, caso.aviario ? GALPOES : []);
     r = avaliarCaso(caso.esperado, analise.operacoes);
   } catch (e) {
     // Resposta fora do formato também é erro da IA: conta como nada achado.

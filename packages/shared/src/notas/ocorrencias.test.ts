@@ -44,6 +44,14 @@ describe("precisaAlvo / temAlvo", () => {
   it("um animal serve de alvo", () => {
     expect(temAlvo(peso)).toBe(true);
   });
+
+  it("cadastro sem nome (a IA não ouviu um) só salva depois de quem confere escrever", () => {
+    const semNome = operacaoSchema.parse({ ...cadastro, nome: "  " });
+    expect(semNome).toMatchObject({ nome: "" });
+    expect(temAlvo(semNome)).toBe(false);
+    const r = corrigirOperacao(semNome, { nome: "Porca 3" });
+    expect(r.ok && temAlvo(r.op)).toBe(true);
+  });
 });
 
 describe("operacaoSchema", () => {
