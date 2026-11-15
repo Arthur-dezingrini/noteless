@@ -25,8 +25,7 @@ sair/entrar da sessão).
   (menos de 0,5 s) não grava.
   A gravação vai para o cartão microSD (mesmas ligações do `cartao/`) e entra
   na fila em `/fila`; com Wi-Fi, sobe sozinha para o Noteless como nota,
-  da mais antiga para a mais nova, pela conta de `segredos.h` (copie de
-  `segredos.example.h`, fica fora do git). Sem Wi-Fi, espera no cartão; o
+  da mais antiga para a mais nova. Sem Wi-Fi, espera no cartão; o
   arquivo só é apagado depois que o Noteless confirma, e o que ele recusa vai
   para `/erro`. O relógio é acertado pela internet e a hora da gravação vai
   junto (`gravadoEm`); gravação feita antes do primeiro acerto só leva a hora
@@ -36,10 +35,18 @@ sair/entrar da sessão).
   "Noteless-XXXX"; no celular, conecte nela e escolha a rede na página que
   abrir (só 2,4 GHz; se ela não abrir sozinha, desligue os dados móveis e entre
   em http://192.168.4.1). Se não conectar, a página diz o motivo.
-  `SERVIDOR_URL` é o Noteless publicado (https) ou, para testar com a api local
+  `segredos.h` (copie de `segredos.example.h`, fica fora do git) só tem
+  `SERVIDOR_URL`: o Noteless publicado (https) ou, para testar com a api local
   (`npm run dev:hom`), o IP do notebook na mesma rede.
-  LED: aceso fixo = tudo certo (Wi-Fi, login e cartão); apagado = algum
-  problema — sem Wi-Fi, sem login ou cartão (ela tenta de novo sozinha; o
+  A placa não tem conta nem senha. Na primeira vez que liga, ela sorteia um
+  segredo e o guarda na flash; ao entrar na internet, aparece no Noteless
+  aguardando aprovação. O super usuário aprova em Configurações › Gravadores
+  digitando o código de 6 letras que a placa mostra na página de Wi-Fi (e no
+  monitor serial, ao ligar) e escolhe a empresa. Gravar firmware novo não
+  muda o segredo; apagar a flash inteira, sim — aí a placa aparece de novo
+  aguardando e a antiga tem de ser esquecida no Noteless.
+  LED: aceso fixo = tudo certo (Wi-Fi, aprovada e cartão); apagado = algum
+  problema — sem Wi-Fi, aguardando aprovação ou cartão (ela tenta de novo sozinha; o
   monitor serial diz qual); respirando = botão apertado, gravando; piscando
   rápido = modo configuração do Wi-Fi.
 - `microfone/` — teste do microfone I2S (INMP441: VDD 3V3, GND e L/R no GND,

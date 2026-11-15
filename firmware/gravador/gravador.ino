@@ -1,43 +1,58 @@
 // Gravador de campo: segure o botão para gravar e solte para parar. O áudio vai
-// para o cartão microSD e, de lá, para o Noteless como nota
-// (POST /api/org/:orgId/ocorrencias), igual à gravação pelo site. Sem Wi-Fi,
-// as gravações esperam no cartão e sobem sozinhas quando a rede voltar.
+// para a memória interna da placa (ou para o cartão microSD, ver USAR_CARTAO)
+// e, de lá, para o Noteless como nota (POST /api/org/:orgId/ocorrencias), igual
+// à gravação pelo site. Sem Wi-Fi, as gravações esperam guardadas e sobem
+// sozinhas quando a rede voltar. No código, "cartão" (cartaoOk, montarCartao...)
+// é onde as gravações ficam, seja ele o microSD ou a memória interna.
 //
 // Ligações (todas do lado esquerdo da placa — o direito fica coberto na protoboard):
 //   microfone I2S INMP441: VDD -> 3V3 (nunca 5V)  GND -> GND  L/R -> GND
 //                          SCK -> D23  WS -> D22  SD -> D21
-//   módulo microSD (3,3 V): 3V3 -> 3V3  GND -> GND  CS -> D5  CLK -> TX2 (GPIO17)
-//                           MOSI -> RX2 (GPIO16)  MISO -> D4
+//   módulo microSD (3,3 V), só com USAR_CARTAO 1: 3V3 -> 3V3  GND -> GND  CS -> D5
+//                           CLK -> TX2 (GPIO17)  MOSI -> RX2 (GPIO16)  MISO -> D4
 //   botão -> D18 e GND (pull-up interno; pernas em diagonal)
 //
 // Botão: segurado = grava até soltar | clique (menos de 0,5 s) não grava | 5
 // cliques seguidos = trocar o Wi-Fi pelo celular (ver configuracao.ino). Sem rede
 // salva, a placa já liga nesse modo, abrindo a rede "Noteless-XXXX".
 //
-// LED azul: aceso fixo = tudo certo (Wi-Fi, login no Noteless e cartão) |
-// apagado = algum problema: sem Wi-Fi, sem login ou cartão (tenta de novo
-// sozinho; o monitor serial diz qual) | respirando (acende e apaga suave) =
+// LED azul: aceso fixo = tudo certo (Wi-Fi, aprovada no Noteless e cartão) |
+// apagado = algum problema: sem Wi-Fi, aguardando aprovação ou cartão (tenta
+// de novo sozinho; o monitor serial diz qual) | respirando (acende e apaga suave) =
 // botão apertado, gravando | piscando rápido = modo configuração do Wi-Fi.
 //
 // Três tarefas: a de captura lê o microfone sem parar (o cartão às vezes demora
 // para gravar, e o microfone não espera); o loop cuida do botão e grava no
-// cartão; a de rede (rede.ino) conecta, acerta o relógio, entra no Noteless e
-// esvazia a fila (fila.ino). Enviar nunca trava o botão.
+// cartão; a de rede (rede.ino) conecta, acerta o relógio, se apresenta ao
+// Noteless (situacao.ino) e esvazia a fila (fila.ino). Enviar nunca trava o botão.
 #include <DNSServer.h>
 #include <ESP_I2S.h>
 #include <HTTPClient.h>
 #include <Preferences.h>
-#include <SD.h>
-#include <SPI.h>
 #include <WebServer.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <esp_wifi.h>
 #include <freertos/stream_buffer.h>
 #include <sys/time.h>
 
 #include <vector>
 
 #include "segredos.h"
+
+// Onde ficam as gravações. Os cartões microSD testados na protoboard falharam
+// (11/2026): por enquanto, a memória interna da placa, em LittleFS na partição
+// de partitions.csv (2,5 MB, perto de 1,5 min por nota com a fila vazia). Com
+// um cartão bom, USAR_CARTAO 1 volta para o microSD.
+#define USAR_CARTAO 0
+#if USAR_CARTAO
+#include <SD.h>
+#include <SPI.h>
+fs::SDFS &memoria = SD;
+#else
+#include <LittleFS.h>
+fs::LittleFSFS &memoria = LittleFS;
+#endif
 
 const int LED = 2;
 const int BOTAO = 18;
@@ -66,11 +81,16 @@ enum Resultado { ENVIADO, TENTAR_DEPOIS, RECUSADO };
 
 Preferences prefs;
 String wifiNome, wifiSenha;  // a rede escolhida pelo usuário, guardada na flash
+// Quem a placa é para o Noteless (pareamento.ino): o MAC, "Gravador <série>
+// <segredo>" para o cabeçalho Authorization e o código para aprovar.
+String serieDaPlaca, credencialDaPlaca, codigoDaPlaca;
 uint32_t bootId = 0;         // conta os boots: nomeia gravação feita antes do relógio acertar
 
 I2SClass i2s;
 int canal = 0;  // o canal em que o microfone fala (L/R no GND = esquerdo)
+#if USAR_CARTAO
 SPIClass spiCartao(HSPI);
+#endif
 
 StreamBufferHandle_t sbAudio;    // captura -> loop: amostras de 16 bits
 volatile bool gravando = false;
@@ -78,7 +98,7 @@ volatile uint32_t perdidas = 0;  // amostras que não couberam (cartão lento de
 
 // Estado para o LED: o loop e a tarefa de rede escrevem.
 volatile bool cartaoOk = false;
-volatile bool online = false;  // Wi-Fi + login no Noteless
+volatile bool online = false;  // Wi-Fi + aprovada no Noteless, com empresa
 volatile int naFila = 0;       // gravações esperando envio
 float cartaoLivreGb = 0;        // medido ao montar (medir de novo leva segundos)
 volatile bool loopUsandoCartao = false;  // gravando ou comando da serial: a tarefa de rede não remonta
@@ -161,7 +181,22 @@ void comecarCaptura(Gravacao &g) {
 // Hz). O volume só é acertado no fim (finalizar), quando se sabe o quanto a fala
 // subiu.
 bool gravar(Gravacao &g) {
-  File bruto = SD.open(ARQUIVO_BRUTO, FILE_WRITE);
+  size_t limite = (size_t)LIMITE_SEG * TAXA;
+#if !USAR_CARTAO
+  // A memória interna é pequena: a gravação para antes de enchê-la. Até virar
+  // .wav, cada amostra ocupa 3 bytes (2 no bruto, 1 no .wav); a folga fica para
+  // o registro (até 2 x 64 KB, registro.ino) e para o próprio LittleFS.
+  const size_t FOLGA = 160 * 1024;
+  size_t livre = memoria.totalBytes() - memoria.usedBytes();
+  cartaoLivreGb = livre / 1e9;
+  limite = min(limite, livre > FOLGA ? (livre - FOLGA) / 3 : 0);
+  if (limite < (size_t)TAXA) {
+    gravando = false;
+    registrar("AVISO: memória cheia (%u KB livres): espere as notas da fila subirem.", (unsigned)(livre / 1024));
+    return false;
+  }
+#endif
+  File bruto = memoria.open(ARQUIVO_BRUTO, FILE_WRITE);
   if (!bruto) {
     gravando = false;
     cartaoFalhou("criar a gravação");
@@ -202,8 +237,9 @@ bool gravar(Gravacao &g) {
       delay(20);
       if (digitalRead(BOTAO) == HIGH) break;
     }
-    if (n >= (size_t)LIMITE_SEG * TAXA) {
-      registrar("Limite de %d min atingido: parou sozinho.\n", LIMITE_SEG / 60);
+    if (n >= limite) {
+      if (limite < (size_t)LIMITE_SEG * TAXA) registrar("AVISO: memória quase cheia: parou sozinho em %u s.", (unsigned)(n / TAXA));
+      else registrar("Limite de %d min atingido: parou sozinho.\n", LIMITE_SEG / 60);
       break;
     }
   }
@@ -248,8 +284,8 @@ const char *escreverWav(const char *caminhoBruto, size_t n, const uint32_t *hist
   // Na memória só durante a conversão (e não fixos: as duas tarefas usam).
   int16_t *entrada = (int16_t *)malloc(1024 * sizeof(int16_t));
   uint8_t *pcm8 = (uint8_t *)malloc(1024);
-  File bruto = SD.open(caminhoBruto, FILE_READ);
-  File saida = SD.open(temporario, FILE_WRITE);
+  File bruto = memoria.open(caminhoBruto, FILE_READ);
+  File saida = memoria.open(temporario, FILE_WRITE);
   const char *erro = !entrada || !pcm8 ? "separar memória para converter"
                      : !bruto           ? "abrir a gravação"
                      : !saida           ? "criar o arquivo"
@@ -272,8 +308,8 @@ const char *escreverWav(const char *caminhoBruto, size_t n, const uint32_t *hist
   free(pcm8);
   if (bruto) bruto.close();
   if (saida) saida.close();
-  if (!erro && !SD.rename(temporario, nome)) erro = "dar nome ao arquivo";
-  if (erro) SD.remove(temporario);
+  if (!erro && !memoria.rename(temporario, nome)) erro = "dar nome ao arquivo";
+  if (erro) memoria.remove(temporario);
   return erro;
 }
 
@@ -281,7 +317,7 @@ void finalizar(const Gravacao &g) {
   size_t n = g.amostras;
   if (n < TAXA / 2) {
     registrar("Curto demais (menos de 0,5 s), ignorado.");
-    SD.remove(ARQUIVO_BRUTO);
+    memoria.remove(ARQUIVO_BRUTO);
     return;
   }
   String nome = nomeDaGravacao(g);
@@ -291,19 +327,19 @@ void finalizar(const Gravacao &g) {
     // Não apaga nada: o bruto fica na fila como .raw e vira .wav quando o cartão
     // voltar (se nem renomear der, montarCartao o guarda no próximo boot).
     String raw = nome.substring(0, nome.length() - 4) + ".raw";
-    if (SD.rename(ARQUIVO_BRUTO, raw)) haPendentes = true;
+    if (memoria.rename(ARQUIVO_BRUTO, raw)) haPendentes = true;
     cartaoFalhou(erro);
     registrar("AVISO: a gravação de %.1f s ficou guardada no cartão e sobe quando ele voltar.", (float)n / TAXA);
     return;
   }
-  SD.remove(ARQUIVO_BRUTO);
+  memoria.remove(ARQUIVO_BRUTO);
   naFila = naFila + 1;
   registrar("Gravou %.1f s | volume %.0f dBFS%s -> %s\n", (float)n / TAXA, db, db < -40 ? " — baixo, fale mais perto" : "",
             nome.c_str());
   if (perdidas) registrar("AVISO: %lu amostras perdidas — o cartão demorou para gravar.\n", (unsigned long)perdidas);
 }
 
-// O LED com o botão solto: aceso só com tudo certo (Wi-Fi, login e cartão).
+// O LED com o botão solto: aceso só com tudo certo (Wi-Fi, aprovada e cartão).
 bool ledParado() { return cartaoOk && online; }
 
 void setup() {
@@ -323,6 +359,7 @@ void setup() {
 
   registrar("=== Noteless - gravador de campo === boot %lu: %s | memória livre %u", (unsigned long)bootId, motivoDoBoot(),
             ESP.getFreeHeap());
+  carregarIdentidade();  // antes do Wi-Fi e do microfone (ver pareamento.ino); o portal mostra o código
 
   // Sem rede salva (ou depois dos 5 cliques): configurar pelo celular antes de
   // tudo. configurarWifi() não volta — reinicia a placa no fim.
@@ -399,7 +436,8 @@ void tratarBotao() {
     // botão ficaria sem resposta. A tarefa de rede tenta de novo sozinha.
     loopUsandoCartao = false;
     gravando = false;
-    registrar("Sem cartão, não dá para gravar: confira se ele está encaixado até o clique (se ele travou, desligue e ligue a USB).");
+    registrar(USAR_CARTAO ? "Sem cartão, não dá para gravar: confira se ele está encaixado até o clique (se ele travou, desligue e ligue a USB)."
+                          : "A memória interna não montou, não dá para gravar: desligue e ligue a USB.");
     while (digitalRead(BOTAO) == LOW) delay(10);
     avisarFalha();
     return;

@@ -2,7 +2,8 @@
 // seguidos no botão — a placa vira um ponto de acesso aberto, "Noteless-XXXX".
 // Quem conecta nele cai numa página (portal cativo: todo endereço leva a ela)
 // para escolher a rede e digitar a senha. A rede só é salva depois de conectar
-// de verdade; aí a placa reinicia já usando ela.
+// de verdade; aí a placa reinicia já usando ela. A página mostra também o
+// código para aprovar o gravador no Noteless (pareamento.ino).
 
 // Os cliques vêm com a placa rodando: a tarefa de rede pode estar no meio de um
 // envio, e o modo configuração precisa do rádio só para ele. Em vez de
@@ -49,9 +50,17 @@ label{display:block;font-size:14px;margin:18px 0 6px}select,input{width:100%;box
 padding:12px;border:1px solid #c9c7bf;border-radius:8px;background:#fff;color:inherit}
 button{width:100%;margin-top:22px;padding:14px;font-size:16px;border:0;border-radius:8px;background:#1f6f43;color:#fff}
 .dica{font-size:13px;margin-top:18px}a{color:#1f6f43}.ver{display:flex;gap:8px;align-items:center;margin-top:10px}
-.ver input{width:auto}</style></head><body><main>)";
+.ver input{width:auto}.cod{background:#fff;border:1px solid #c9c7bf;border-radius:8px;padding:12px 14px;margin:0 0 18px}
+.cod b{display:block;font:600 28px ui-monospace,monospace;letter-spacing:3px;margin:2px 0 4px}.cod span{font-size:13px;color:#5f5e5a}
+</style></head><body><main>)";
 
 const char PAGINA_FIM[] = "</main></body></html>";
+
+// Quem aprova o gravador no Noteless digita este código: prova que está com a placa na mão.
+String blocoCodigo() {
+  return "<div class=\"cod\"><span>Código do gravador</span><b>" + codigoDaPlaca +
+         "</b><span>Para aprovar no Noteless, em Configurações › Gravadores (só da primeira vez).</span></div>";
+}
 
 // Lista as redes ao alcance como <option>, da mais forte para a mais fraca,
 // sem repetir nome. Rede corporativa (usuário + senha) aparece desabilitada.
@@ -89,7 +98,7 @@ String procurarRedes() {
 
 String paginaRedes(const String &opcoes) {
   return String(PAGINA_INICIO) + R"(<h1>Wi-Fi do gravador</h1>
-<p>Escolha a rede que o gravador vai usar para enviar as gravações ao Noteless.</p>
+<p>Escolha a rede que o gravador vai usar para enviar as gravações ao Noteless.</p>)" + blocoCodigo() + R"(
 <form method="post" action="/salvar"><label for="nome">Rede</label><select id="nome" name="nome">)" + opcoes +
          R"(<option value="">Outra rede (digitar o nome)…</option></select>
 <input id="outra" name="outra" placeholder="Nome da rede" autocapitalize="none" autocorrect="off" spellcheck="false" style="display:none;margin-top:8px">
@@ -106,7 +115,7 @@ String paginaAguarde(const String &nome) {
 <form id="forcar" method="post" action="/forcar" style="display:none"><button>Salvar mesmo assim</button>
 <p class="dica">Use se a rede for o roteador deste celular: ele fica desligado enquanto você está conectado ao gravador.</p></form>
 <script>let falhas=0;async function ver(){try{const t=await (await fetch('/estado')).text();falhas=0;
-if(t=='ok'){msg.innerHTML='Pronto! O gravador conectou e vai reiniciar. O LED azul fica aceso quando ele estiver pronto. Pode fechar esta página.';return}
+if(t=='ok'){msg.innerHTML='Pronto! O gravador conectou e vai reiniciar. O LED azul fica aceso quando ele estiver aprovado no Noteless. Pode fechar esta página.';return}
 if(t.startsWith('erro')){msg.innerHTML='Não conectou: '+t.slice(5)+'. <a href="/">Tentar de novo</a>';forcar.style.display='block';return}
 }catch(e){if(++falhas>3)msg.textContent='Reconectando ao gravador… se demorar, entre de novo na rede dele.'}setTimeout(ver,1000)}ver()</script>)" +
          PAGINA_FIM;
@@ -132,7 +141,8 @@ String motivoFalha(uint16_t r) {
 
 String paginaSalvo(const String &nome) {
   return String(PAGINA_INICIO) + "<h1>Rede salva</h1><p>O gravador vai reiniciar e tentar entrar em <b>" + escaparHtml(nome) +
-         "</b>. Pode desconectar desta rede. O LED azul fica aceso quando ele conectar.</p>" + PAGINA_FIM;
+         "</b>. Pode desconectar desta rede. O LED azul fica aceso quando ele conectar e estiver aprovado no Noteless.</p>" +
+         blocoCodigo() + PAGINA_FIM;
 }
 
 void configurarWifi() {
@@ -178,9 +188,14 @@ void configurarWifi() {
   });
   servidor.on("/salvar", HTTP_POST, [&]() {
     ativo();
+    // Da lista, o nome vai como o roteador anuncia: há rede com espaço no fim
+    // ("Arthur "), e cortá-lo faz a placa não achar a rede. Digitado, o espaço
+    // nas pontas costuma ser do teclado do celular.
     nome = servidor.arg("nome");
-    if (nome.isEmpty()) nome = servidor.arg("outra");
-    nome.trim();
+    if (nome.isEmpty()) {
+      nome = servidor.arg("outra");
+      nome.trim();
+    }
     senha = servidor.arg("senha");
     if (nome.isEmpty()) {
       servidor.sendHeader("Location", "/");
@@ -239,7 +254,7 @@ void configurarWifi() {
         motivo = motivoFalha(ultimoMotivo);
         estado = FALHOU;
         WiFi.disconnect();
-        registrar("Portal: não conectou em \"%s\": %s.\n", nome.c_str(), motivo.c_str());
+        registrar("Portal: não conectou em \"%s\": %s (código %u).\n", nome.c_str(), motivo.c_str(), (unsigned)ultimoMotivo);
       }
     }
     if (!wifiNome.isEmpty() && estado != CONECTANDO && !reiniciarEm) {

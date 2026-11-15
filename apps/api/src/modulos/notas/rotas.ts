@@ -7,6 +7,7 @@ import { db } from "../../db";
 import { ocorrencia, ocorrenciaAudio } from "../../db/tabelas/notas";
 import { analisar } from "./ia/analisar";
 import { IaNaoConfigurada, transcrever } from "./ia/transcrever";
+import { gravadorNaEmpresa } from "../../base/gravador-atual";
 import { membroAtual } from "../../base/membro-atual";
 import { galpoesDaOrg } from "../aviario";
 import { administradores, notificar } from "../avisos";
@@ -36,11 +37,13 @@ notasRotas.get("/:orgId/ocorrencias", async (c) => {
 
 /**
  * Recebe o áudio (multipart, campo `audio`), transcreve, interpreta e guarda
- * como pendente. Devolve a ocorrência pronta para a tela mostrar.
+ * como pendente. Devolve a ocorrência pronta para a tela mostrar. Além de
+ * quem está logado, o gravador de campo aprovado para a empresa manda aqui,
+ * com a série e o segredo dele (base/gravador-atual.ts).
  */
 notasRotas.post("/:orgId/ocorrencias", async (c) => {
   const orgId = c.req.param("orgId");
-  const eu = await membroAtual(c.req.raw.headers, orgId);
+  const eu = (await gravadorNaEmpresa(c.req.raw.headers, orgId)) ?? (await membroAtual(c.req.raw.headers, orgId));
   if (!eu) return c.json({ error: "Sem acesso a esta organização." }, 403);
 
   const body = await c.req.parseBody().catch(() => null);

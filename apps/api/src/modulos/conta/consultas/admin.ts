@@ -1,6 +1,7 @@
 import type { Empresa, Papel, UsuarioAdmin } from "@vocare/shared";
-import { asc, eq, ilike, or } from "drizzle-orm";
+import { and, asc, eq, ilike, notIlike, or } from "drizzle-orm";
 
+import { DOMINIO_CONTA_GRAVADOR } from "../../../base/gravador-atual";
 import { db } from "../../../db";
 import { member, organization, user } from "../../../db/schema";
 
@@ -12,7 +13,7 @@ export function papelPrincipal(role: string): Papel {
   return "member";
 }
 
-/** Todos os usuários da plataforma, com as empresas e o papel em cada uma. */
+/** Todos os usuários da plataforma, com as empresas e o papel em cada uma. As contas técnicas dos gravadores ficam de fora. */
 export async function listarUsuariosAdmin(busca?: string): Promise<UsuarioAdmin[]> {
   const termo = busca?.trim();
   const linhas = await db
@@ -30,7 +31,12 @@ export async function listarUsuariosAdmin(busca?: string): Promise<UsuarioAdmin[
     .from(user)
     .leftJoin(member, eq(member.userId, user.id))
     .leftJoin(organization, eq(organization.id, member.organizationId))
-    .where(termo ? or(ilike(user.name, `%${termo}%`), ilike(user.email, `%${termo}%`)) : undefined)
+    .where(
+      and(
+        notIlike(user.email, `%@${DOMINIO_CONTA_GRAVADOR}`),
+        termo ? or(ilike(user.name, `%${termo}%`), ilike(user.email, `%${termo}%`)) : undefined,
+      ),
+    )
     .orderBy(asc(user.name), asc(organization.name));
 
   const porId = new Map<string, UsuarioAdmin>();

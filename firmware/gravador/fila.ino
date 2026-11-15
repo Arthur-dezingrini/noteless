@@ -10,30 +10,32 @@ void cartaoFalhou(const char *oQue) {
   if (!cartaoOk) return;
   cartaoOk = false;
   fecharRegistro();  // não insiste em escrever num cartão que falhou
-  registrar("ERRO: o cartão parou de responder (%s). Se não voltar sozinho, desligue e ligue a USB; se repetir, troque o cartão.", oQue);
+  registrar(USAR_CARTAO ? "ERRO: o cartão parou de responder (%s). Se não voltar sozinho, desligue e ligue a USB; se repetir, troque o cartão."
+                        : "ERRO: a memória interna falhou (%s). Se não voltar sozinha, desligue e ligue a USB.",
+            oQue);
 }
 
 // Montar não basta: cartão com defeito monta e depois não lê nem grava. Abre a
 // fila e grava, relê e apaga um arquivinho.
 bool cartaoResponde() {
-  SD.mkdir(PASTA_FILA);
-  SD.mkdir(PASTA_ERRO);
-  File p = SD.open(PASTA_FILA);
+  memoria.mkdir(PASTA_FILA);
+  memoria.mkdir(PASTA_ERRO);
+  File p = memoria.open(PASTA_FILA);
   bool ok = p && p.isDirectory();
   if (p) p.close();
   const char *TESTE = "/teste-cartao.txt";
   if (ok) {
-    File w = SD.open(TESTE, FILE_WRITE);
+    File w = memoria.open(TESTE, FILE_WRITE);
     ok = w && w.print("noteless") == 8;
     if (w) w.close();
   }
   if (ok) {
     char lido[9] = {0};
-    File r = SD.open(TESTE, FILE_READ);
+    File r = memoria.open(TESTE, FILE_READ);
     ok = r && r.read((uint8_t *)lido, 8) == 8 && !strcmp(lido, "noteless");
     if (r) r.close();
   }
-  SD.remove(TESTE);
+  memoria.remove(TESTE);
   return ok;
 }
 
@@ -41,10 +43,10 @@ bool cartaoResponde() {
 // .raw na fila, longe da próxima gravação (que reescreveria ARQUIVO_BRUTO), e
 // recuperarPendente o transforma em .wav.
 void guardarBrutoAntigo() {
-  if (!SD.exists(ARQUIVO_BRUTO)) return;
+  if (!memoria.exists(ARQUIVO_BRUTO)) return;
   char para[48];
   snprintf(para, sizeof(para), "%s/r%06lu-%010lu.raw", PASTA_FILA, (unsigned long)bootId, (unsigned long)millis());
-  if (SD.rename(ARQUIVO_BRUTO, para)) {
+  if (memoria.rename(ARQUIVO_BRUTO, para)) {
     haPendentes = true;
     registrar("AVISO: havia uma gravação interrompida (energia ou cartão): guardada para recuperar.");
   }
@@ -54,24 +56,32 @@ void guardarBrutoAntigo() {
 // usando o cartão (loopUsandoCartao). cartaoOk só vira true no fim, com tudo
 // pronto: antes disso, ninguém mais toca no cartão.
 bool montarCartao() {
-  static bool spiPronto = false, avisou = false;
+  static bool avisou = false;
+  cartaoOk = false;
+  fecharRegistro();  // o arquivo não pode ficar aberto com o cartão desmontado
+  memoria.end();
+#if USAR_CARTAO
+  static bool spiPronto = false;
   if (!spiPronto) {
     spiCartao.begin(CARTAO_SCK, CARTAO_MISO, CARTAO_MOSI, -1);
     spiPronto = true;
   }
-  cartaoOk = false;
-  fecharRegistro();  // o arquivo não pode ficar aberto com o cartão desmontado
-  SD.end();
   // 1 MHz: com os fios da protoboard, a 4 MHz o cartão monta e funciona, mas
   // troca bytes calado (3060 errados em 256 KB) — estalos no áudio e, uma vez,
   // a pasta raiz perdida. 1 MHz grava ~110 KB/s, e o áudio usa 16 KB/s.
+  bool montou = SD.begin(CARTAO_CS, spiCartao, 1000000);
+#else
+  bool montou = LittleFS.begin(true);  // true: formata se não houver nada (a primeira vez)
+#endif
   const char *falha = nullptr;
-  if (!SD.begin(CARTAO_CS, spiCartao, 1000000))
-    falha = "ERRO: o cartão não respondeu. Confira se ele está encaixado e os fios (firmware/cartao testa um a um).";
+  if (!montou)
+    falha = USAR_CARTAO ? "ERRO: o cartão não respondeu. Confira se ele está encaixado e os fios (firmware/cartao testa um a um)."
+                        : "ERRO: a memória interna não montou (a placa foi gravada com o partitions.csv do sketch?).";
   else if (!cartaoResponde())
-    falha = "ERRO: o cartão monta, mas não lê nem grava (travado ou com defeito). Desligue e ligue a USB; se repetir, troque o cartão.";
+    falha = USAR_CARTAO ? "ERRO: o cartão monta, mas não lê nem grava (travado ou com defeito). Desligue e ligue a USB; se repetir, troque o cartão."
+                        : "ERRO: a memória interna monta, mas não grava (cheia?). Desligue e ligue a USB.";
   if (falha) {
-    SD.end();
+    memoria.end();
     // Tenta de novo sozinho (tarefa de rede): avisa só na primeira vez.
     if (!avisou) registrar("%s", falha);
     avisou = true;
@@ -83,7 +93,7 @@ bool montarCartao() {
   int fila = contarComo(PASTA_FILA, ".wav"), recusadas = contarComo(PASTA_ERRO, ".wav");
   if (contarComo(PASTA_FILA, ".raw") > 0) haPendentes = true;
   if (fila < 0 || recusadas < 0) {
-    SD.end();
+    memoria.end();
     if (!avisou) registrar("ERRO: o cartão monta, mas a fila não abre. Desligue e ligue a USB; se repetir, troque o cartão.");
     avisou = true;
     return false;
@@ -91,17 +101,18 @@ bool montarCartao() {
   naFila = fila;
   char extra[64] = "";
   if (recusadas) snprintf(extra, sizeof(extra), " | %d recusada(s) guardada(s) em %s", recusadas, PASTA_ERRO);
-  cartaoLivreGb = (SD.totalBytes() - SD.usedBytes()) / 1e9;
+  cartaoLivreGb = (memoria.totalBytes() - memoria.usedBytes()) / 1e9;
   abrirRegistro();
   cartaoOk = true;
-  registrar("Cartão montado: %.1f GB livres | %d na fila%s%s", cartaoLivreGb, naFila, extra, haPendentes ? " | gravação para recuperar" : "");
+  registrar(USAR_CARTAO ? "Cartão montado: %.1f GB livres | %d na fila%s%s" : "Memória interna montada: %.1f MB livres | %d na fila%s%s",
+            USAR_CARTAO ? cartaoLivreGb : cartaoLivreGb * 1000, naFila, extra, haPendentes ? " | gravação para recuperar" : "");
   return true;
 }
 
 // Uma gravação guardada como .raw vira .wav (o volume é medido aqui, numa
 // primeira passada, como a gravação faria). Uma por vez, em segundo plano.
 void recuperarPendente() {
-  File p = SD.open(PASTA_FILA);
+  File p = memoria.open(PASTA_FILA);
   if (!p) return cartaoFalhou("ler a fila");
   String raw;
   for (File f = p.openNextFile(); f; f = p.openNextFile())
@@ -114,7 +125,7 @@ void recuperarPendente() {
     haPendentes = false;
     return;
   }
-  File b = SD.open(raw, FILE_READ);
+  File b = memoria.open(raw, FILE_READ);
   if (!b) return cartaoFalhou("abrir uma gravação para recuperar");
   size_t n = b.size() / sizeof(int16_t);
   uint32_t *hist = (uint32_t *)calloc(256, sizeof(uint32_t));
@@ -138,7 +149,7 @@ void recuperarPendente() {
   free(bloco);
   if (n < TAXA / 2) {
     free(hist);
-    SD.remove(raw);
+    memoria.remove(raw);
     registrar("Gravação interrompida com menos de 0,5 s: descartada.");
     return;
   }
@@ -147,7 +158,7 @@ void recuperarPendente() {
   const char *erro = escreverWav(raw.c_str(), n, hist, nome, db);
   free(hist);
   if (erro) return cartaoFalhou(erro);
-  SD.remove(raw);
+  memoria.remove(raw);
   naFila = naFila + 1;
   registrar("Gravação recuperada: %.1f s -> %s", (float)n / TAXA, nome.c_str());
 }
@@ -155,7 +166,7 @@ void recuperarPendente() {
 // Quantos arquivos com essa terminação há na pasta; -1 se ela não abriu (cartão
 // com problema — não é o mesmo que fila vazia).
 int contarComo(const char *pasta, const char *terminacao) {
-  File p = SD.open(pasta);
+  File p = memoria.open(pasta);
   if (!p) return -1;
   int n = 0;
   for (File f = p.openNextFile(); f; f = p.openNextFile())
@@ -183,17 +194,17 @@ void atualizarFila() {
 
 void apagarTemporarios() {
   std::vector<String> lixo;  // apagar durante a listagem atrapalha a listagem
-  File p = SD.open(PASTA_FILA);
+  File p = memoria.open(PASTA_FILA);
   if (!p) return;
   for (File f = p.openNextFile(); f; f = p.openNextFile())
     if (String(f.name()).endsWith(".tmp")) lixo.push_back(String(PASTA_FILA) + "/" + f.name());
   p.close();
-  for (const String &c : lixo) SD.remove(c);
+  for (const String &c : lixo) memoria.remove(c);
 }
 
 // A mais antiga: os nomes começam pela hora. As sem hora ("b...") vêm antes.
 String proximaDaFila() {
-  File p = SD.open(PASTA_FILA);
+  File p = memoria.open(PASTA_FILA);
   String menor;
   if (!p) {
     cartaoFalhou("ler a fila");
@@ -211,8 +222,8 @@ String proximaDaFila() {
 // Tira da fila sem apagar: dá para recuperar o áudio tirando o cartão.
 bool moverParaErro(const String &caminho) {
   String para = String(PASTA_ERRO) + caminho.substring(caminho.lastIndexOf('/'));
-  SD.remove(para);
-  if (SD.rename(caminho, para)) return true;
+  memoria.remove(para);
+  if (memoria.rename(caminho, para)) return true;
   cartaoFalhou("tirar da fila um áudio recusado");
   return false;
 }
@@ -248,7 +259,7 @@ String gravadoEmDe(const String &caminho) {
 // ganham a hora real no nome, e não a perdem se a placa reiniciar antes de enviar.
 void darHoraAosNomes() {
   std::vector<String> semHora;
-  File p = SD.open(PASTA_FILA);
+  File p = memoria.open(PASTA_FILA);
   if (!p) return cartaoFalhou("ler a fila");
   for (File f = p.openNextFile(); f; f = p.openNextFile()) {
     String nome = f.name();
@@ -260,6 +271,6 @@ void darHoraAosNomes() {
     if (!ms) continue;  // de um boot anterior: sem como saber a hora
     char para[48];
     snprintf(para, sizeof(para), "%s/t%llu.wav", PASTA_FILA, (unsigned long long)ms);
-    if (SD.rename(de, para)) registrar("  %s gravada em %s\n", de.c_str(), isoDe(ms).c_str());
+    if (memoria.rename(de, para)) registrar("  %s gravada em %s\n", de.c_str(), isoDe(ms).c_str());
   }
 }

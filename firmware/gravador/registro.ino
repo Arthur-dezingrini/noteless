@@ -1,14 +1,16 @@
 // Registro (log): tudo o que a placa faz vai para o monitor serial e para
 // /registro.txt no cartão, com data e hora — para ver depois, sem USB, o que
 // deu certo e o que falhou. Passando de 1 MB, o atual vira
-// /registro-antigo.txt (e o antigo de antes é apagado): no máximo 2 MB.
+// /registro-antigo.txt (e o antigo de antes é apagado): no máximo 2 MB. Na
+// memória interna, que é pequena, 64 KB (no máximo 128 KB).
 //
 // Linha: "2026-11-10 08:49:01 (boot 46, 12.3 s) mensagem". Antes de o relógio
 // acertar pela internet, a data vem em branco; boot e tempo ligado sempre vêm.
 //
 // No monitor serial: "log" mostra o fim do registro do cartão, "log tudo" o
 // registro inteiro (1 MB leva ~90 s), "apagar log" começa do zero e "cartao"
-// lista as pastas e testa se o cartão aceita gravar.
+// lista as pastas e testa se o cartão aceita gravar; "redes" lista as redes
+// Wi-Fi que a placa vê, com canal, sinal e segurança.
 //
 // O loop e a tarefa de rede registram ao mesmo tempo: uma trava impede linhas
 // misturadas. O arquivo fica aberto (abrir e fechar a cada linha picota a
@@ -17,7 +19,7 @@
 
 const char *ARQUIVO_REGISTRO = "/registro.txt";
 const char *ARQUIVO_REGISTRO_ANTIGO = "/registro-antigo.txt";
-const size_t REGISTRO_MAX = 1024 * 1024;
+const size_t REGISTRO_MAX = USAR_CARTAO ? 1024 * 1024 : 64 * 1024;
 const size_t REGISTRO_FIM = 16 * 1024;  // o que "log" mostra
 const long FUSO_SEG = -3 * 3600;        // Brasília (sem horário de verão desde 2019)
 
@@ -26,7 +28,7 @@ char ultimoErroTexto[200] = "";  // última linha ERRO:/AVISO:, para o aviso de 
 uint32_t ultimoErroMs = 0;
 
 // As últimas linhas ERRO:/AVISO: na memória, para o histórico de erros no
-// Noteless: chegam lá mesmo sem cartão e, quando o Wi-Fi ou o login voltam,
+// Noteless: chegam lá mesmo sem cartão e, quando o Wi-Fi ou o Noteless voltam,
 // junto vão as do tempo em que a placa ficou fora.
 // (ERROS_GUARDADOS e LinhaErro ficam em gravador.ino: o Arduino declara as
 // funções antes deste arquivo.)
@@ -38,7 +40,7 @@ void iniciarRegistro() { travaRegistro = xSemaphoreCreateMutex(); }
 
 void abrirRegistro() {
   xSemaphoreTake(travaRegistro, portMAX_DELAY);
-  if (!arqRegistro) arqRegistro = SD.open(ARQUIVO_REGISTRO, FILE_APPEND);
+  if (!arqRegistro) arqRegistro = memoria.open(ARQUIVO_REGISTRO, FILE_APPEND);
   xSemaphoreGive(travaRegistro);
 }
 
@@ -62,9 +64,9 @@ void carimbo(char *c, size_t tam) {
 // Com a trava pega.
 void girarRegistro() {
   arqRegistro.close();
-  SD.remove(ARQUIVO_REGISTRO_ANTIGO);
-  SD.rename(ARQUIVO_REGISTRO, ARQUIVO_REGISTRO_ANTIGO);
-  arqRegistro = SD.open(ARQUIVO_REGISTRO, FILE_APPEND);
+  memoria.remove(ARQUIVO_REGISTRO_ANTIGO);
+  memoria.rename(ARQUIVO_REGISTRO, ARQUIVO_REGISTRO_ANTIGO);
+  arqRegistro = memoria.open(ARQUIVO_REGISTRO, FILE_APPEND);
 }
 
 // Como printf, sem precisar do \n no fim.
@@ -153,7 +155,7 @@ const char *motivoDoBoot() {
 void mostrarRegistro(bool tudo) {
   xSemaphoreTake(travaRegistro, portMAX_DELAY);
   if (arqRegistro) arqRegistro.close();  // ler com ele aberto para escrita não é seguro
-  File f = SD.open(ARQUIVO_REGISTRO, FILE_READ);
+  File f = memoria.open(ARQUIVO_REGISTRO, FILE_READ);
   if (!f) {
     Serial.println("Sem registro no cartão (cartão fora ou nada registrado ainda).");
   } else {
@@ -167,22 +169,22 @@ void mostrarRegistro(bool tudo) {
     Serial.println("----- fim do registro -----");
     f.close();
   }
-  if (cartaoOk) arqRegistro = SD.open(ARQUIVO_REGISTRO, FILE_APPEND);
+  if (cartaoOk) arqRegistro = memoria.open(ARQUIVO_REGISTRO, FILE_APPEND);
   xSemaphoreGive(travaRegistro);
 }
 
 void apagarRegistro() {
   xSemaphoreTake(travaRegistro, portMAX_DELAY);
   if (arqRegistro) arqRegistro.close();
-  SD.remove(ARQUIVO_REGISTRO);
-  SD.remove(ARQUIVO_REGISTRO_ANTIGO);
-  if (cartaoOk) arqRegistro = SD.open(ARQUIVO_REGISTRO, FILE_APPEND);
+  memoria.remove(ARQUIVO_REGISTRO);
+  memoria.remove(ARQUIVO_REGISTRO_ANTIGO);
+  if (cartaoOk) arqRegistro = memoria.open(ARQUIVO_REGISTRO, FILE_APPEND);
   xSemaphoreGive(travaRegistro);
   registrar("Registro apagado pelo monitor serial.");
 }
 
 void listarPasta(const char *pasta) {
-  File p = SD.open(pasta);
+  File p = memoria.open(pasta);
   if (!p) {
     Serial.printf("  %s: não abriu (%s)\n", pasta, strerror(errno));
     return;
@@ -204,16 +206,57 @@ void diagnosticarCartao() {
   listarPasta(PASTA_FILA);
   listarPasta(PASTA_ERRO);
   const char *teste = "/teste-cartao.txt";
-  File w = SD.open(teste, FILE_WRITE);
+  File w = memoria.open(teste, FILE_WRITE);
   int erroEscrita = w ? 0 : errno;
   size_t escrito = w ? w.print("noteless") : 0;
   if (w) w.close();
-  File r = SD.open(teste, FILE_READ);
+  File r = memoria.open(teste, FILE_READ);
   String lido = r ? r.readString() : "";
   if (r) r.close();
-  SD.remove(teste);
+  memoria.remove(teste);
   Serial.printf("Teste de escrita: %s (escreveu %u bytes, leu \"%s\")%s%s\n", lido == "noteless" ? "OK" : "FALHOU",
                 (unsigned)escrito, lido.c_str(), erroEscrita ? " - " : "", erroEscrita ? strerror(erroEscrita) : "");
+}
+
+const char *nomeSeguranca(wifi_auth_mode_t tipo) {
+  switch (tipo) {
+    case WIFI_AUTH_OPEN: return "aberta";
+    case WIFI_AUTH_WEP: return "WEP";
+    case WIFI_AUTH_WPA_PSK: return "WPA";
+    case WIFI_AUTH_WPA2_PSK: return "WPA2";
+    case WIFI_AUTH_WPA_WPA2_PSK: return "WPA/WPA2";
+    case WIFI_AUTH_WPA2_ENTERPRISE: return "corporativa";
+    case WIFI_AUTH_WPA3_PSK: return "WPA3";
+    case WIFI_AUTH_WPA2_WPA3_PSK: return "WPA2/WPA3";
+    default: return "outra";
+  }
+}
+
+// As redes que a placa vê daqui, para quando uma não conecta: as de 5 GHz não
+// aparecem, e as dos canais 12 e 13 (comuns no Brasil) só se o país deixar.
+void listarRedes() {
+  wifi_country_t pais;
+  esp_wifi_get_country(&pais);
+  Serial.printf("Rede salva: \"%s\" (%u letras). Procurando redes (país %.2s, canais %d a %d%s)...\n", wifiNome.c_str(), wifiNome.length(), pais.cc,
+                pais.schan, pais.schan + pais.nchan - 1, pais.policy == WIFI_COUNTRY_POLICY_AUTO ? ", segue o roteador" : "");
+  // Com uma tentativa de conexão no ar, a busca falha: para (a tarefa de rede
+  // tenta de novo na vez dela).
+  if (WiFi.status() != WL_CONNECTED) {
+    WiFi.disconnect();
+    delay(200);
+  }
+  int n = WiFi.scanNetworks(false, true);
+  if (n < 0) {
+    Serial.println("A busca falhou (o rádio estava tentando conectar): mande \"redes\" de novo.");
+    return;
+  }
+  for (int i = 0; i < n; i++)
+    // Entre aspas e com o tamanho: um espaço no fim do nome não aparece de outro jeito.
+    Serial.printf("  %-34s %2u letras  canal %2ld  %4ld dBm  %-10s %s\n",
+                  WiFi.SSID(i).isEmpty() ? "(oculta)" : ("\"" + WiFi.SSID(i) + "\"").c_str(), WiFi.SSID(i).length(), (long)WiFi.channel(i),
+                  (long)WiFi.RSSI(i), nomeSeguranca(WiFi.encryptionType(i)), WiFi.BSSIDstr(i).c_str());
+  if (!n) Serial.println("  nenhuma rede encontrada");
+  WiFi.scanDelete();
 }
 
 // Comandos digitados no monitor serial, uma linha por vez.
@@ -231,7 +274,8 @@ void atenderSerial() {
     else if (cmd == "log tudo") mostrarRegistro(true);
     else if (cmd == "apagar log") apagarRegistro();
     else if (cmd == "cartao") diagnosticarCartao();
-    else if (cmd.length()) Serial.println("Comandos: log | log tudo | apagar log | cartao");
+    else if (cmd == "redes") listarRedes();
+    else if (cmd.length()) Serial.println("Comandos: log | log tudo | apagar log | cartao | redes");
     loopUsandoCartao = false;
     cmd = "";
   }

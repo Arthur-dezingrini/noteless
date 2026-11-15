@@ -1,9 +1,10 @@
 import { z } from "zod";
 
 /**
- * Gravadores de campo: a placa (ESP32) que grava e manda as notas. Ela entra
- * com uma conta comum e avisa o estado; o sistema responde para qual empresa
- * as notas vão.
+ * Gravadores de campo: a placa (ESP32) que grava e manda as notas. Ela não tem
+ * conta: se apresenta com a série e um segredo que sorteou, aparece aguardando
+ * aprovação, e o super usuário aprova com o código que ela mostra. Daí em
+ * diante ela avisa o estado, e o sistema responde para qual empresa as notas vão.
  */
 
 /**
@@ -31,7 +32,6 @@ export const estadoGravadorSchema = z.object({
     .max(20)
     .default([]),
   boot: z.object({ motivo: z.string().max(80), haSeg: z.number().int().min(0) }),
-  empresaAtual: z.string().nullable(),
 });
 export type EstadoGravadorInput = z.infer<typeof estadoGravadorSchema>;
 
@@ -42,7 +42,7 @@ export type ErroSalvo = z.infer<typeof erroSalvoSchema>;
 /** Quantos erros ficam guardados por placa (o resto está no registro do cartão). */
 export const GRAVADOR_MAX_ERROS = 50;
 
-export const estadoSalvoSchema = estadoGravadorSchema.omit({ serie: true, ultimoErro: true, erros: true, boot: true, empresaAtual: true }).extend({
+export const estadoSalvoSchema = estadoGravadorSchema.omit({ serie: true, ultimoErro: true, erros: true, boot: true }).extend({
   ultimoErro: erroSalvoSchema.nullable(),
   /** Do mais novo para o mais antigo. */
   erros: z.array(erroSalvoSchema),
@@ -50,7 +50,7 @@ export const estadoSalvoSchema = estadoGravadorSchema.omit({ serie: true, ultimo
 });
 export type EstadoSalvo = z.infer<typeof estadoSalvoSchema>;
 
-/** Resposta para a placa: a empresa que recebe as notas, ou `null` com o motivo. */
+/** Resposta para a placa: a empresa que recebe as notas, ou `null` com o motivo (aguardando aprovação, sem empresa). */
 export const respostaEstadoSchema = z.object({
   destino: z.object({ id: z.string(), nome: z.string() }).nullable(),
   aviso: z.string().nullable(),
@@ -62,10 +62,9 @@ export const gravadorSchema = z.object({
   id: z.string(),
   serie: z.string(),
   nome: z.string(),
-  conta: z.object({ id: z.string(), nome: z.string(), email: z.string() }),
+  /** Falso enquanto aguarda aprovação: a placa se apresentou, mas ainda não manda notas. */
+  aprovado: z.boolean(),
   destino: z.object({ id: z.string(), nome: z.string() }).nullable(),
-  /** A conta da placa ainda está vinculada à empresa de destino. */
-  destinoValido: z.boolean(),
   vistoEm: z.string(),
   estado: estadoSalvoSchema,
 });
@@ -80,6 +79,19 @@ export const mudarGravadorSchema = z
   })
   .refine((v) => v.nome !== undefined || v.organizationId !== undefined, "Nada para mudar.");
 export type MudarGravadorInput = z.infer<typeof mudarGravadorSchema>;
+
+/** Aprovar a placa: o código que ela mostra na página de Wi-Fi, a empresa e, se quiser, outro nome. */
+export const aprovarGravadorSchema = z.object({
+  codigo: z.string().trim().min(1, "Digite o código que o gravador mostra."),
+  organizationId: z.string().min(1, "Escolha a empresa."),
+  nome: z.string().trim().min(1, "Dê um nome ao gravador.").max(60, "Nome longo demais.").optional(),
+});
+export type AprovarGravadorInput = z.infer<typeof aprovarGravadorSchema>;
+
+/** Código como foi digitado → como comparar: "k7f 3qx" e "K7F-3QX" são o mesmo. */
+export function normalizarCodigo(codigo: string): string {
+  return codigo.toUpperCase().replace(/[^0-9A-Z]/g, "");
+}
 
 export function gravadorOnline(vistoEm: Date | string, agora = new Date()): boolean {
   return agora.getTime() - new Date(vistoEm).getTime() <= GRAVADOR_ONLINE_SEG * 1000;

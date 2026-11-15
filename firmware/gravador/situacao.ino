@@ -1,22 +1,29 @@
 // Aviso de estado para o Noteless (Configurações › Gravadores). Leva Wi-Fi,
-// fila, cartão, último erro e o motivo do boot; a resposta diz para qual
-// empresa as notas vão (quem escolhe é o sistema; CONTA_EMPRESA só vale até
-// ele responder).
+// fila, cartão, último erro e o motivo do boot. É também como a placa se
+// apresenta: na primeira vez ela aparece lá aguardando aprovação (HTTP 202);
+// aprovada, a resposta diz para qual empresa as notas vão (quem escolhe é o
+// sistema).
 //
 // Pouco, de propósito: cada aviso é uma requisição na Vercel e acorda o banco.
-// Avisa logo depois do login, quando algo muda (erro novo, fila, cartão) com
-// pelo menos 5 min entre um e outro, antes de enviar a fila (para conferir a
-// empresa) e, fora isso, a cada 15 min.
+// Avisa logo ao conectar, quando algo muda (erro novo, fila, cartão) com pelo
+// menos 5 min entre um e outro, antes de enviar a fila (para conferir a
+// empresa) e, fora isso, a cada 15 min. Servidor fora do ar: de novo a cada
+// minuto. Aguardando aprovação na primeira meia hora depois de ligar (alguém
+// deve estar aprovando agora): a cada minuto; esquecida assim, volta ao ritmo
+// normal e não deixa o banco acordado.
 
 const uint32_t AVISO_A_CADA_MS = 15 * 60000;
 const uint32_t AVISO_MINIMO_MS = 5 * 60000;
+const uint32_t DE_NOVO_MS = 60000;
+const uint32_t AGUARDANDO_LOGO_MS = 30 * 60000;
 
 uint32_t ultimoAvisoMs = 0, erroAvisado = 0;
 uint32_t errosMandados = 0;  // linhas de erro que o Noteless já recebeu
 int filaAvisada = -1;
 bool cartaoAvisado = false;
-bool avisoFalhando = false;
-String avisoDoSistema;  // o "aviso" da última resposta: registra só quando muda
+bool avisoFalhando = false;       // o Noteless não respondeu (rede ou servidor fora)
+bool aguardandoAprovacao = false;
+String avisoDoSistema;  // o "aviso" (ou erro) da última resposta: registra só quando muda
 
 // Texto para dentro de "..." num JSON.
 String jsonTexto(const char *s) {
@@ -34,14 +41,12 @@ String jsonTexto(const char *s) {
   return r;
 }
 
-// Depois do login: avisa já, para a resposta acertar a empresa antes de enviar a fila.
-void avisarLogo() { ultimoAvisoMs = 0; }
-
 bool cartaoGravando() { return cartaoOk && registroAberto(); }
 
 bool avisoDevido() {
   uint32_t desde = millis() - ultimoAvisoMs;
   if (!ultimoAvisoMs || desde >= AVISO_A_CADA_MS) return true;
+  if (desde >= DE_NOVO_MS && (avisoFalhando || (aguardandoAprovacao && millis() < AGUARDANDO_LOGO_MS))) return true;
   if (desde < AVISO_MINIMO_MS) return false;
   char t[2];
   return ultimoErro(t, sizeof(t)) != erroAvisado || naFila != filaAvisada || cartaoGravando() != cartaoAvisado;
@@ -53,12 +58,12 @@ void conferirEmpresa() {
 }
 
 String jsonEstado(const char *erro, uint32_t erroMs, int fila, uint32_t &errosAteAqui) {
-  String j = String("{\"serie\":\"") + WiFi.macAddress() + "\",\"versao\":\"" + __DATE__ " " __TIME__ + "\"";
+  String j = String("{\"serie\":\"") + serieDaPlaca + "\",\"versao\":\"" + __DATE__ " " __TIME__ + "\"";
   j += String(",\"wifi\":{\"rede\":\"") + jsonTexto(wifiNome.c_str()) + "\",\"sinalDbm\":" + String(WiFi.RSSI()) + ",\"ip\":\"" +
        WiFi.localIP().toString() + "\"}";
   j += String(",\"fila\":") + String(fila) + ",\"recusadas\":" + String(cartaoOk ? max(0, contar(PASTA_ERRO)) : 0);
   j += String(",\"cartao\":{\"ok\":") + (cartaoGravando() ? "true" : "false") + ",\"livreGb\":" +
-       (cartaoOk ? String(cartaoLivreGb, 1) : String("null")) + "}";
+       (cartaoOk ? String(cartaoLivreGb, USAR_CARTAO ? 1 : 4) : String("null")) + "}";
   if (erroMs)
     j += String(",\"ultimoErro\":{\"texto\":\"") + jsonTexto(erro) + "\",\"haSeg\":" + String((millis() - erroMs) / 1000) + "}";
   else
@@ -71,8 +76,7 @@ String jsonEstado(const char *erro, uint32_t erroMs, int fila, uint32_t &errosAt
     j += String(i ? "," : "") + "{\"texto\":\"" + jsonTexto(novos[i].texto) + "\",\"haSeg\":" + String((millis() - novos[i].ms) / 1000) + "}";
   j += "]";
   delete[] novos;
-  j += String(",\"boot\":{\"motivo\":\"") + jsonTexto(motivoDoBoot()) + "\",\"haSeg\":" + String(millis() / 1000) + "}";
-  j += String(",\"empresaAtual\":") + (orgId.isEmpty() ? String("null") : String("\"") + orgId + "\"") + "}";
+  j += String(",\"boot\":{\"motivo\":\"") + jsonTexto(motivoDoBoot()) + "\",\"haSeg\":" + String(millis() / 1000) + "}}";
   return j;
 }
 
@@ -96,24 +100,30 @@ void avisarEstado() {
     c.http.end();
   }
 
-  if (st == 401) {  // sessão expirou: entra de novo
-    registrar("Aviso de estado: sessão recusada (HTTP %d): entrando de novo.", st);
-    orgId = "";
-  } else if (st != 200) {
-    if (!avisoFalhando) registrar("AVISO: o Noteless não recebeu o estado do gravador (HTTP %d): %s", st, campo(resp, "error").c_str());
-    avisoFalhando = true;
-  } else {
+  if (st == 200 || st == 202) {  // 202: aguardando aprovação
     if (avisoFalhando) registrar("O estado do gravador voltou a chegar no Noteless.");
     avisoFalhando = false;
+    aguardandoAprovacao = st == 202;
     errosMandados = errosAteAqui;
     String destino = campo(resp, "id");
-    if (destino.length() && destino != orgId) {
+    if (destino != orgId) {
+      if (destino.length()) registrar("Notas vão para a empresa \"%s\" (escolhida no Noteless).", campo(resp, "nome").c_str());
       orgId = destino;
-      registrar("Notas passam a ir para a empresa \"%s\" (escolhida no Noteless).", campo(resp, "nome").c_str());
     }
     String aviso = campo(resp, "aviso");
-    if (aviso != avisoDoSistema && aviso.length()) registrar("AVISO: %s", aviso.c_str());
+    if (aviso != avisoDoSistema && aviso.length()) registrar(st == 202 ? "%s Aprove em Configurações › Gravadores." : "AVISO: %s", aviso.c_str());
     avisoDoSistema = aviso;
+  } else if (st > 0 && st < 500) {
+    // Recusou a placa (segredo que não confere, gravadores demais aguardando):
+    // de novo logo não adianta.
+    avisoFalhando = aguardandoAprovacao = false;
+    orgId = "";
+    String erro = campo(resp, "error");
+    if (erro != avisoDoSistema) registrar("ERRO: o Noteless recusou o gravador (HTTP %d): %s", st, erro.c_str());
+    avisoDoSistema = erro;
+  } else {
+    if (!avisoFalhando) registrar("AVISO: o Noteless não recebeu o estado do gravador (HTTP %d).", st);
+    avisoFalhando = true;
   }
   // O que este aviso registrou não puxa outro aviso logo em seguida.
   char t[2];

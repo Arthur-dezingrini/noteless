@@ -1,16 +1,11 @@
 // Tarefa de rede: conecta no Wi-Fi salvo, acerta o relógio pela internet,
-// entra no Noteless e esvazia a fila do cartão, da mais antiga para a mais
-// nova. Roda separada do botão: enviar (e esperar a transcrição) nunca impede
+// se apresenta ao Noteless (aviso de estado, situacao.ino) e esvazia a fila do
+// cartão, da mais antiga para a mais nova. Roda separada do botão: enviar (e esperar a transcrição) nunca impede
 // de começar outra gravação.
 
 const char *FRONTEIRA = "----noteless-esp32";
 
-#ifndef CONTA_EMPRESA
-#define CONTA_EMPRESA ""  // segredos.h antigo, sem a empresa: a mais antiga da conta
-#endif
-
-CookieJar cookies;  // sessão do Better Auth, guardada após o login
-String orgId;
+String orgId;  // empresa que recebe as notas, dita pelo Noteless; vazio até a placa ser aprovada
 
 String hostServidor() {
   String host = String(SERVIDOR_URL);
@@ -31,7 +26,27 @@ void garantirDns() {
   WiFi.STA.dnsIP(1, IPAddress(8, 8, 8, 8));
 }
 
+// Por que a tentativa caiu, dito pelo rádio: os primeiros códigos diferentes. O
+// que importa é o primeiro que não seja STA_LEAVING (36): esse é o core
+// desconectando para tentar de novo sozinho.
+volatile uint16_t motivosWifi[4];
+volatile int quantosMotivos = 0;
+
 bool conectarWifi() {
+  static bool ouvindo = false;
+  if (!ouvindo) {
+    // O ASSOC_LEAVE é o nosso próprio WiFi.disconnect() antes de tentar.
+    WiFi.onEvent(
+        [](arduino_event_id_t, arduino_event_info_t info) {
+          uint16_t r = info.wifi_sta_disconnected.reason;
+          int n = quantosMotivos;
+          if (r == WIFI_REASON_ASSOC_LEAVE || n == 4 || (n && motivosWifi[n - 1] == r)) return;
+          motivosWifi[n] = r;
+          quantosMotivos = n + 1;
+        },
+        ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+    ouvindo = true;
+  }
   if (WiFi.status() == WL_CONNECTED) return true;
   registrar("Wi-Fi \"%s\": conectando...", wifiNome.c_str());
   WiFi.mode(WIFI_STA);
@@ -39,11 +54,23 @@ bool conectarWifi() {
   // desligar sozinha, e o envio responde mais rápido.
   WiFi.setSleep(false);
   WiFi.disconnect();  // encerra tentativa anterior ainda em andamento ("sta is connecting")
+  quantosMotivos = 0;
   WiFi.begin(wifiNome.c_str(), wifiSenha.c_str());
   for (int i = 0; i < 40 && WiFi.status() != WL_CONNECTED; i++) delay(250);
   bool ok = WiFi.status() == WL_CONNECTED;
   if (ok) registrar("Wi-Fi \"%s\": ok, IP %s, sinal %d dBm", wifiNome.c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
-  else registrar("ERRO: Wi-Fi \"%s\" fora de alcance ou senha errada (status %d).", wifiNome.c_str(), (int)WiFi.status());
+  else {
+    int n = quantosMotivos;
+    uint16_t principal = 0;
+    String codigos;
+    for (int i = 0; i < n; i++) {
+      codigos += (i ? ", " : "") + String(motivosWifi[i]);
+      if (!principal && motivosWifi[i] != WIFI_REASON_STA_LEAVING) principal = motivosWifi[i];
+    }
+    if (!principal && n) principal = motivosWifi[0];
+    registrar("ERRO: Wi-Fi \"%s\" não conectou: %s (códigos: %s; \"redes\" no monitor serial lista o que a placa vê).", wifiNome.c_str(),
+              motivoFalha(principal).c_str(), n ? codigos.c_str() : "nenhum");
+  }
   if (ok) garantirDns();
   return ok;
 }
@@ -63,10 +90,8 @@ String campo(const String &json, const char *chave) {
   return v;
 }
 
-// Cliente HTTP ou HTTPS conforme a URL (api local em http, Vercel em https).
-// Sem cabeçalho Origin, de propósito: o Better Auth só confere a origem de quem
-// a manda ou traz cookie no login (proteção de navegador contra CSRF). Mandar
-// uma origem fora da lista confiável da api faz o login dar 403.
+// Cliente HTTP ou HTTPS conforme a URL (api local em http, Vercel em https),
+// já com a credencial da placa (pareamento.ino).
 struct Conexao {
   WiFiClient simples;
   WiFiClientSecure seguro;
@@ -74,14 +99,17 @@ struct Conexao {
 
   bool abrir(const String &caminho) {
     String url = String(SERVIDOR_URL) + caminho;
-    http.setCookieJar(&cookies);
     http.setTimeout(60000);  // transcrição + IA levam alguns segundos
+    bool aberta;
     if (url.startsWith("https")) {
       seguro.setInsecure();            // protótipo: não confere o certificado do servidor
       seguro.setHandshakeTimeout(15);  // rede ruim não pode prender a fila por minutos
-      return http.begin(seguro, url);
+      aberta = http.begin(seguro, url);
+    } else {
+      aberta = http.begin(simples, url);
     }
-    return http.begin(simples, url);
+    if (aberta) http.addHeader("Authorization", credencialDaPlaca);
+    return aberta;
   }
 
   // Por que a conexão nem abriu (código negativo): nome do servidor (DNS),
@@ -97,82 +125,6 @@ struct Conexao {
     if (seguro.lastError(erro, sizeof(erro)) != 0) registrar("  TLS: %s\n", erro);
   }
 };
-
-bool entrar() {
-  cookies.clear();
-  orgId = "";
-  {
-    Conexao c;
-    if (!c.abrir("/api/auth/sign-in/email")) return false;
-    c.http.addHeader("Content-Type", "application/json");
-    int st = c.http.POST(String("{\"email\":\"") + CONTA_EMAIL + "\",\"password\":\"" + CONTA_SENHA + "\"}");
-    String resp = c.http.getString();
-    c.http.end();
-    if (st != 200) {
-      registrar("ERRO: login falhou (HTTP %d): %s\n", st, resp.substring(0, 160).c_str());
-      if (st < 0) c.explicar(st);
-      return false;
-    }
-  }
-  {
-    Conexao c;  // fecha antes da próxima: duas conexões seguras de uma vez não abrem
-    if (!c.abrir("/api/auth/get-session")) return false;
-    int st = c.http.GET();
-    String sessao = st == 200 ? c.http.getString() : "";
-    c.http.end();
-    orgId = campo(sessao, "activeOrganizationId");
-    if (orgId.isEmpty()) { registrar("ERRO: sessão sem organização (HTTP %d).\n", st); return false; }
-  }
-  if (strlen(CONTA_EMPRESA) && !escolherEmpresa()) { orgId = ""; return false; }
-  registrar("Logado no Noteless como %s (org %s)\n", CONTA_EMAIL, orgId.c_str());
-  avisarLogo();  // antes de enviar a fila: o sistema diz para qual empresa as notas vão
-  return true;
-}
-
-// Id da empresa com esse nome (ou slug) na lista de empresas da conta; vazio se
-// ela não estiver vinculada. Em "nomes" ficam todas, para o registro.
-String acharEmpresa(const String &lista, const char *nome, String &nomes) {
-  String achou;
-  for (int i = lista.indexOf('{'); i >= 0; i = lista.indexOf('{', i + 1)) {
-    int f = lista.indexOf('}', i);
-    if (f < 0) break;
-    String org = lista.substring(i, f + 1);
-    String n = campo(org, "name");
-    if (n.isEmpty()) continue;
-    if (!nomes.isEmpty()) nomes += ", ";
-    nomes += n;
-    if (achou.isEmpty() && (n.equalsIgnoreCase(nome) || campo(org, "slug").equalsIgnoreCase(nome))) achou = campo(org, "id");
-  }
-  return achou;
-}
-
-// O login deixa ativa a empresa mais antiga da conta. Com CONTA_EMPRESA, as
-// notas começam indo para essa — até o aviso de estado responder a escolhida
-// no Noteless. A rota de notas recebe a empresa na URL e confere o vínculo,
-// então basta o id (não precisa trocar a empresa ativa da sessão).
-bool escolherEmpresa() {
-  Conexao c;
-  if (!c.abrir("/api/auth/organization/list")) return false;
-  int st = c.http.GET();
-  String lista = st == 200 ? c.http.getString() : "";
-  c.http.end();
-  if (st != 200) {
-    registrar("ERRO: não consegui ver as empresas da conta (HTTP %d).", st);
-    if (st < 0) c.explicar(st);
-    return false;
-  }
-  String nomes;
-  String id = acharEmpresa(lista, CONTA_EMPRESA, nomes);
-  if (id.isEmpty()) {
-    // Não trava: a empresa escolhida no Noteless (aviso de estado) vale mais que esta.
-    registrar("AVISO: a conta %s não está vinculada à empresa \"%s\" (vinculada a: %s); fica a do Noteless.",
-              CONTA_EMAIL, CONTA_EMPRESA, nomes.isEmpty() ? "nenhuma" : nomes.c_str());
-    return true;
-  }
-  orgId = id;
-  registrar("Notas vão para a empresa \"%s\".", CONTA_EMPRESA);
-  return true;
-}
 
 // Corpo multipart lido aos pedaços: campos + arquivo do cartão + fim. O
 // arquivo não cabe inteiro na memória (5 min de áudio são 2,4 MB).
@@ -210,7 +162,7 @@ class CorpoMultipart : public Stream {
         memcpy(destino + feito, ini.c_str() + pos, k);
       } else if (pos < ini.length() + tamArq) {
         if (!arq) {
-          arq = SD.open(caminho, FILE_READ);
+          arq = memoria.open(caminho, FILE_READ);
           if (!arq || !arq.seek(pos - ini.length())) {
             falhouCartao = true;
             break;
@@ -247,7 +199,7 @@ class CorpoMultipart : public Stream {
 };
 
 Resultado enviarArquivo(const String &caminho) {
-  File arq = SD.open(caminho, FILE_READ);
+  File arq = memoria.open(caminho, FILE_READ);
   if (!arq) {
     cartaoFalhou("abrir um áudio da fila");
     return TENTAR_DEPOIS;
@@ -266,8 +218,10 @@ Resultado enviarArquivo(const String &caminho) {
          "\"\r\nContent-Type: audio/wav\r\n\r\n";
   String fim = String("\r\n--") + FRONTEIRA + "--\r\n";
 
+  String recusouEm;  // empresa que recusou o envio
   for (int tentativa = 0; tentativa < 2; tentativa++) {
-    if (orgId.isEmpty() && !entrar()) break;
+    if (tentativa) avisarEstado();  // a resposta diz para onde as notas vão agora
+    if (orgId.isEmpty() || orgId == recusouEm) break;
     CorpoMultipart corpo(ini, caminho, tamArq, fim);
     Conexao c;
     if (!c.abrir("/api/org/" + orgId + "/ocorrencias")) break;
@@ -290,7 +244,7 @@ Resultado enviarArquivo(const String &caminho) {
     }
     if (st == 201) {
       registrar("Nota criada no Noteless em %.1f s: %s", (millis() - inicio) / 1000.0f, base.c_str());
-      if (!SD.remove(caminho)) {
+      if (!memoria.remove(caminho)) {
         registrar("AVISO: a nota foi criada, mas %s não saiu da fila: se o cartão voltar com ele, pode subir de novo.", base.c_str());
         cartaoFalhou("tirar da fila um áudio enviado");
       }
@@ -298,9 +252,11 @@ Resultado enviarArquivo(const String &caminho) {
       registrar("  Resumo:      %s", campo(resp, "resumo").c_str());
       return ENVIADO;
     }
-    if (st == 401 || st == 403) {  // sessão expirou: entra de novo
-      registrar("Sessão recusada (HTTP %d): entrando de novo.", st);
-      orgId = "";
+    // Esquecida no Noteless ou trocada de empresa: pergunta e, se a empresa
+    // mudou, manda de novo.
+    if (st == 401 || st == 403) {
+      registrar("Envio recusado (HTTP %d): conferindo a empresa no Noteless.", st);
+      recusouEm = orgId;
       continue;
     }
     registrar("ERRO: envio de %s falhou depois de %.1f s (HTTP %d): %s", base.c_str(), (millis() - inicio) / 1000.0f, st,
@@ -318,7 +274,7 @@ Resultado enviarArquivo(const String &caminho) {
 }
 
 void tarefaRede(void *) {
-  uint32_t ultimaWifi = 0, ultimoLogin = 0, proximoEnvio = 0, espera = 0;
+  uint32_t ultimaWifi = 0, proximoEnvio = 0, espera = 0;
   uint32_t esperaMontagem = 10000, proximaMontagem = millis() + esperaMontagem;
   bool primeiraVez = true, relogioPedido = false, nomesComHora = false, estavaNoWifi = false;
   while (true) {
@@ -354,13 +310,10 @@ void tarefaRede(void *) {
         configTime(0, 0, "pool.ntp.org", "a.st1.ntp.br", "time.google.com");  // em UTC; o Noteless converte
         relogioPedido = true;
       }
-      // Servidor inacessível ou rede instável: login de novo a cada minuto.
-      if (orgId.isEmpty() && (!ultimoLogin || millis() - ultimoLogin > 60000)) {
-        ultimoLogin = millis();
-        entrar();
-      }
+      // O aviso de estado é também como a placa se apresenta: a resposta diz se
+      // ela já foi aprovada e para qual empresa as notas vão.
+      if (avisoDevido()) avisarEstado();
       online = !orgId.isEmpty();
-      if (online && avisoDevido()) avisarEstado();
     }
     if (!nomesComHora && relogioValido()) {
       nomesComHora = true;
@@ -371,7 +324,7 @@ void tarefaRede(void *) {
     atualizarFila();
     if (online && cartaoOk && naFila > 0 && (int32_t)(millis() - proximoEnvio) >= 0) {
       conferirEmpresa();
-      if (orgId.isEmpty()) continue;  // a sessão caiu no aviso: entra de novo antes de enviar
+      if (orgId.isEmpty()) continue;  // esquecida no Noteless, ou a empresa sumiu: não envia
       String caminho = proximaDaFila();
       Resultado r = caminho.isEmpty() ? TENTAR_DEPOIS : enviarArquivo(caminho);
       if (r == RECUSADO) {

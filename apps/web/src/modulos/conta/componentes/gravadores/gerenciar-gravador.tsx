@@ -1,8 +1,6 @@
 "use client";
 
 import { filaEmPalavras, mudarGravadorSchema, sinalEmPalavras, type Empresa, type Gravador } from "@vocare/shared";
-import type { Route } from "next";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 
@@ -10,6 +8,7 @@ import { Button, ConfirmBar, Field, FormMessage, Input, Modal, Select } from "@/
 import { chamarApi } from "@/lib/api-client";
 import { haQuantoTempo, TZ } from "@/lib/datas";
 
+import { AprovarGravador } from "./aprovar-gravador";
 import { Destino, Situacao } from "./situacao";
 
 const DIA_HORA = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: TZ });
@@ -44,7 +43,7 @@ function Linha({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   );
 }
 
-/** O estado completo da placa; para o super usuário, também nome, empresa e esquecer. */
+/** O estado completo da placa; para o super usuário, também aprovar, nome, empresa e esquecer. */
 export function GerenciarGravador({
   gravador: g,
   empresas,
@@ -79,7 +78,6 @@ export function GerenciarGravador({
 
   if (!g) return null;
   const ha = (iso: string) => haQuantoTempo(new Date(iso));
-  const vinculos = `/configuracoes/vinculos?busca=${encodeURIComponent(g.conta.email)}` as Route;
 
   function salvar(ev: FormEvent<HTMLFormElement>) {
     ev.preventDefault();
@@ -103,9 +101,6 @@ export function GerenciarGravador({
           <Linha rotulo="Empresa">
             <Destino g={g} />
           </Linha>
-          <Linha rotulo="Conta">
-            {g.conta.nome} <span className="text-ink-muted">· {g.conta.email}</span>
-          </Linha>
           <Linha rotulo="Wi-Fi">
             {g.estado.wifi.rede} · sinal {sinalEmPalavras(g.estado.wifi.sinalDbm)} ({g.estado.wifi.sinalDbm} dBm) · IP {g.estado.wifi.ip}
           </Linha>
@@ -124,33 +119,30 @@ export function GerenciarGravador({
 
         <ErrosRecentes g={g} />
 
-        {podeMexer && (
+        {podeMexer && !g.aprovado && <AprovarGravador key={g.id} g={g} empresas={empresas} />}
+
+        {podeMexer && g.aprovado && (
           <form onSubmit={salvar} className="flex flex-col gap-3 border-t border-line pt-4">
             <div className="flex flex-wrap items-end gap-3">
               <Field label="Nome" className="min-w-48 flex-1">
                 <Input name="nome" defaultValue={g.nome} maxLength={60} />
               </Field>
               <Field label="Empresa que recebe as notas" className="min-w-48 flex-1">
-                {empresas.length === 0 ? (
-                  <p className="py-2 text-[15px] text-ink-muted">A conta não está em nenhuma empresa.</p>
-                ) : (
-                  <Select name="empresa" defaultValue={g.destino?.id ?? ""}>
-                    {!g.destino && <option value="">Escolha…</option>}
-                    {empresas.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.nome}
-                      </option>
-                    ))}
-                  </Select>
-                )}
+                <Select name="empresa" defaultValue={g.destino?.id ?? ""}>
+                  {!g.destino && <option value="">Escolha…</option>}
+                  {empresas.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.nome}
+                    </option>
+                  ))}
+                </Select>
               </Field>
               <Button type="submit" variant="primario" loading={pending}>
                 Salvar
               </Button>
             </div>
             <p className="text-sm text-ink-muted">
-              Só aparecem as empresas a que a conta do gravador está vinculada (<Link href={vinculos}>vincular a outra</Link>). A placa confere
-              a empresa antes de enviar as notas; parada, recebe a troca em até 15 min.
+              As notas saem com o nome do gravador. A placa confere a empresa antes de enviar; parada, recebe a troca em até 15 min.
             </p>
           </form>
         )}
@@ -159,7 +151,9 @@ export function GerenciarGravador({
           <div className="flex flex-col gap-2 border-t border-line pt-4">
             {esquecer ? (
               <ConfirmBar confirmLabel="Esquecer" pending={pending} onCancel={() => setEsquecer(false)} onConfirm={() => chamar({ method: "DELETE" }, fechar)}>
-                Tirar {g.nome} da lista? Se a placa continuar ligada, ela reaparece no próximo aviso, com a conta que estiver usando.
+                {g.aprovado
+                  ? `Esquecer ${g.nome}? Ele para de enviar notas na hora (as que já mandou ficam). Se continuar ligado, volta a aparecer aguardando aprovação.`
+                  : `Tirar ${g.nome} da lista? Se continuar ligado, volta a aparecer no próximo aviso.`}
               </ConfirmBar>
             ) : (
               <div>

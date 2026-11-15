@@ -12,17 +12,17 @@ import { Destino, Situacao } from "./situacao";
 
 /**
  * Configurações › Gravadores: o estado de cada placa de campo. Super usuário
- * vê todas e, clicando, renomeia, escolhe a empresa e esquece; o administrador
- * vê as que mandam para a empresa dele.
+ * vê todas e, clicando, aprova as novas, renomeia, escolhe a empresa e
+ * esquece; o administrador vê as que mandam para a empresa dele.
  */
 export function GravadoresLista({
   gravadores,
-  empresasPorConta,
+  empresas,
   podeMexer,
 }: {
   gravadores: Gravador[];
-  /** Empresas a que a conta de cada placa está vinculada (id da conta → empresas). */
-  empresasPorConta: Record<string, Empresa[]>;
+  /** Empresas que podem receber as notas (só o super usuário escolhe). */
+  empresas: Empresa[];
   podeMexer: boolean;
 }) {
   const router = useRouter();
@@ -43,7 +43,7 @@ export function GravadoresLista({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-ink-muted">
-          A placa avisa quando algo muda e, fora isso, a cada 15 min. Sem contato há mais de 20 min: desligada, sem Wi-Fi ou sem conseguir entrar.
+          A placa avisa quando algo muda e, fora isso, a cada 15 min. Sem contato há mais de 20 min: desligada ou sem internet.
         </p>
         <Button variant="pequeno" loading={atualizando} onClick={() => start(() => router.refresh())}>
           Atualizar
@@ -53,7 +53,7 @@ export function GravadoresLista({
         {gravadores.length === 0 ? (
           <EmptyState
             title="Nenhum gravador ainda"
-            description="O gravador aparece aqui sozinho na primeira vez que entra na internet com a conta dele."
+            description="O gravador aparece aqui sozinho, aguardando aprovação, na primeira vez que entra na internet."
           />
         ) : (
           <table className={tabela.table}>
@@ -121,7 +121,7 @@ export function GravadoresLista({
 
       <GerenciarGravador
         gravador={aberto}
-        empresas={aberto ? (empresasPorConta[aberto.conta.id] ?? []) : []}
+        empresas={empresas}
         podeMexer={podeMexer}
         onClose={() => setAbertoId(null)}
       />

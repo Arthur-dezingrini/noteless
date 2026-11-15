@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { estadoGravadorSchema, filaEmPalavras, gravadorOnline, juntarErros, nomePadraoGravador, sinalEmPalavras } from "./gravadores";
+import {
+  aprovarGravadorSchema,
+  estadoGravadorSchema,
+  filaEmPalavras,
+  gravadorOnline,
+  juntarErros,
+  nomePadraoGravador,
+  normalizarCodigo,
+  sinalEmPalavras,
+} from "./gravadores";
 
 describe("gravadorOnline", () => {
   const agora = new Date("2026-11-11T13:00:00Z");
@@ -74,12 +83,16 @@ describe("estadoGravadorSchema", () => {
     cartao: { ok: true, livreGb: 7.9 },
     ultimoErro: { texto: "ERRO: envio falhou", haSeg: 120 },
     boot: { motivo: "ligada na energia", haSeg: 3600 },
-    empresaAtual: "org-1",
   };
 
   it("aceita o que a placa manda", () => {
     expect(estadoGravadorSchema.safeParse(estado).success).toBe(true);
-    expect(estadoGravadorSchema.safeParse({ ...estado, ultimoErro: null, empresaAtual: null }).success).toBe(true);
+    expect(estadoGravadorSchema.safeParse({ ...estado, ultimoErro: null }).success).toBe(true);
+  });
+
+  it("firmware do tempo das contas ainda manda a empresa atual: é ignorada", () => {
+    const r = estadoGravadorSchema.safeParse({ ...estado, empresaAtual: "org-1" });
+    expect(r.success && "empresaAtual" in r.data).toBe(false);
   });
 
   it("sem a lista de erros (firmware antigo), entende como vazia", () => {
@@ -90,5 +103,26 @@ describe("estadoGravadorSchema", () => {
   it("recusa sem série e com fila negativa", () => {
     expect(estadoGravadorSchema.safeParse({ ...estado, serie: "" }).success).toBe(false);
     expect(estadoGravadorSchema.safeParse({ ...estado, fila: -1 }).success).toBe(false);
+  });
+});
+
+describe("normalizarCodigo", () => {
+  it("ignora maiúsculas, traço e espaços", () => {
+    expect(normalizarCodigo("k7f-3qx")).toBe("K7F3QX");
+    expect(normalizarCodigo(" K7F 3QX ")).toBe("K7F3QX");
+    expect(normalizarCodigo("K7F3QX")).toBe(normalizarCodigo("k7f - 3qx"));
+  });
+
+  it("código diferente continua diferente", () => {
+    expect(normalizarCodigo("K7F-3QX")).not.toBe(normalizarCodigo("K7F-3QY"));
+  });
+});
+
+describe("aprovarGravadorSchema", () => {
+  it("pede código e empresa; o nome é opcional", () => {
+    expect(aprovarGravadorSchema.safeParse({ codigo: "K7F-3QX", organizationId: "org-1" }).success).toBe(true);
+    expect(aprovarGravadorSchema.safeParse({ codigo: "K7F-3QX", organizationId: "org-1", nome: "Galpão 1" }).success).toBe(true);
+    expect(aprovarGravadorSchema.safeParse({ codigo: "  ", organizationId: "org-1" }).success).toBe(false);
+    expect(aprovarGravadorSchema.safeParse({ codigo: "K7F-3QX", organizationId: "" }).success).toBe(false);
   });
 });
