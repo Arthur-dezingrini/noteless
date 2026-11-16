@@ -2,6 +2,7 @@ import { criarVinculoSchema, mudarPapelSchema, mudarTipoSchema } from "@vocare/s
 import type { Context } from "hono";
 import { Hono } from "hono";
 
+import { alertar } from "../../../base/alerta";
 import { quemNaPlataforma } from "../../../base/super-usuario";
 import { auth } from "../../../auth";
 import { trocarEmpresaAtiva } from "../regras/empresa-ativa";
@@ -84,4 +85,11 @@ adminRoutes.post("/empresa-ativa", async (c) => {
   const s = await auth.api.getSession({ headers: c.req.raw.headers });
   const r = await trocarEmpresaAtiva(s!.session.id, body.organizationId);
   return r.ok ? c.json({ ok: true }) : c.json({ error: r.erro }, r.status);
+});
+
+/** Confere em produção que o e-mail de alerta chega. Só super usuário. */
+adminRoutes.post("/alerta-teste", async (c) => {
+  const barrado = await barrar(c);
+  if (barrado) return barrado;
+  return c.json(await alertar("teste", { mensagem: "E-mail de teste pedido pelo super usuário.", rota: "POST /api/admin/alerta-teste" }));
 });

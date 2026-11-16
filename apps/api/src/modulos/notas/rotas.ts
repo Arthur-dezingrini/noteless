@@ -2,6 +2,7 @@ import { confirmarOcorrenciaSchema, textoOcorrenciaSchema, type Papel } from "@v
 import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 
+import { alertar, mensagemDe } from "../../base/alerta";
 import { hojeISO } from "../../base/datas";
 import { db } from "../../db";
 import { ocorrencia, ocorrenciaAudio } from "../../db/tabelas/notas";
@@ -88,7 +89,10 @@ notasRotas.post("/:orgId/ocorrencias", async (c) => {
     await db
       .insert(ocorrenciaAudio)
       .values({ ocorrenciaId: nova!.id, mime: audio.type || "audio/webm", dados: Buffer.from(await audio.arrayBuffer()) })
-      .catch((e: unknown) => console.error("[ocorrencias] falha ao guardar áudio:", e));
+      .catch(async (e: unknown) => {
+        console.error("[ocorrencias] falha ao guardar áudio:", e);
+        await alertar("guardar-audio", { mensagem: mensagemDe(e), rota: `${c.req.method} ${c.req.path}`, orgId });
+      });
 
     await notificar(orgId, await administradores(orgId, eu.userId), {
       texto: `${eu.nome} gravou uma nota`,
@@ -101,6 +105,7 @@ notasRotas.post("/:orgId/ocorrencias", async (c) => {
   } catch (e) {
     if (e instanceof IaNaoConfigurada) return c.json({ error: e.message }, 503);
     console.error("[ocorrencias] falha no pipeline de áudio:", e);
+    await alertar("pipeline-audio", { mensagem: mensagemDe(e), rota: `${c.req.method} ${c.req.path}`, orgId });
     return c.json({ error: "A IA não conseguiu processar o áudio agora. Tente de novo em instantes." }, 502);
   }
 });
@@ -133,6 +138,7 @@ notasRotas.post("/:orgId/ocorrencias/:id/texto", async (c) => {
   } catch (e) {
     if (e instanceof IaNaoConfigurada) return c.json({ error: e.message }, 503);
     console.error("[ocorrencias] falha ao interpretar texto:", e);
+    await alertar("interpretar-texto", { mensagem: mensagemDe(e), rota: `${c.req.method} ${c.req.path}`, orgId });
     return c.json({ error: "A IA não conseguiu interpretar o texto agora. Tente de novo em instantes." }, 502);
   }
 
