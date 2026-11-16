@@ -1,0 +1,173 @@
+# Rotina diária da produção: copia o banco do Neon para o Cloudflare R2,
+# confere se a cópia restaura e avisa por e-mail se alguma etapa falhar.
+# Fica separada do ci.yml porque usa segredos (o CI não usa nenhum).
+#
+# Segredos (Settings → Secrets and variables → Actions):
+#   BACKUP_DATABASE_URL   conexão DIRETA do Neon (a URL sem "-pooler")
+#   BACKUP_SENHA          senha da criptografia. Guarde também num cofre de
+#                         senhas: sem ela nenhuma cópia abre.
+#   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET
+#   RESEND_API_KEY, ALERTA_EMAILS (separados por vírgula)
+# Variável: EMAIL_REMETENTE (sem ela, sai como Noteless <onboarding@resend.dev>)
+#
+# Validade das cópias (regra de ciclo de vida no bucket do R2):
+#   diario/ apaga com 30 dias; mensal/ apaga com 365 dias.
+# A cópia mensal vai sem os dados de ocorrencia_audio: a voz não fica um ano
+# guardada em backup.
+#
+# Como restaurar:
+#   1. Baixe o .gpg do R2 e abra:
+#        gpg --batch --pinentry-mode loopback -o copia.dump -d noteless-AAAA-MM-DD.dump.gpg
+#   2. Crie um branch ou um banco novo no Neon.
+#   3. Restaure com o pg_restore da mesma versão do Postgres do Neon:
+#        pg_restore --no-owner --no-privileges -d "<url do banco novo>" copia.dump
+#   4. Confira os dados; só então troque DATABASE_URL na Vercel.
+
+name: Rotina diária
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 03:00 em Brasília
+  workflow_dispatch:
+    inputs:
+      simular_falha:
+        description: "Falhar de propósito, para conferir o e-mail de aviso"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Duas rodadas ao mesmo tempo disputariam o mesmo arquivo no R2.
+concurrency:
+  group: rotina-diaria
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+  AWS_DEFAULT_REGION: auto
+  AWS_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+  # O aws-cli recente manda checksums que o R2 nem sempre aceita.
+  AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+  AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+
+jobs:
+  copia:
+    name: Cópia do banco
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      arquivo: ${{ steps.versao.outputs.arquivo }}
+      major: ${{ steps.versao.outputs.major }}
+    env:
+      PGURL: ${{ secrets.BACKUP_DATABASE_URL }}
+      BACKUP_SENHA: ${{ secrets.BACKUP_SENHA }}
+    steps:
+      - name: Falha simulada
+        if: ${{ inputs.simular_falha }}
+        run: |
+          echo "Falha simulada para conferir o e-mail de aviso."
+          exit 1
+
+      # pg_dump não copia servidor mais novo que ele, e a restauração de teste
+      # precisa da mesma versão: o cliente segue a versão do Neon.
+      - name: Versão do Postgres do Neon
+        id: versao
+        run: |
+          NUM=$(docker run --rm -e PGURL postgres:18 sh -c 'psql "$PGURL" -tAc "show server_version_num"')
+          MAJOR=$((NUM / 10000))
+          echo "Postgres $MAJOR no Neon."
+          echo "major=$MAJOR" >> "$GITHUB_OUTPUT"
+          echo "arquivo=noteless-$(date -u +%F).dump.gpg" >> "$GITHUB_OUTPUT"
+
+      - name: Cópia diária
+        env:
+          MAJOR: ${{ steps.versao.outputs.major }}
+          ARQUIVO: ${{ steps.versao.outputs.arquivo }}
+        run: |
+          docker run --rm -e PGURL "postgres:$MAJOR" \
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges "$PGURL"' > copia.dump
+          gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 -o "$ARQUIVO" copia.dump <<< "$BACKUP_SENHA"
+          aws s3 cp "$ARQUIVO" "s3://$R2_BUCKET/diario/$ARQUIVO"
+          rm -f copia.dump
+
+      - name: Cópia mensal (só no dia 1, sem o áudio)
+        env:
+          MAJOR: ${{ steps.versao.outputs.major }}
+        run: |
+          if [ "$(date -u +%d)" != "01" ]; then echo "Hoje não é dia 1: sem cópia mensal."; exit 0; fi
+          MENSAL="noteless-$(date -u +%Y-%m).dump.gpg"
+          docker run --rm -e PGURL "postgres:$MAJOR" \
+            sh -c 'pg_dump --format=custom --no-owner --no-privileges --exclude-table-data=ocorrencia_audio "$PGURL"' > mensal.dump
+          gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 -o "$MENSAL" mensal.dump <<< "$BACKUP_SENHA"
+          aws s3 cp "$MENSAL" "s3://$R2_BUCKET/mensal/$MENSAL"
+          rm -f mensal.dump
+
+  restauracao:
+    name: Teste de restauração
+    needs: copia
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ARQUIVO: ${{ needs.copia.outputs.arquivo }}
+      MAJOR: ${{ needs.copia.outputs.major }}
+      BACKUP_SENHA: ${{ secrets.BACKUP_SENHA }}
+    steps:
+      - name: Baixa e abre a cópia de hoje
+        run: |
+          aws s3 cp "s3://$R2_BUCKET/diario/$ARQUIVO" "$ARQUIVO"
+          gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            -o copia.dump -d "$ARQUIVO" <<< "$BACKUP_SENHA"
+
+      # Se algum dia aparecer objeto que só existe no Neon e o Postgres comum
+      # não tem, tire-o daqui com pg_restore -l / -L e escreva o nome dele neste
+      # comentário. Qualquer outro erro tem que reprovar.
+      - name: Restaura num Postgres descartável
+        run: |
+          docker run -d --name pgteste -e POSTGRES_PASSWORD=teste "postgres:$MAJOR"
+          # Por TCP só responde o servidor definitivo; o da inicialização ouve só o socket.
+          for _ in $(seq 1 60); do
+            docker exec pgteste pg_isready -h 127.0.0.1 -U postgres && break
+            sleep 1
+          done
+          docker cp copia.dump pgteste:/tmp/copia.dump
+          docker exec -e PGPASSWORD=teste pgteste pg_restore -h 127.0.0.1 -U postgres -d postgres \
+            --no-owner --no-privileges --exit-on-error /tmp/copia.dump
+
+      - name: Confere o que voltou
+        run: |
+          q() { docker exec -e PGPASSWORD=teste pgteste psql -h 127.0.0.1 -U postgres -d postgres -tAc "$1"; }
+          for t in '"user"' organization ocorrencia lote; do
+            echo "$t: $(q "select count(*) from $t")"
+          done
+          test "$(q 'select count(*) from "user"')" -gt 0 || { echo "A cópia voltou sem nenhum usuário."; exit 1; }
+
+  aviso:
+    name: Aviso de falha por e-mail
+    needs: [copia, restauracao]
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      ALERTA_EMAILS: ${{ secrets.ALERTA_EMAILS }}
+      EMAIL_REMETENTE: ${{ vars.EMAIL_REMETENTE }}
+      LINK: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Manda o e-mail pela Resend
+        run: |
+          jq -n --arg de "${EMAIL_REMETENTE:-Noteless <onboarding@resend.dev>}" --arg para "$ALERTA_EMAILS" --arg link "$LINK" \
+            '{from: $de,
+              to: ($para | split(",") | map(gsub("^ +| +$"; "")) | map(select(length > 0))),
+              subject: "[Noteless] rotina diária falhou",
+              text: ("Uma etapa da rotina diária (backup, restauração ou limpeza de áudio) falhou.\n" + $link)}' \
+          | curl -sS --fail-with-body -X POST https://api.resend.com/emails \
+              -H "Authorization: Bearer $RESEND_API_KEY" -H "Content-Type: application/json" -d @-
