@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CAMPOS_CORRIGIVEIS, confirmarOcorrenciaSchema, corrigirOperacao, operacaoSchema, precisaAlvo, temAlvo, type Operacao } from "./ocorrencias";
+import { CAMPOS_CORRIGIVEIS, confirmarOcorrenciaSchema, corrigirOperacao, ocorrenciaSchema, operacaoSchema, precisaAlvo, temAlvo, type Operacao } from "./ocorrencias";
 
 const base = { titulo: "", alvo: "Thor", detalhe: "", confianca: 90, trecho: "" };
 
@@ -179,5 +179,15 @@ describe("operações do aviário", () => {
 
   it("pesar_lote permite corrigir o lote", () => {
     expect(CAMPOS_CORRIGIVEIS.pesar_lote).toContain("loteId");
+  });
+});
+
+describe("ocorrenciaSchema", () => {
+  const nota = { id: "n1", status: "confirmada", transcricao: "", resumo: "", operacoes: [], criadoPorNome: "Ana", createdAt: "2026-08-01T12:00:00.000Z" };
+
+  it("traz quando o áudio foi apagado pelo prazo de guarda", () => {
+    const apagado = ocorrenciaSchema.parse({ ...nota, audioApagadoEm: "2026-11-16T12:00:00.000Z" });
+    expect(apagado.audioApagadoEm).toEqual(new Date("2026-11-16T12:00:00.000Z"));
+    expect(ocorrenciaSchema.parse(nota).audioApagadoEm).toBeUndefined();
   });
 });

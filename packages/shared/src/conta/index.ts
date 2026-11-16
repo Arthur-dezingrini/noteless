@@ -3,3 +3,4 @@ export * from "./auth";
 export * from "./usuarios";
 export * from "./admin";
 export * from "./gravadores";
+export * from "./termos";

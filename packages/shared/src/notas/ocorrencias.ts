@@ -189,6 +189,8 @@ export const ocorrenciaSchema = z.object({
   criadoPorCargo: z.string().nullish(),
   /** O áudio original está guardado e pode ser ouvido. */
   temAudio: z.boolean().optional(),
+  /** Quando o áudio foi apagado pelo prazo de guarda (DIAS_AUDIO depois da revisão). */
+  audioApagadoEm: z.coerce.date().nullish(),
   createdAt: z.coerce.date(),
   revisadoPorNome: z.string().nullish(),
   revisadoEm: z.coerce.date().nullish(),
