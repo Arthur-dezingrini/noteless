@@ -12,3 +12,5 @@ export { AvisoGravador } from "./componentes/legal/aviso-gravador";
 export { LinkAvisoGravador, LinksLegais } from "./componentes/legal/links-legais";
 export { Privacidade } from "./componentes/legal/privacidade";
 export { Termos } from "./componentes/legal/termos";
+export { precisaAceitar } from "./aceite";
+export { AceiteForm } from "./componentes/aceite-form";

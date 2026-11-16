@@ -25,6 +25,7 @@ const ROTAS_PROTEGIDAS = [
   "/relatorios",
   "/configuracoes",
   "/perfil",
+  "/aceite",
 ];
 
 export function proxy(request: NextRequest) {

@@ -1,12 +1,12 @@
 "use client";
 
-import { corrigirOperacao, ocorrenciaSchema, temAlvo, type CampoCorrigivel, type Ocorrencia } from "@vocare/shared";
+import { corrigirOperacao, DIAS_AUDIO, ocorrenciaSchema, temAlvo, type CampoCorrigivel, type Ocorrencia } from "@vocare/shared";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { Button, Card, FormMessage, Textarea } from "@/components/ui";
 import { chamarApiJson } from "@/lib/api-client";
-import { haQuantoTempo } from "@/lib/datas";
+import { haQuantoTempo, TZ } from "@/lib/datas";
 
 import { AnimalModal } from "@/modulos/animais";
 
@@ -134,7 +134,14 @@ export function Detalhe({
             <p className="mt-1">“{oc.transcricaoOriginal}”</p>
           </details>
         )}
-        <Audio src={oc.temAudio ? `/api/org/${orgId}/ocorrencias/${oc.id}/audio` : null} duracaoSeg={oc.duracaoSeg} />
+        {oc.audioApagadoEm ? (
+          <p className="text-sm text-ink-muted">
+            Áudio apagado em {new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, dateStyle: "short" }).format(new Date(oc.audioApagadoEm))} —
+            guardado por {DIAS_AUDIO} dias depois da revisão.
+          </p>
+        ) : (
+          <Audio src={oc.temAudio ? `/api/org/${orgId}/ocorrencias/${oc.id}/audio` : null} duracaoSeg={oc.duracaoSeg} />
+        )}
       </div>
 
       {falhou && pendente && (

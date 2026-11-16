@@ -1,3 +1,6 @@
+import { TERMOS_EM_VIGOR } from "@vocare/shared";
+import { redirect } from "next/navigation";
+
 import { AoVivo } from "@/modulos/avisos";
 import { Header } from "@/components/app/header";
 import { Sidebar } from "@/components/app/sidebar";
@@ -6,6 +9,8 @@ import { getNotificacoes, getNovidades } from "@/modulos/avisos/dados";
 import { getAnimais } from "@/modulos/animais/dados";
 import { getInstalacoes } from "@/modulos/aviario/dados";
 import { getOcorrencias } from "@/modulos/notas/dados";
+import { precisaAceitar } from "@/modulos/conta";
+import { getAceite } from "@/modulos/conta/dados";
 
 /**
  * Casca da área logada. A sessão é exigida aqui, mas layouts não re-renderizam
@@ -13,11 +18,14 @@ import { getOcorrencias } from "@/modulos/notas/dados";
  * sensíveis continua chamando a DAL por conta própria.
  */
 export default async function AppLayout({ children }: LayoutProps<"/">) {
-  const [{ user }, organizations, org] = await Promise.all([
+  const [{ user }, organizations, org, aceite] = await Promise.all([
     requireSession(),
     getOrganizations(),
     getOrgAtiva(),
+    // Fora de vigor nem pergunta à api: enquanto os textos estão em revisão, ninguém é levado ao aceite.
+    TERMOS_EM_VIGOR ? getAceite() : null,
   ]);
+  if (precisaAceitar(aceite, TERMOS_EM_VIGOR)) redirect("/aceite");
 
   const [member, ocorrencias, animais, notificacoes, instalacoes, novidades] = org
     ? await Promise.all([

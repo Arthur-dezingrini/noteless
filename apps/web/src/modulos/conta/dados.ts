@@ -9,6 +9,8 @@ import {
   type UsuarioAdmin,
   gravadorListaSchema,
   type Gravador,
+  aceiteTermosSchema,
+  type AceiteTermos,
 } from "@vocare/shared";
 import { cache } from "react";
 
@@ -59,4 +61,16 @@ export const getGravadoresAdmin = cache(async (): Promise<Gravador[]> => {
   if (!res.ok) return [];
   const parsed = gravadorListaSchema.safeParse(await res.json());
   return parsed.success ? parsed.data : [];
+});
+
+/** O aceite dos termos de quem está logado; `null` se a api não respondeu (aí ninguém é barrado). */
+export const getAceite = cache(async (): Promise<AceiteTermos | null> => {
+  try {
+    const res = await apiFetch("/api/perfil/termos");
+    if (!res.ok) return null;
+    const parsed = aceiteTermosSchema.safeParse(await corpoJson(res));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
 });
