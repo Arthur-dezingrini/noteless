@@ -1,5 +1,6 @@
 # Rotina diária da produção: copia o banco do Neon para o Cloudflare R2,
-# confere se a cópia restaura e avisa por e-mail se alguma etapa falhar.
+# confere se a cópia restaura, apaga o áudio vencido das notas e avisa por
+# e-mail se alguma etapa falhar.
 # Fica separada do ci.yml porque usa segredos (o CI não usa nenhum).
 #
 # Segredos (Settings → Secrets and variables → Actions):
@@ -8,7 +9,9 @@
 #                         senhas: sem ela nenhuma cópia abre.
 #   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET
 #   RESEND_API_KEY, ALERTA_EMAILS (separados por vírgula)
-# Variável: EMAIL_REMETENTE (sem ela, sai como Noteless <onboarding@resend.dev>)
+#   ROTINAS_SEGREDO       o mesmo valor do ROTINAS_SEGREDO da api na Vercel
+# Variáveis: EMAIL_REMETENTE (sem ela, sai como Noteless <onboarding@resend.dev>)
+#            APP_URL (https://app.noteless.com.br)
 #
 # Validade das cópias (regra de ciclo de vida no bucket do R2):
 #   diario/ apaga com 30 dias; mensal/ apaga com 365 dias.
@@ -150,9 +153,24 @@ jobs:
           done
           test "$(q 'select count(*) from "user"')" -gt 0 || { echo "A cópia voltou sem nenhum usuário."; exit 1; }
 
+  limpeza-audio:
+    name: Limpeza do áudio vencido
+    # Só depois de a cópia do dia dar certo: nunca apaga áudio num dia sem backup.
+    needs: copia
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      APP_URL: ${{ vars.APP_URL }}
+      ROTINAS_SEGREDO: ${{ secrets.ROTINAS_SEGREDO }}
+    steps:
+      - name: Apaga o áudio das notas revisadas há mais de 90 dias
+        run: |
+          curl -sS --fail-with-body -X POST "$APP_URL/api/rotinas/limpeza-audio" \
+            -H "Authorization: Bearer $ROTINAS_SEGREDO"
+
   aviso:
     name: Aviso de falha por e-mail
-    needs: [copia, restauracao]
+    needs: [copia, restauracao, limpeza-audio]
     if: ${{ failure() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

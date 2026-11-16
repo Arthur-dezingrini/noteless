@@ -3,3 +3,4 @@
  * confere e salva. Outros módulos usam só o que está aqui.
  */
 export { notasRotas } from "./rotas";
+export { rotinasRoutes as rotinasRotas } from "./rotinas";

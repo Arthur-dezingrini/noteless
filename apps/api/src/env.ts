@@ -41,6 +41,7 @@ const schema = z.object({
   EMAIL_REMETENTE: z.string().default("Noteless <onboarding@resend.dev>"),
   // Sem validar formato: um erro de digitação aqui não pode derrubar a api na subida.
   ALERTA_EMAILS: z.string().optional().transform(listaDeEmails),
+  ROTINAS_SEGREDO: z.string().optional(), // rotina diária (limpeza do áudio); sem ela a rota responde 503
 });
 
 const parsed = schema.safeParse(process.env);
