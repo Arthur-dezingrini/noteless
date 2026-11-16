@@ -1,8 +1,12 @@
+import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 
 import { auth } from "./auth";
+import { alertar, mensagemDe, orgDaRota } from "./base/alerta";
+import { db } from "./db";
 import { origensConfiaveis } from "./env";
 import { aviarioRotas } from "./modulos/aviario";
 import { notasRotas } from "./modulos/notas";
@@ -28,7 +32,25 @@ app.use(
   }),
 );
 
-app.get("/health", (c) => c.json({ ok: true }));
+// Vigiado de fora (UptimeRobot/Better Stack): testa o banco e nunca vem de cache.
+app.get("/health", async (c) => {
+  c.header("Cache-Control", "no-store");
+  try {
+    await db.execute(sql`select 1`);
+    return c.json({ ok: true, banco: "ok" });
+  } catch (e) {
+    console.error("[health] banco fora:", e);
+    return c.json({ ok: false, banco: "falhou" }, 503);
+  }
+});
+
+// Erro que nenhuma rota tratou: avisa por e-mail e responde JSON, como o resto da api.
+app.onError(async (err, c) => {
+  if (err instanceof HTTPException) return err.getResponse();
+  console.error("[api] erro não tratado:", err);
+  await alertar("erro-api", { mensagem: mensagemDe(err), rota: `${c.req.method} ${c.req.path}`, orgId: orgDaRota(c.req.path) });
+  return c.json({ error: "Erro interno." }, 500);
+});
 
 // Todo o ciclo de autenticação (sign-in, sign-out, get-session, organizations…)
 // é servido pelo Better Auth a partir daqui.
