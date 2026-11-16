@@ -113,6 +113,13 @@
       "when": 1794760029099,
       "tag": "0015_transcricao_original",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794840381576,
+      "tag": "0016_aceite_termos_e_audio_apagado",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { index, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { index, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 import { organization, user } from "../schema";
 
@@ -37,4 +37,25 @@ export const gravador = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [index("gravador_organization_id_idx").on(table.organizationId)],
+);
+
+/**
+ * Aceite dos Termos de Uso e da Política de Privacidade: quem aceitou, qual
+ * versão, quando e de qual IP. Um registro por pessoa e versão; aceitar de novo
+ * mantém o primeiro.
+ */
+export const aceiteTermos = pgTable(
+  "aceite_termos",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    versao: text("versao").notNull(),
+    aceitoEm: timestamp("aceito_em").notNull().defaultNow(),
+    ip: text("ip"),
+  },
+  (t) => [uniqueIndex("aceite_termos_user_versao_uq").on(t.userId, t.versao)],
 );

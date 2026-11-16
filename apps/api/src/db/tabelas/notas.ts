@@ -34,6 +34,8 @@ export const ocorrencia = pgTable(
     // Membro sem permissão de salvar confere e passa para o administrador.
     encaminhadaPorId: text("encaminhada_por_id").references(() => user.id, { onDelete: "set null" }),
     encaminhadaEm: timestamp("encaminhada_em"),
+    /** Quando o áudio foi apagado pelo prazo de guarda (rotina diária, DIAS_AUDIO depois da revisão). */
+    audioApagadoEm: timestamp("audio_apagado_em"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [index("ocorrencia_organization_id_status_idx").on(table.organizationId, table.status)],

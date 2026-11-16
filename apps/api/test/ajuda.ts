@@ -67,13 +67,14 @@ export async function criarSuper(nome = "Super"): Promise<Pessoa> {
 }
 
 /** Chamada à api como uma pessoa logada (ou anônima, sem `quem`). */
-export async function chamar(quem: Pessoa | null, metodo: string, caminho: string, corpo?: unknown) {
+export async function chamar(quem: Pessoa | null, metodo: string, caminho: string, corpo?: unknown, cabecalhos: Record<string, string> = {}) {
   const res = await app.request(caminho, {
     method: metodo,
     headers: {
       "Content-Type": "application/json",
       Origin: ORIGEM,
       ...(quem ? { Cookie: quem.cookie } : {}),
+      ...cabecalhos,
     },
     body: corpo === undefined ? undefined : JSON.stringify(corpo),
   });
