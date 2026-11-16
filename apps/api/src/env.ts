@@ -3,6 +3,14 @@ import { z } from "zod";
 // Efeito colateral proposital: precisa rodar antes da validação abaixo.
 import "./load-env";
 
+/** "a@x.com, ,b@y.com" → ["a@x.com", "b@y.com"]. */
+export function listaDeEmails(v: string | undefined): string[] {
+  return (v ?? "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+}
+
 const schema = z.object({
   DATABASE_URL: z.string().url(),
   BETTER_AUTH_SECRET: z.string().min(32, "gere com: openssl rand -base64 32"),
@@ -29,6 +37,10 @@ const schema = z.object({
   TRANSCRICAO_API_KEY: z.string().optional(),
   TRANSCRICAO_BASE_URL: z.string().url().optional(),
   TRANSCRICAO_MODELO: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(), // e-mail dos alertas; sem ela nada é enviado
+  EMAIL_REMETENTE: z.string().default("Noteless <onboarding@resend.dev>"),
+  // Sem validar formato: um erro de digitação aqui não pode derrubar a api na subida.
+  ALERTA_EMAILS: z.string().optional().transform(listaDeEmails),
 });
 
 const parsed = schema.safeParse(process.env);

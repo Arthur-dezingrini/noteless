@@ -51,4 +51,10 @@ describe("variáveis da api", () => {
     }) as never);
     await expect(carregar({ ORIGENS_EXTRAS: "vocare.com.br" })).rejects.toThrow("exit 1");
   });
+
+  it("ALERTA_EMAILS vira lista sem espaços nem itens vazios", async () => {
+    const { env, listaDeEmails } = await carregar({ ALERTA_EMAILS: " a@x.com, ,b@y.com ," });
+    expect(env.ALERTA_EMAILS).toEqual(["a@x.com", "b@y.com"]);
+    expect(listaDeEmails(undefined)).toEqual([]);
+  });
 });
