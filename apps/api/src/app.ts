@@ -12,7 +12,7 @@ import { aviarioRotas } from "./modulos/aviario";
 import { notasRotas, rotinasRotas } from "./modulos/notas";
 import { animaisRotas } from "./modulos/animais";
 import { saudeRotas } from "./modulos/saude";
-import { adminRotas, contaRotas, gravadoresAdminRotas, gravadoresRotas, perfilRotas, termosRotas } from "./modulos/conta";
+import { adminRotas, contaRotas, gravadoresAdminRotas, gravadoresRotas, perfilRotas, protegerLogin, termosRotas } from "./modulos/conta";
 import { avisosRotas } from "./modulos/avisos";
 import { painelRotas } from "./modulos/painel";
 
@@ -54,6 +54,10 @@ app.onError(async (err, c) => {
   await alertar("erro-api", { mensagem: mensagemDe(err), rota: `${c.req.method} ${c.req.path}`, orgId: orgDaRota(c.req.path) });
   return c.json({ error: "Erro interno." }, 500);
 });
+
+// Login por e-mail e senha passa antes pelo freio de tentativas erradas
+// (modulos/conta/regras/tentativas-login.ts).
+app.post("/api/auth/sign-in/email", (c) => protegerLogin(c.req.raw, (req) => auth.handler(req)));
 
 // Todo o ciclo de autenticação (sign-in, sign-out, get-session, organizations…)
 // é servido pelo Better Auth a partir daqui.
