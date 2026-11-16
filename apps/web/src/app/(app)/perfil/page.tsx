@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/ui";
 import { getMemberRole, getOrgAtiva, requireSession, rotuloPapel } from "@/lib/auth/dal";
 
-import { PerfilForm } from "@/modulos/conta";
+import { LinksLegais, PerfilForm } from "@/modulos/conta";
 
 export const metadata = { title: "Meu perfil" };
 
@@ -13,6 +13,7 @@ export default async function PerfilPage() {
     <div className="flex flex-col gap-6">
       <PageHeader title="Meu perfil" description="Como os outros veem você no sistema." />
       <PerfilForm user={user} papel={rotuloPapel(member?.role) || "Membro"} />
+      <LinksLegais />
     </div>
   );
 }

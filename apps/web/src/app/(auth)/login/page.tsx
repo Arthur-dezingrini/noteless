@@ -5,6 +5,7 @@ import { LoginForm } from "@/components/auth/login-form";
 import { Logo } from "@/components/auth/logo";
 import { getSession } from "@/lib/auth/dal";
 import { BRAND_NAME } from "@/lib/brand";
+import { LinksLegais } from "@/modulos/conta";
 
 export const metadata: Metadata = {
   title: "Entrar",
@@ -43,6 +44,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             <p className="text-base text-ink-muted">Use o e-mail que você cadastrou.</p>
           </div>
           <LoginForm next={typeof next === "string" ? next : undefined} />
+          <LinksLegais />
         </div>
       </div>
     </main>
