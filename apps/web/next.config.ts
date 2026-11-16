@@ -7,6 +7,41 @@ if (process.env.VERCEL && !process.env.API_URL) {
 }
 const API_URL = process.env.API_URL ?? "http://localhost:4000";
 
+// Em desenvolvimento o Next precisa de eval (recarga ao vivo) e de WebSocket
+// (HMR); em produção, não.
+const DEV = process.env.NODE_ENV !== "production";
+
+/**
+ * O que o navegador pode carregar e de onde. Tudo vem do próprio site: a
+ * fonte é baixada no build (next/font), o avatar é data: e o áudio da nota
+ * passa por /api. Script e estilo inline ficam liberados porque o App Router
+ * hidrata a página com script inline; o que mais protege aqui é não deixar
+ * a tela ser embutida em outro site nem mandar formulário para fora.
+ */
+const CSP = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${DEV ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "media-src 'self' blob:",
+  `connect-src 'self'${DEV ? " ws:" : ""}`,
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+].join("; ");
+
+export const CABECALHOS_SEGURANCA = [
+  { key: "Content-Security-Policy", value: CSP },
+  // Para navegador antigo que não entende frame-ancestors.
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // Microfone só para o próprio site (gravar nota pelo navegador); câmera e localização, ninguém.
+  { key: "Permissions-Policy", value: "camera=(), geolocation=(), microphone=(self)" },
+];
+
 const nextConfig: NextConfig = {
   // Link e router.push só aceitam rota que existe em src/app: um href para
   // página que não existe vira erro no typecheck, não um 404 em produção.
@@ -21,6 +56,11 @@ const nextConfig: NextConfig = {
       { source: "/api/:path*", destination: `${API_URL}/api/:path*` },
       { source: "/health", destination: `${API_URL}/health` },
     ];
+  },
+
+  // Cabeçalhos de segurança em toda resposta (o HSTS a Vercel já põe).
+  async headers() {
+    return [{ source: "/:path*", headers: CABECALHOS_SEGURANCA }];
   },
 
   // "Ocorrências" virou "Notas". Aviso antigo (o link fica salvo no banco) e
