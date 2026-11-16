@@ -17,3 +17,18 @@ export function quandoFoiGravado(valor: unknown, agora = new Date()): Date | nul
   if (t > agora.getTime() + ADIANTADO_MAX_MS || t < agora.getTime() - IDADE_MAX_MS) return null;
   return quando;
 }
+
+/** "audio/wav", "audio/webm;codecs=opus"… O tipo vem de quem envia, então só passa o que é áudio de fato. */
+const TIPO_AUDIO = /^audio\/[a-z0-9.+-]+(\s*;\s*[a-z0-9-]+=[a-z0-9.+-]+)*$/i;
+
+/**
+ * O tipo com que o áudio é guardado e devolvido para o player. Arquivo sem
+ * tipo vale como webm (o que o navegador grava); tipo que não é de áudio
+ * vira `null` — quem envia leva 415. Na leitura, um tipo antigo fora do
+ * padrão sai como binário genérico: o navegador nunca o abre como página.
+ */
+export function tipoDeAudio(tipo: string | null | undefined): string | null {
+  const t = (tipo ?? "").trim();
+  if (!t) return "audio/webm";
+  return TIPO_AUDIO.test(t) ? t.toLowerCase() : null;
+}

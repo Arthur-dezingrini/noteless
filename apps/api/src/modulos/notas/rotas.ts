@@ -15,7 +15,7 @@ import { galpoesDaOrg } from "../aviario";
 import { administradores, notificar } from "../avisos";
 import { buscar, animaisDaOrg, donoSeOutro, gruposDaOrg } from "./consultas";
 import { confirmarNota } from "./regras/aplicar";
-import { quandoFoiGravado } from "./regras/gravacao";
+import { quandoFoiGravado, tipoDeAudio } from "./regras/gravacao";
 
 /**
  * Registros de ocorrência: áudio entra, IA propõe, humano confirma. Qualquer
@@ -52,6 +52,8 @@ notasRotas.post("/:orgId/ocorrencias", async (c) => {
   const audio = body?.audio;
   if (!(audio instanceof File) || audio.size === 0) return c.json({ error: "Envie um áudio no campo 'audio'." }, 400);
   if (audio.size > TAMANHO_MAXIMO) return c.json({ error: "Áudio grande demais (máximo 25 MB)." }, 413);
+  const mime = tipoDeAudio(audio.type);
+  if (!mime) return c.json({ error: "Envie um arquivo de áudio (WAV, WebM, MP3…)." }, 415);
   const duracaoSeg = Number(body?.duracaoSeg) || null;
   // Vira a data da ocorrência e o "hoje" da IA: "nasceu hoje", gravado sem
   // sinal e enviado no dia seguinte, é do dia da gravação.
@@ -88,7 +90,7 @@ notasRotas.post("/:orgId/ocorrencias", async (c) => {
     // continua valendo — só fica sem o player.
     await db
       .insert(ocorrenciaAudio)
-      .values({ ocorrenciaId: nova!.id, mime: audio.type || "audio/webm", dados: Buffer.from(await audio.arrayBuffer()) })
+      .values({ ocorrenciaId: nova!.id, mime, dados: Buffer.from(await audio.arrayBuffer()) })
       .catch(async (e: unknown) => {
         console.error("[ocorrencias] falha ao guardar áudio:", e);
         await alertar("guardar-audio", { mensagem: mensagemDe(e), rota: `${c.req.method} ${c.req.path}`, orgId });
@@ -159,8 +161,13 @@ notasRotas.get("/:orgId/ocorrencias/:id/audio", async (c) => {
     .limit(1);
   if (!a) return c.json({ error: "Áudio não encontrado." }, 404);
 
+  // O tipo veio de quem enviou: só sai o que é áudio, e o navegador não
+  // adivinha outro nem roda nada que estiver dentro do arquivo.
   return c.body(new Uint8Array(a.dados), 200, {
-    "Content-Type": a.mime,
+    "Content-Type": tipoDeAudio(a.mime) ?? "application/octet-stream",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": "sandbox",
+    "Content-Disposition": "inline",
     "Cache-Control": "private, max-age=3600",
   });
 });
