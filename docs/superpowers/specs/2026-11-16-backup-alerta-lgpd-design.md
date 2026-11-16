@@ -98,13 +98,15 @@ A restauração reprova se der qualquer erro ou se `"user"` vier vazio. Se apare
 
 O que o gravador e a tela recebem hoje não muda.
 
-**`/health`:**
-- Passa a rodar `select 1` no banco.
-- Com o banco ok, responde `200 { ok: true, banco: "ok" }`. Se a consulta falhar, responde `503 { ok: false, banco: "falhou" }`.
+**`/health`** (mudou depois da revisão final, em 2026-11-16: um vigia de 5 em 5 min batendo no banco deixaria o Neon acordado o tempo todo, o que no plano Free esgota a cota e para o banco):
+- Sem parâmetro, responde `200 { ok: true }` sem tocar no banco.
+- Com `?banco=1`, roda `select 1`. Banco ok: `200 { ok: true, banco: "ok" }`. Consulta falhou: `503 { ok: false, banco: "falhou" }`.
 - Sempre manda `Cache-Control: no-store`.
 - Não dispara alerta. Quem avisa nesse caso é o vigia.
 
-**Vigia externo, criado pelo Arthur:** UptimeRobot ou Better Stack, no plano grátis. Ele consulta `https://app.noteless.com.br/health` a cada 5 min e avisa por e-mail. Cobre web, api e banco de uma vez.
+**Vigia externo, criado pelo Arthur:** UptimeRobot ou Better Stack, no plano grátis, com dois monitores que avisam por e-mail:
+- `https://app.noteless.com.br/health` a cada 5 min, para web e api;
+- `https://app.noteless.com.br/health?banco=1` a cada 60 min, para o banco. Cada consulta acorda o Neon, então este fica espaçado.
 
 **Variáveis novas na api** (`env.ts`), todas opcionais:
 - `RESEND_API_KEY`;
@@ -156,7 +158,7 @@ O que o gravador e a tela recebem hoje não muda.
   - estado do gravador;
   - registros de acesso.
 - **Finalidades e bases legais.**
-- **Compartilhamento:** Vercel, Neon, OpenAI, Groq, Anthropic, Cloudflare e Resend, com transferência para fora do país.
+- **Compartilhamento:** Vercel, Neon, OpenAI, Groq, Anthropic, GitHub (a rotina do backup lê o banco antes de criptografar), Cloudflare e Resend, com transferência para fora do país.
 - **Prazos:**
   - áudio: 90 dias;
   - backup diário: 30 dias;
@@ -189,14 +191,14 @@ O que o gravador e a tela recebem hoje não muda.
   - criar um token "Object Read & Write" que vale só para esse bucket.
 - **Resend:** criar a conta e verificar o domínio `noteless.com.br` (registros de DNS) para mandar como `avisos@noteless.com.br`.
 - **GitHub:**
-  - segredos: `BACKUP_DATABASE_URL`, `BACKUP_SENHA`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `RESEND_API_KEY`, `ALERTA_EMAILS`;
-  - variável: `EMAIL_REMETENTE`.
+  - segredos: `BACKUP_DATABASE_URL`, `BACKUP_SENHA`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `RESEND_API_KEY`, `ALERTA_EMAILS`;
+  - variáveis: `EMAIL_REMETENTE` e `R2_BUCKET`. O bucket é variável, não segredo: o GitHub descarta a saída de job que contém valor de segredo, e o nome do arquivo pode conter o do bucket.
 - **Cofre de senhas:** guardar a `BACKUP_SENHA` nele. Sem ela, nenhuma cópia abre.
 - **Neon:** deixar a janela de restauração no máximo.
 
 **Parte 2:**
 - Na Vercel, no projeto da api: `RESEND_API_KEY`, `ALERTA_EMAILS` e `EMAIL_REMETENTE`.
-- Criar o vigia externo apontando para `https://app.noteless.com.br/health`.
+- Criar os dois monitores do vigia externo: `/health` a cada 5 min e `/health?banco=1` a cada 60 min.
 
 **Parte 3:**
 - `ROTINAS_SEGREDO` na Vercel (api) e nos segredos do GitHub.
@@ -216,7 +218,7 @@ Os testes de rota rodam no PGlite, com `criarFazenda` e `chamar` de `test/ajuda.
 - `base/email.test.ts`:
   - sem chave, não chama `fetch`;
   - com chave, manda o remetente, os destinatários e o assunto certos.
-- `test/health.test.ts`: responde 200 com o banco no ar e 503 quando a consulta falha.
+- `test/base/health.test.ts`: sem `?banco` não toca no banco; com `?banco=1`, 200 com o banco no ar e 503 quando a consulta falha.
 - `app.onError`: uma rota que lança erro responde 500 em JSON e dispara o alerta `erro-api`.
 - `test/notas/`: uma transcrição que lança erro dispara `alertar("pipeline-audio")`, e a resposta continua a de hoje.
 - `test/conta/`, sobre `POST /api/admin/alerta-teste`:

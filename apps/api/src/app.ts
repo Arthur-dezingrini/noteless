@@ -32,9 +32,12 @@ app.use(
   }),
 );
 
-// Vigiado de fora (UptimeRobot/Better Stack): testa o banco e nunca vem de cache.
+// Vigiado de fora (UptimeRobot/Better Stack) e nunca vem de cache. Sem ?banco
+// não acorda o Neon: o vigia de 5 em 5 min fica aqui, e o ?banco=1, que roda
+// `select 1`, vai num vigia bem mais espaçado.
 app.get("/health", async (c) => {
   c.header("Cache-Control", "no-store");
+  if (c.req.query("banco") === undefined) return c.json({ ok: true });
   try {
     await db.execute(sql`select 1`);
     return c.json({ ok: true, banco: "ok" });

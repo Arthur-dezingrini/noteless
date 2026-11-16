@@ -1,3 +1,5 @@
+import { DrizzleQueryError } from "drizzle-orm/errors";
+
 import { env } from "../env";
 import { APP_ENV } from "../load-env";
 import { enviarEmail, type Email } from "./email";
@@ -68,6 +70,12 @@ export function orgDaRota(caminho: string): string | undefined {
   return /^\/api\/org\/([^/]+)/.exec(caminho)?.[1];
 }
 
+/**
+ * O que vai no e-mail sobre o que foi lançado. O erro de consulta do drizzle
+ * traz o SQL e os valores (transcrição, resumo, bytes do áudio) na mensagem:
+ * dele vai só a causa, que é a mensagem do banco.
+ */
 export function mensagemDe(e: unknown): string {
+  if (e instanceof DrizzleQueryError) return e.cause?.message ?? "Falha numa consulta ao banco.";
   return e instanceof Error ? e.message : String(e);
 }

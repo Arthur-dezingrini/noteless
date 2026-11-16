@@ -59,8 +59,9 @@ export function Privacidade() {
           <li>Vercel: hospedagem do site e da api;</li>
           <li>Neon: banco de dados;</li>
           <li>OpenAI e Groq: transcrição do áudio;</li>
-          <li>Anthropic: interpretação do texto pela inteligência artificial;</li>
-          <li>Cloudflare: cópias de segurança, criptografadas;</li>
+          <li>Anthropic e Groq: interpretação do texto pela inteligência artificial, conforme a configuração;</li>
+          <li>GitHub: execução da rotina diária de cópia de segurança, que lê o banco antes de criptografar a cópia;</li>
+          <li>Cloudflare: guarda das cópias de segurança, criptografadas;</li>
           <li>Resend: envio dos e-mails do sistema.</li>
         </Lista>
         <p>

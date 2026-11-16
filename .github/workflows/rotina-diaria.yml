@@ -7,11 +7,14 @@
 #   BACKUP_DATABASE_URL   conexão DIRETA do Neon (a URL sem "-pooler")
 #   BACKUP_SENHA          senha da criptografia. Guarde também num cofre de
 #                         senhas: sem ela nenhuma cópia abre.
-#   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET
+#   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
 #   RESEND_API_KEY, ALERTA_EMAILS (separados por vírgula)
 #   ROTINAS_SEGREDO       o mesmo valor do ROTINAS_SEGREDO da api na Vercel
 # Variáveis: EMAIL_REMETENTE (sem ela, sai como Noteless <onboarding@resend.dev>)
 #            APP_URL (https://app.noteless.com.br)
+#            R2_BUCKET (nome do bucket). É variável, não segredo: o GitHub
+#            descarta a saída de job que contém valor de segredo, e o nome do
+#            arquivo pode conter o do bucket.
 #
 # Validade das cópias (regra de ciclo de vida no bucket do R2):
 #   diario/ apaga com 30 dias; mensal/ apaga com 365 dias.
@@ -58,7 +61,7 @@ env:
   # O aws-cli recente manda checksums que o R2 nem sempre aceita.
   AWS_REQUEST_CHECKSUM_CALCULATION: when_required
   AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
-  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  R2_BUCKET: ${{ vars.R2_BUCKET }}
 
 jobs:
   copia:

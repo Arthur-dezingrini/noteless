@@ -1,9 +1,9 @@
-import { TERMOS_EM_VIGOR, VERSAO_TERMOS } from "@vocare/shared";
+import { TERMOS_EM_VIGOR } from "@vocare/shared";
 import { redirect } from "next/navigation";
 
 import { Logo } from "@/components/auth/logo";
 import { requireSession } from "@/lib/auth/dal";
-import { AceiteForm } from "@/modulos/conta";
+import { AceiteForm, versaoParaAceitar } from "@/modulos/conta";
 import { getAceite } from "@/modulos/conta/dados";
 
 export const metadata = { title: "Termos de Uso" };
@@ -12,13 +12,14 @@ export const metadata = { title: "Termos de Uso" };
 export default async function AceitePage() {
   await requireSession();
   if (!TERMOS_EM_VIGOR) redirect("/dashboard");
-  if ((await getAceite())?.aceitoEm) redirect("/dashboard");
+  const aceite = await getAceite();
+  if (aceite?.aceitoEm) redirect("/dashboard");
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-page px-6 py-12">
       <div className="flex w-full max-w-[26rem] flex-col gap-7">
         <Logo />
-        <AceiteForm versao={VERSAO_TERMOS} />
+        <AceiteForm versao={versaoParaAceitar(aceite)} />
       </div>
     </main>
   );

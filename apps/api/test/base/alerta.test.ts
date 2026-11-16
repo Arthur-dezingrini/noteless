@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm/errors";
 import { describe, expect, it, vi } from "vitest";
 
 import { criarAlerta, criarLimitador, JANELA_ALERTA_MS, mensagemDe, orgDaRota } from "../../src/base/alerta";
@@ -72,5 +73,12 @@ describe("pedaços do alerta", () => {
   it("descreve qualquer coisa que foi lançada", () => {
     expect(mensagemDe(new Error("quebrou"))).toBe("quebrou");
     expect(mensagemDe("texto solto")).toBe("texto solto");
+  });
+
+  it("erro de banco não leva os valores da consulta (transcrição, resumo, áudio)", () => {
+    const sql = 'update "ocorrencia" set "transcricao" = $1, "resumo" = $2';
+    const e = new DrizzleQueryError(sql, ["Morreram duas aves no galpão 1", "Mortalidade de 2 aves"], new Error("Connection terminated unexpectedly"));
+    expect(mensagemDe(e)).toBe("Connection terminated unexpectedly");
+    expect(mensagemDe(new DrizzleQueryError(sql, ["Morreram duas aves no galpão 1"]))).toBe("Falha numa consulta ao banco.");
   });
 });
