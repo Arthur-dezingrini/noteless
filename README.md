@@ -2,367 +2,207 @@
 
 Gestão de pecuária e atendimento veterinário com registro por voz.
 
-O diferencial do produto é a captura em campo por áudio: o operador fala o que
-fez ("apliquei a vacina 2 no boi 3"), o áudio entra numa fila que tolera falta
-de sinal, e a IA faz uma **pré-análise** — ela não escreve no sistema, ela
-**sugere** um conjunto de operações. Quem administra revisa e confirma; só então
-as operações são aplicadas.
+Quem está no campo fala o que fez ("vacinei a Mimosa contra aftosa, segunda
+dose") num gravador de bolso. O áudio entra numa fila que tolera falta de
+sinal, é transcrito, e uma IA **propõe** as operações que a fala pede. Um
+administrador confere e salva; só então algo entra no sistema.
 
-## Estrutura
+- **Demonstração:** https://vocare-iota.vercel.app
+- **Documentação técnica:** [docs/](docs/README.md) — arquitetura, modelo de
+  dados, segurança, LGPD, IA e infraestrutura
 
-Monorepo com front e back separados, deploy independente:
+## Módulos
 
-```
-apps/
-  web/      Next.js 16 — só interface (porta 3000)
-  api/      Hono + Better Auth + Drizzle/Postgres — regra de negócio (porta 4000)
-packages/
-  shared/   schemas Zod: o contrato entre web e api
-```
-
-O navegador fala só com o web. Tudo em `/api/*` é repassado para a api por um
-rewrite do Next, então o cookie de sessão é same-origin e não há CORS no
-caminho do usuário. Dentro do servidor do Next (Server Components), o web chama
-a api direto, repassando o cookie.
+| Módulo | O que tem |
+| --- | --- |
+| Notas | áudio → transcrição → operações propostas → conferência → salvar |
+| Animais | cadastro, grupos, ficha com pesagens, vacinas, tratamentos, partos e anotações |
+| Saúde | agenda de consultas e prontuários |
+| Aviário | galpões, lotes, alojamento, apontamento diário, pesagem e vacinação de lote |
+| Avisos | notificações e tela ao vivo |
+| Painel | Início e relatórios |
+| Conta | usuários e papéis por empresa, perfil, super usuário, gravadores de campo |
 
 ## Stack
 
-| Camada        | Escolha                                     |
-| ------------- | ------------------------------------------- |
-| Web           | Next.js 16 (App Router) + React 19 + TS      |
-| Estilo        | Tailwind CSS v4 (tokens em `globals.css`)    |
-| API           | Hono 4 + @hono/node-server                   |
-| Banco         | Postgres no Neon + Drizzle ORM               |
-| Autenticação  | Better Auth (e-mail/senha + organizations)   |
-| Contrato      | Zod 4 em `packages/shared`                   |
-| Monorepo      | npm workspaces + Turborepo                   |
-
-## Rodando
-
-Precisa de Node 24+. O banco é um Postgres compartilhado no Neon — peça a
-`DATABASE_URL` e o `BETTER_AUTH_SECRET` a alguém do time **por mensagem
-privada** (nunca no git, nunca no grupo).
-
-```bash
-npm install
-cp apps/api/.env.example apps/api/.env      # cole DATABASE_URL e BETTER_AUTH_SECRET do time
-cp apps/web/.env.example apps/web/.env.local
-npm run db:migrate                          # aplica migrações pendentes (idempotente)
-npm run dev                                 # sobe web e api juntos
-```
-
-O `seed` já foi rodado no banco compartilhado; só rode de novo se estiver
-num banco novo: `npm run seed -- "Fazenda Santa Rita" voce@exemplo.com "sua-senha"`.
-
-### Trabalhando em grupo no mesmo banco
-
-- **Mudou o schema?** `npm run db:generate`, commite `apps/api/drizzle/` e
-  avise o time. Os outros dão `git pull` + `npm run db:migrate`.
-- **Migração destrutiva** (remover coluna, renomear tabela) derruba quem
-  está com o código antigo. Teste em homologação primeiro
-  (`npm run db:migrate:hom`, `npm run dev:hom`) e só aplique no principal
-  quando o código já estiver na `main`.
-- Todo mundo usa o **mesmo** `BETTER_AUTH_SECRET`, senão a sessão criada
-  pela api de um não é aceita pela api do outro.
-
-### Por que o driver do Neon e não `pg`
-
-A api usa `@neondatabase/serverless`, que fala com o banco por **WebSocket na
-porta 443**. A 5432 é bloqueada em muita rede de universidade e empresa — foi o
-caso aqui — e com este driver o projeto roda em qualquer lugar sem VPN. O
-Drizzle Kit também migra por esse caminho.
-
-O custo: só conecta em Neon (ou outro Postgres atrás de um proxy WebSocket).
-Se um dia precisar de Postgres local, troque as quatro linhas de
-`apps/api/src/db/index.ts` por `drizzle-orm/node-postgres` + `pg`.
-
-## Autenticação
-
-E-mail e senha via Better Auth, com o plugin `organization` — cada fazenda ou
-clínica é uma organização e os usuários são membros dela. É o multi-tenant que
-o produto precisa desde o começo. Sessão de 30 dias.
-
-O Better Auth vive **na api**. O web só tem o client (`better-auth/react`) e
-um helper de cookie. A proteção de rota no web tem duas camadas, como o guia
-do Next 16 recomenda:
-
-- `apps/web/src/proxy.ts` (era `middleware.ts` antes do Next 16) faz a
-  checagem **otimista**: só olha se o cookie existe. Roda em toda navegação,
-  inclusive prefetch, então nunca chama a api.
-- `apps/web/src/lib/auth/dal.ts` faz a checagem **real**: chama
-  `GET /api/auth/get-session` na api e valida a resposta contra
-  `sessionSchema` do pacote compartilhado.
-
-### Regras de usuários e organizações
-
-- **Não existe cadastro público** (`disableSignUp`). Todo usuário é criado por
-  um administrador da organização, em Configurações → Usuários, com senha
-  temporária — e já nasce vinculado àquela organização. O primeiro usuário
-  vem do `npm run seed`.
-- **Ninguém fica sem organização.** Remover um usuário tira o vínculo com a
-  organização, não apaga a conta.
-- **Um usuário pode pertencer a várias organizações.** Em Configurações →
-  Usuários há dois botões: **Cadastrar usuário** cria uma conta nova (e recusa
-  e-mail que já existe); **Vincular usuário** traz para a organização ativa
-  alguém que já tem conta por outra clínica/fazenda — só e-mail e papel; nome e
-  senha não mudam. A troca entre organizações fica no canto superior esquerdo; a escolha vai para a sessão (`activeOrganizationId`, definida no
-  login como a organização mais antiga do usuário) e vale em todas as telas —
-  todas leem `getOrgAtiva()` da DAL, nunca "a primeira da lista".
-- Papéis por organização: `owner` (quem criou; não muda nem sai), `admin`
-  (gerencia usuários e dados) e `member` (opera). O campo `cargo` do usuário
-  (Veterinária, Recepcionista, Peão…) é livre.
-
-A api expõe isso em `/api/org/:orgId/usuarios` (listar, criar, editar, remover)
-e `/api/org/:orgId/usuarios/vincular`, sempre checando o papel de quem chama.
-
-## Estrutura
-
-Monorepo com front e back separados, deploy independente:
+| Camada | Escolha |
+| --- | --- |
+| Web | Next.js 16 (App Router) + React 19 + TypeScript |
+| Estilo | Tailwind CSS v4 (tokens em `apps/web/src/app/globals.css`) |
+| API | Hono 4 |
+| Banco | PostgreSQL no Neon + Drizzle ORM |
+| Autenticação | Better Auth (e-mail/senha + organizações) |
+| Contrato | Zod 4 em `packages/shared` |
+| IA | Whisper (transcrição) + LLM com tool calling (Groq; Claude opcional) |
+| Testes | Vitest + PGlite (Postgres em memória) |
+| Monorepo | npm workspaces + Turborepo |
+| Deploy | Vercel (dois projetos) |
+| Gravador | ESP32 (Arduino), em `firmware/` |
 
 ```
 apps/
-  web/      Next.js 16 — só interface (porta 3000)
-  api/      Hono + Better Auth + Drizzle/Postgres — regra de negócio (porta 4000)
+  web/        Next.js — só interface (porta 3000)
+  api/        Hono + Better Auth + Drizzle — regra de negócio (porta 4000)
 packages/
-  shared/   schemas Zod: o contrato entre web e api
+  shared/     schemas Zod: o contrato entre web e api
+firmware/     gravador de campo (ESP32) e placa própria (KiCad)
+docs/         documentação técnica, specs e planos
 ```
 
-O navegador fala só com o web. Tudo em `/api/*` é repassado para a api por um
-rewrite do Next, então o cookie de sessão é same-origin e não há CORS no
-caminho do usuário. Dentro do servidor do Next (Server Components), o web chama
-a api direto, repassando o cookie.
+O navegador fala só com o web; `/api/*` é repassado para a api por um rewrite
+do Next. Detalhes em [docs/arquitetura.md](docs/arquitetura.md).
 
-## Stack
+## Instalação e execução
 
-| Camada        | Escolha                                     |
-| ------------- | ------------------------------------------- |
-| Web           | Next.js 16 (App Router) + React 19 + TS      |
-| Estilo        | Tailwind CSS v4 (tokens em `globals.css`)    |
-| API           | Hono 4 + @hono/node-server                   |
-| Banco         | Postgres no Neon + Drizzle ORM               |
-| Autenticação  | Better Auth (e-mail/senha + organizations)   |
-| Contrato      | Zod 4 em `packages/shared`                   |
-| Monorepo      | npm workspaces + Turborepo                   |
+### Pré-requisitos
 
-## Rodando
+- **Node.js 24** ou mais novo (npm 11)
+- Acesso ao banco: a `DATABASE_URL` do Neon e o `BETTER_AUTH_SECRET` do
+  time. Peça **por mensagem privada** — nunca no git, nunca no grupo.
+- Para a IA: uma `GROQ_API_KEY` (grátis em console.groq.com). Sem ela tudo
+  funciona, menos a gravação, que responde dizendo o que falta.
 
-Precisa de Node 24+. O banco é um Postgres compartilhado no Neon — peça a
-`DATABASE_URL` e o `BETTER_AUTH_SECRET` a alguém do time **por mensagem
-privada** (nunca no git, nunca no grupo).
+### Passo a passo
 
 ```bash
 npm install
-cp apps/api/.env.example apps/api/.env      # cole DATABASE_URL e BETTER_AUTH_SECRET do time
-cp apps/web/.env.example apps/web/.env.local
-npm run db:migrate                          # aplica migrações pendentes (idempotente)
-npm run dev                                 # sobe web e api juntos
 ```
 
-O `seed` já foi rodado no banco compartilhado; só rode de novo se estiver
-num banco novo: `npm run seed -- "Fazenda Santa Rita" voce@exemplo.com "sua-senha"`.
+```bash
+cp apps/api/.env.example apps/api/.env
+```
 
-### Trabalhando em grupo no mesmo banco
+```bash
+cp apps/web/.env.example apps/web/.env.local
+```
 
-- **Mudou o schema?** `npm run db:generate`, commite `apps/api/drizzle/` e
-  avise o time. Os outros dão `git pull` + `npm run db:migrate`.
-- **Migração destrutiva** (remover coluna, renomear tabela) derruba quem
-  está com o código antigo. Teste em homologação primeiro
-  (`npm run db:migrate:hom`, `npm run dev:hom`) e só aplique no principal
-  quando o código já estiver na `main`.
-- Todo mundo usa o **mesmo** `BETTER_AUTH_SECRET`, senão a sessão criada
-  pela api de um não é aceita pela api do outro.
+Preencha em `apps/api/.env` a `DATABASE_URL`, o `BETTER_AUTH_SECRET` e a
+`GROQ_API_KEY`. Os outros valores do exemplo já servem para rodar local.
 
-### Por que o driver do Neon e não `pg`
+```bash
+npm run db:migrate
+```
 
-A api usa `@neondatabase/serverless`, que fala com o banco por **WebSocket na
-porta 443**. A 5432 é bloqueada em muita rede de universidade e empresa — foi o
-caso aqui — e com este driver o projeto roda em qualquer lugar sem VPN. O
-Drizzle Kit também migra por esse caminho.
+```bash
+npm run dev
+```
 
-O custo: só conecta em Neon (ou outro Postgres atrás de um proxy WebSocket).
-Se um dia precisar de Postgres local, troque as quatro linhas de
-`apps/api/src/db/index.ts` por `drizzle-orm/node-postgres` + `pg`.
+Abra http://localhost:3000. A api responde em http://localhost:4000 e, ao
+subir, imprime qual arquivo de ambiente carregou e o host do banco.
 
-## Autenticação
+**Banco novo?** Crie a empresa e o primeiro usuário:
+`npm run seed -- "Fazenda Santa Rita" voce@exemplo.com "sua-senha"`. No banco
+compartilhado do time isso já foi feito.
 
-E-mail e senha via Better Auth, com o plugin `organization` — cada fazenda ou
-clínica é uma organização e os usuários são membros dela. É o multi-tenant que
-o produto precisa desde o começo. Sessão de 30 dias.
+### Variáveis de ambiente
 
-O Better Auth vive **na api**. O web só tem o client (`better-auth/react`) e
-um helper de cookie. A proteção de rota no web tem duas camadas, como o guia
-do Next 16 recomenda:
+| Onde | Variável | Obrigatória | O que é |
+| --- | --- | :-: | --- |
+| api | `DATABASE_URL` | sim | connection string do Neon |
+| api | `BETTER_AUTH_SECRET` | sim | segredo das sessões (≥ 32 caracteres); o mesmo para o time todo |
+| api | `BETTER_AUTH_URL` | sim | por onde o navegador chega na api (local: `http://localhost:4000`; na Vercel: a URL do web) |
+| api | `WEB_URL` | sim | origem do front (local: `http://localhost:3000`) |
+| api | `GROQ_API_KEY` | para a IA | transcrição e interpretação |
+| api | `ANTHROPIC_API_KEY`, `IA_MODELO`, `TRANSCRICAO_*`, `ORIGENS_EXTRAS` | não | ver `apps/api/.env.example` |
+| web | `API_URL` | na Vercel | URL da api (local: `http://localhost:4000`) |
 
-- `apps/web/src/proxy.ts` (era `middleware.ts` antes do Next 16) faz a
-  checagem **otimista**: só olha se o cookie existe. Roda em toda navegação,
-  inclusive prefetch, então nunca chama a api.
-- `apps/web/src/lib/auth/dal.ts` faz a checagem **real**: chama
-  `GET /api/auth/get-session` na api e valida a resposta contra
-  `sessionSchema` do pacote compartilhado.
+Lista completa e explicada em [docs/infraestrutura.md](docs/infraestrutura.md#4-variáveis-de-ambiente).
 
-Cadastro público **não existe** (`disableSignUp`): quem cria usuários é um
-administrador da organização, em Configurações → Usuários, com uma senha
-temporária. A api expõe isso em `/api/org/:orgId/usuarios` (listar, criar,
-editar, remover), sempre checando o papel de quem chama. Remover tira a pessoa
-da organização, não apaga a conta. O primeiro usuário vem do `npm run seed`.
+## Comandos (na raiz)
 
-Papéis: `owner` (quem criou a organização; não pode ser alterado nem removido),
-`admin` (gerencia usuários e dados) e `member` (opera). O campo `cargo` do
-usuário (Veterinária, Recepcionista, Peão…) é livre.
+| Comando | Faz |
+| --- | --- |
+| `npm run dev` | web + api contra o banco principal |
+| `npm run dev:hom` | idem, contra o branch de homologação (`apps/api/.env.hom`) |
+| `npm test` | testes (Vitest): shared, web e rotas da api |
+| `npm run lint` / `npm run typecheck` | lint e tipos em todos os pacotes |
+| `npm run build` | build dos dois apps |
+| `npm run db:migrate` | aplica migrações no principal (`db:migrate:hom` na homologação) |
+| `npm run db:generate` | gera migração a partir das tabelas |
+| `npm run auth:generate` | regenera `apps/api/src/db/schema.ts` a partir da config do Better Auth |
+| `npm run seed -- …` | cria empresa + primeiro usuário (`seed:hom`) |
+| `npm run super -w @vocare/api -- <email>` | promove alguém a super usuário |
+| `npm run avaliar -w @vocare/api` | mede a IA contra o conjunto de casos (gasta cota) |
 
 ## Ambientes
 
-Dois branches no Neon, dois arquivos em `apps/api/`:
+| Comando | Arquivo | Banco |
+| --- | --- | --- |
+| `npm run dev` | `apps/api/.env` | branch principal do Neon |
+| `npm run dev:hom` | `apps/api/.env.hom` | branch de homologação |
 
-| Comando               | Arquivo    | Banco                                  |
-| --------------------- | ---------- | -------------------------------------- |
-| `npm run dev`         | `.env`     | branch principal — o que o time usa    |
-| `npm run dev:hom`     | `.env.hom` | branch de homologação — pra testar     |
+`.env.hom` é uma cópia do `.env` com a `DATABASE_URL` do branch de
+homologação. Se ele não existir, `dev:hom` se recusa a subir. Os dois são
+ignorados pelo git.
 
-`.env.hom` é uma cópia do `.env` com a `DATABASE_URL` do branch de homologação
-(painel do Neon → selecione o branch → Connection Details). Os dois arquivos
-são ignorados pelo git.
+**Mudou o esquema?** `npm run db:generate`, teste com `npm run db:migrate:hom`,
+commite `apps/api/drizzle/` junto com o código e avise o time. Migração
+destrutiva só vai para o principal depois que o código novo estiver
+publicado.
 
-A escolha é feita por `APP_ENV` (definida pelo script via `cross-env`, funciona
-no Windows). A api imprime na subida qual arquivo carregou e o host do banco —
-**olhe essa linha antes de mexer em dados**. Se `.env.hom` não existir,
-`dev:hom` recusa subir; nunca cai no banco principal por engano.
+**Por que o driver do Neon e não `pg`?** Ele fala com o banco por WebSocket
+na porta 443; a 5432 é bloqueada em muita rede de universidade e empresa.
 
-Migração e seed têm a variante `:hom`: `db:migrate:hom`, `seed:hom`,
-`db:studio:hom`.
+## Deploy
 
-## Deploy (Vercel)
-
-Dois projetos na Vercel, do mesmo repositório — na importação, "Import single
-project" em cada app:
+Dois projetos na Vercel, do mesmo repositório; push na `main` publica os dois.
 
 | | api | web |
 | --- | --- | --- |
 | Root Directory | `apps/api` | `apps/web` |
 | Preset | Hono | Next.js |
-| Variáveis | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `GROQ_API_KEY`, `WEB_URL` e `BETTER_AUTH_URL` (as duas = URL do web) | `API_URL` (URL da api) |
+| Variáveis | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `GROQ_API_KEY`, `WEB_URL` e `BETTER_AUTH_URL` (as duas = URL do web) | `API_URL` |
+| Região | São Paulo (gru1) | São Paulo (gru1) |
 
-O navegador só fala com o web; o `next.config.ts` repassa `/api/*` para a api,
-então o cookie de sessão é do domínio do web. Por isso, na api, `WEB_URL` e
-`BETTER_AUTH_URL` são a URL do web — sem elas a api não sobe e diz o que falta.
-`API_URL` precisa existir no projeto do web antes do build (sem ela, o build na
-Vercel para com uma mensagem). Login de outro endereço (domínio próprio,
-preview): liste em `ORIGENS_EXTRAS` na api.
+Migração não roda no deploy: aplique antes de publicar código que dependa
+dela. Passo a passo da primeira vez em
+[docs/infraestrutura.md](docs/infraestrutura.md#2-deploy).
 
-A entrada da api na Vercel é `apps/api/server.js`, que reexporta o
-`dist/index.js` do tsup (um arquivo só, com o `@vocare/shared` dentro). Sem
-ele a Vercel pegaria `src/app.ts` arquivo a arquivo, e o Node não carrega.
+## Autenticação e papéis (resumo)
 
-Ordem na primeira vez: crie a api, crie o web com a URL dela, volte na api
-para pôr a URL do web e faça Redeploy. Nos dois, Settings → Functions →
-região São Paulo (gru1) — o banco está em `sa-east-1`.
+- E-mail e senha pelo Better Auth, que vive na api. **Não há cadastro
+  público**: usuários são criados por um administrador da empresa, em
+  Configurações › Usuários.
+- Cada fazenda ou clínica é uma organização. Um usuário pode estar em várias e
+  troca no seletor do menu.
+- Papéis: `owner` (dono), `admin` (gerencia usuários e salva notas) e `member`
+  (opera e confere). Super usuário administra a plataforma.
+- No web, `src/proxy.ts` só checa se o cookie existe; a checagem de verdade é
+  em `src/lib/auth/dal.ts`, contra a api.
 
-## Domínio
+Detalhes e matriz de permissões em [docs/seguranca.md](docs/seguranca.md).
 
-Tabelas de negócio ficam em `apps/api/src/db/*.ts` (uma por módulo), separadas
-do `schema.ts` gerado pelo Better Auth. Novo arquivo? Registre em
-`drizzle.config.ts` e em `db/index.ts`, rode `npm run db:generate` e commite a
-migração.
+## Testes
 
-- **Animais** — `animal`: cadastro por organização. Qualquer membro cria e
-  edita; remover é de administrador.
-- **Consultas** — `consulta`: agenda, ligada ao animal (FK) e opcionalmente a
-  um veterinário (usuário da organização; se ele sair, a consulta fica sem
-  responsável em vez de sumir). Data e hora separadas, "de parede", sem fuso.
-  Qualquer membro agenda, edita e exclui. Status: agendada, confirmada,
-  urgente, concluída, cancelada — prefira cancelar a excluir, o histórico fica.
-- **Prontuários** — `prontuario`: o registro de um atendimento (queixa, exame
-  físico, diagnóstico, remédios receitados, exames pedidos). Normalmente
-  documenta uma consulta da agenda — "Registrar atendimento" no menu dela —
-  e registrar marca a consulta como concluída. O retorno preenchido vira uma
-  consulta nova na agenda. Qualquer membro registra e corrige; apagar é de
-  administrador.
-- **Notas** — `ocorrencia` no código, na api e no banco (na tela, "nota"; o
-  endereço antigo `/ocorrencias` leva a `/notas`): o coração do produto. Um
-  áudio do campo entra, é transcrito e interpretado pela IA, e vira um
-  registro *pendente* com as operações propostas (JSON). Nada é gravado nas
-  outras tabelas até um humano confirmar: a confirmação aplica só as operações
-  marcadas (agendar consulta, anotação no animal em `anotacao_animal`,
-  atualizar peso), tudo numa transação. Operação sem animal do cadastro não é
-  aplicável — a tela avisa. O áudio fica em `ocorrencia_audio` para quem
-  confere poder ouvir.
-
-  O áudio entra por `POST /api/org/:orgId/ocorrencias` (multipart, campo
-  `audio`) — é por aí que o gravador de campo (ESP32, em `firmware/`) e o
-  WhatsApp vão chegar. Áudio que a transcrição não entende vira nota
-  mesmo assim; quem confere escreve o que foi dito (`POST …/:id/texto`) e a IA
-  reinterpreta.
-
-  O gravador guarda no cartão o que gravou sem sinal e envia depois, com o
-  campo opcional `gravadoEm` (ISO 8601, ex. `2026-10-26T21:30:00Z`). Essa
-  hora vira a data da nota e o "hoje" da IA — "nasceu hoje", enviado no
-  dia seguinte, é do dia da gravação. Hora impossível (relógio da placa zerado,
-  adiantado ou com mais de 60 dias) é ignorada e vale a chegada: a gravação
-  nunca é recusada por isso. Ao salvar, o que veio sem data (peso, vacina,
-  remédio, parto) fica no dia da gravação; consulta sem data, no dia em que
-  salvou.
-
-  Qualquer membro confere; **salvar ou descartar é do administrador**. O
-  membro usa "Mandar para o administrador" (`POST …/:id/encaminhar`).
-
-  A IA precisa de uma chave no `.env` da api (veja `.env.example`). Com só
-  `GROQ_API_KEY` (plano grátis em console.groq.com) a transcrição (Whisper)
-  e a interpretação (`openai/gpt-oss-120b`, com tool calling) rodam na Groq.
-  Se houver `ANTHROPIC_API_KEY`, a interpretação passa para o Claude; a
-  resolução está em `apps/api/src/ia/provedor.ts`. A saída do modelo é sempre
-  validada pelo contrato antes de virar nota. Sem chave nenhuma a api
-  sobe normalmente e a gravação responde 503 dizendo o que falta.
-- **Tela ao vivo** — nota que chega do gravador e aviso novo aparecem
-  sem recarregar. Com a aba visível, o web pergunta
-  `GET /api/org/:orgId/novidades` a cada 5 s (30 s se ninguém mexe na tela há
-  3 min; nada com a aba escondida). A resposta é uma versão opaca — contagens
-  e datas das notas da organização e dos avisos de quem pergunta — e,
-  se mudou, `router.refresh()` busca a página de novo: sino, contador do
-  menu, Início e lista se atualizam sem perder o que está aberto. É polling
-  de propósito: a Vercel não segura WebSocket, e SSE deixaria uma função
-  aberta (memória cobrada) o tempo todo. Componente em
-  `apps/web/src/components/app/ao-vivo.tsx`, ritmo em `apps/web/src/lib/ao-vivo.ts`.
-
-Cada módulo tem contrato em `packages/shared` (schemas Zod), rotas em
-`apps/api/src/routes` e leitura no web via `apps/web/src/lib/auth/dal.ts`.
-
-## Comandos (raiz)
-
-| Comando                  | Faz                                              |
-| ------------------------ | ------------------------------------------------ |
-| `npm run dev`            | web + api contra o banco principal (Turborepo)   |
-| `npm run dev:hom`        | idem, contra o branch de homologação             |
-| `npm run build`          | build dos dois                                   |
-| `npm run typecheck`      | `tsc` em todos os workspaces                     |
-| `npm run lint`           | eslint no web                                    |
-| `npm test`               | testes (Vitest): shared, web e rotas da api      |
-| `npm run db:migrate`     | aplica migrações no principal (`:hom` p/ homolog.)|
-| `npm run db:generate`    | gera migração a partir do schema                 |
-| `npm run auth:generate`  | regenera `schema.ts` a partir da config do auth  |
-| `npm run seed -- …`      | cria organização + primeiro usuário (`seed:hom`) |
-
-Testes de funções puras ficam ao lado do arquivo testado (`datas.ts` →
-`datas.test.ts`): schemas do contrato, correção de operações da IA, datas.
-
-Testes das rotas da api ficam em `apps/api/test/` e rodam contra um Postgres
-em memória (PGlite) com as mesmas migrações: `test/setup.ts` troca o `db` da
-api por ele, então rotas e Better Auth funcionam de verdade, sem Neon, sem
-internet e sem chave de IA — o `.env` nem é lido. `test/ajuda.ts` cria uma
-fazenda com dono, admin e membro já logados. Cobrem permissões por papel e
-por organização, conferência de notas e prontuários.
-
-Dentro de um workspace, `npm run test:watch` roda a cada mudança.
+- Função pura: `x.ts` → `x.test.ts` ao lado.
+- Rotas da api: `apps/api/test/<módulo>/`, contra um Postgres em memória
+  (PGlite) com as mesmas migrações. Sem Neon, sem internet e sem chave de IA.
+  `test/ajuda.ts` cria uma fazenda com dono, admin e membro já logados.
+- O CI (`.github/workflows/ci.yml`) roda lint, tipos, testes e build em todo
+  push e pull request.
 
 ## Convenções
 
-- O web nunca importa de `apps/api`, e vice-versa. Compartilhado vai para
-  `packages/shared`.
-- `apps/api/src/db/schema.ts` é **gerado** — não edite à mão. Mudou a config do
-  Better Auth? `npm run auth:generate` e depois `npm run db:generate`.
-- A cor de marca vive só em `apps/web/src/app/globals.css` (`--color-brand`).
-- O nome do produto vive só em `apps/web/src/lib/brand.ts` (`BRAND_NAME`).
-- **Toda funcionalidade nova vem com teste, no mesmo commit.** Na api, teste
-  da rota em `apps/api/test/` — o que pode e quem não pode (outro papel, outra
-  organização). Schema ou função pura: `x.test.ts` ao lado do arquivo. Bug
-  corrigido ganha um teste que falhava antes. `npm test` verde antes do commit;
-  o CI roda os testes em todo push e pull request.
+- O web nunca importa de `apps/api`, e vice-versa. O que os dois precisam vai
+  para `packages/shared`.
+- Código por módulo: `apps/api/src/modulos/<m>/` (rotas, regras, consultas),
+  `apps/web/src/modulos/<m>/` (componentes, dados, menu),
+  `packages/shared/src/<m>/`. Fora do módulo, só pelo `index.ts`. Testes de
+  estrutura barram import errado e ciclo.
+- `apps/api/src/db/schema.ts` é **gerado** — não edite à mão. Tabelas de
+  negócio em `apps/api/src/db/tabelas/<módulo>.ts`.
+- Na tela é **nota**; no código, no banco e na api continua `ocorrencia`.
+- A cor da marca vive só em `apps/web/src/app/globals.css`; o nome do produto,
+  só em `apps/web/src/lib/brand.ts`.
+- **Toda funcionalidade nova vem com teste, no mesmo commit** — o caminho
+  feliz e quem não pode (outro papel, outra empresa). `npm test` verde antes
+  de commitar.
+
+Mais regras para quem programa (inclusive assistentes de IA) em
+[CLAUDE.md](CLAUDE.md).
+
+## Gravador de campo
+
+Código e instruções em [firmware/README.md](firmware/README.md). A placa é
+aprovada por um super usuário em Configurações › Gravadores, com o código que
+ela mostra.
