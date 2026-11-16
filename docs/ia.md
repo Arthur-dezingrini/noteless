@@ -142,7 +142,7 @@ com regras do projeto escritas para ele:
   `docs/superpowers/plans/` (modularização, módulos na tela, aviário de
   matrizes, super usuário).
 - Os commits feitos com o assistente levam a linha
-  `Co-Authored-By: Claude …` (113 dos 135 commits até 16/11/2026), o que deixa
+  `Co-Authored-By: Claude …` (119 dos 141 commits até 16/11/2026), o que deixa
   rastreável no histórico o que teve participação da IA.
 
 ### 2.2 Controles
@@ -150,7 +150,7 @@ com regras do projeto escritas para ele:
 A IA no desenvolvimento acelera, mas não decide sozinha:
 
 - quem pede, revisa e aprova cada mudança é uma pessoa do time;
-- todo código passa por `lint`, `typecheck`, 316 testes e `build`, no local e
+- todo código passa por `lint`, `typecheck`, 331 testes e `build`, no local e
   no CI (GitHub Actions) a cada push;
 - testes de estrutura barram import errado entre módulos, independentemente
   de quem escreveu;
@@ -161,6 +161,6 @@ A IA no desenvolvimento acelera, mas não decide sozinha:
 - Velocidade: o MVP com 7 módulos, gravador físico e IA no produto foi
   construído por um time pequeno em cerca de dois meses.
 - Qualidade: a regra de teste obrigatório, aplicada também pelo assistente,
-  levou a 316 testes automatizados.
+  levou a 331 testes automatizados.
 - Documentação viva: especificações, planos e este próprio conjunto de
   documentos foram produzidos com apoio da IA e revisados pelo time.

@@ -125,36 +125,36 @@ Versões instaladas pelo `package-lock.json` em 16/11/2026.
 
 | Pacote | Versão | Uso |
 | --- | --- | --- |
-| hono | 4.13.7 | servidor HTTP |
-| @hono/node-server | 1.19.17 | rodar o Hono no Node (local) |
-| better-auth | 1.7.5 | autenticação e organizações |
+| hono | 4.13.19 | servidor HTTP |
+| @hono/node-server | 1.19.19 | rodar o Hono no Node (local) |
+| better-auth | 1.7.15 | autenticação e organizações |
 | drizzle-orm | 0.45.2 | ORM |
 | @neondatabase/serverless | 1.1.0 | driver do Postgres por WebSocket |
-| zod | 4.6.5 | validação |
-| drizzle-kit | 0.31.10 | migrações (dev) |
+| zod | 4.6.7 | validação |
+| drizzle-kit | 0.31.11 | migrações (dev) |
 | tsup | 8.5.1 | build (dev) |
 | tsx | 4 | rodar TypeScript em dev |
 | @electric-sql/pglite | 0.5.8 | Postgres em memória nos testes (dev) |
-| vitest | 5.0.2 | testes (dev) |
+| vitest | 5.1.0 | testes (dev) |
 
 ### web
 
 | Pacote | Versão | Uso |
 | --- | --- | --- |
-| next | 16.3.4 | framework (App Router) |
+| next | 16.4.6 | framework (App Router) |
 | react / react-dom | 19.2.8 | interface |
-| better-auth | 1.7.5 | cliente de autenticação |
-| zod | 4.6.5 | validação do contrato |
+| better-auth | 1.7.15 | cliente de autenticação |
+| zod | 4.6.7 | validação do contrato |
 | lucide-react | 1.46.0 | ícones |
 | tailwindcss | 4.3.3 | estilo (dev) |
-| eslint + eslint-config-next | 9 / 16.3.4 | lint (dev) |
-| vitest | 5.0.2 | testes (dev) |
+| eslint + eslint-config-next | 9 / 16.4.6 | lint (dev) |
+| vitest | 5.1.0 | testes (dev) |
 
 ### shared
 
 | Pacote | Versão |
 | --- | --- |
-| zod | 4.6.5 |
+| zod | 4.6.7 |
 
 ### firmware
 
@@ -164,8 +164,9 @@ Versões instaladas pelo `package-lock.json` em 16/11/2026.
 | Placa de desenvolvimento | ESP32 DevKit (ESP32-D0WD-V3), microfone I2S INMP441, módulo microSD |
 | Placa própria (em projeto) | ESP32-S3-MINI-1, microfone PDM, KiCad 10 (`firmware/placa/`) |
 
-Há alertas de segurança em algumas dessas versões; ver V1 em
-[seguranca.md](seguranca.md).
+Versões depois da atualização de segurança de 16/11/2026 (V1 em
+[seguranca.md](seguranca.md)). O `npm audit` ainda aponta 5 alertas
+moderados, nenhum alcançável em produção; a explicação está lá.
 
 ## 6. Ambiente de demonstração para a banca
 

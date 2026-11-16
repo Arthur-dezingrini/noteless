@@ -1,6 +1,6 @@
 # Modelo de dados
 
-> Banco: PostgreSQL 17 no Neon, acessado pelo Drizzle ORM. Fonte da verdade:
+> Banco: PostgreSQL no Neon, acessado pelo Drizzle ORM. Fonte da verdade:
 > `apps/api/src/db/schema.ts` (tabelas do Better Auth, geradas) e
 > `apps/api/src/db/tabelas/<módulo>.ts` (tabelas de negócio). As migrações
 > SQL estão em `apps/api/drizzle/` (0000 a 0015 na `main`).
@@ -222,6 +222,11 @@ erDiagram
     user ||--o{ notificacao : ""
     organization ||--o{ notificacao : ""
 ```
+
+`verification` não se liga a nenhuma tabela: o Better Auth guarda nela
+tokens de uso único, e a api guarda o contador de senhas erradas por e-mail
+(`id = tentativas-login:<e-mail>`, apagado ao entrar; vence 15 minutos depois do
+primeiro erro; ver V4 em [seguranca.md](seguranca.md)).
 
 ### 3.3 Animais, saúde e notas
 

@@ -25,6 +25,7 @@ são os das pessoas que usam o sistema, dos tutores e a voz nas gravações.
 | Foto de perfil (opcional) | usuário | `user.image` | aparecer no menu | consentimento (I): só se a pessoa enviar |
 | Senha (hash scrypt) | usuário | `account` | autenticar | execução de contrato (V) |
 | Endereço IP e navegador da sessão | usuário | `session` | segurança da conta | legítimo interesse (IX) e art. 15 do Marco Civil |
+| E-mail digitado no login e número de senhas erradas | quem tenta entrar | `verification` | travar tentativa de adivinhar senha | legítimo interesse (IX) |
 | Vínculo e papel na empresa | usuário | `member` | controle de acesso | execução de contrato (V) |
 | Autoria dos registros (quem gravou, conferiu, salvou) | usuário | colunas `*_por_id` | rastreabilidade do que entrou no sistema | legítimo interesse (IX) |
 | **Voz** (áudio da nota) | quem grava; eventualmente terceiros ao fundo | `ocorrencia_audio` | transcrever e permitir que quem confere ouça | execução de contrato (V) |
@@ -99,7 +100,7 @@ encarregado do Noteless (seção 6), que tem até 15 dias para responder
 | L6 | Aceitar os DPAs da Groq, Vercel, Neon e Anthropic e guardar as cópias | time | média |
 | L7 | Aviso no gravador/manual: "o áudio é enviado para transcrição automática" | produto | média |
 | L8 | Plano de resposta a incidente: quem avalia, como comunicar a ANPD e os titulares no prazo do regulamento da ANPD (art. 48) | time | média |
-| L9 | Itens de segurança abertos em [seguranca.md](seguranca.md) (V1 a V4) | técnico | alta |
+| L9 | Itens de segurança ainda abertos em [seguranca.md](seguranca.md): V5 (conferir o segredo da Vercel) e V6 (recuperação de senha e MFA). V1 a V4 foram corrigidos em 16/11/2026 | técnico | média |
 
 ## 7. Retenção
 
@@ -107,6 +108,7 @@ encarregado do Noteless (seção 6), que tem até 15 dias para responder
 | --- | --- | --- |
 | Conta do usuário | enquanto existir; sair da empresa não apaga | apagar a pedido ou após o fim do contrato com a cliente |
 | Sessões | expiram em 30 dias | — |
+| Contador de senhas erradas | apagado ao entrar; vence 15 minutos depois do primeiro erro e é removido na próxima falha de login | — |
 | Áudio das notas | indefinido | 90 dias após salvar/descartar (L4) |
 | Transcrição, registros de animais | enquanto a empresa for cliente | idem; prontuário veterinário segue o prazo das normas do CFMV |
 | Placas aguardando aprovação | 7 dias | — |

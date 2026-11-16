@@ -3,16 +3,18 @@
 > Avaliação feita em 16/11/2026 sobre a `main` (commit `2a26426`), por leitura
 > do código, testes automatizados, `npm audit`, varredura de segredos no
 > histórico do git e inspeção dos cabeçalhos HTTP do ambiente publicado.
-> Itens corrigidos depois desta data devem ser marcados na seção 6.
+> Os achados V1 a V4 foram corrigidos no mesmo dia (seção 6); os números da
+> seção 5.1 são da versão corrigida (commit `20202f4`), com os de antes ao
+> lado. Itens corrigidos depois devem ser marcados na seção 6.
 
 ## 1. Resumo
 
 | Área | Situação |
 | --- | --- |
 | Autenticação | **Adequada.** Better Auth, senha com scrypt, sessão em banco, cookie `HttpOnly`/`Secure`, sem cadastro público, gravador com segredo próprio |
-| Autorização | **Adequada e testada.** Papel por empresa conferido em toda rota; toda consulta filtrada pela empresa; 179 testes de rota, vários só de "quem não pode" |
+| Autorização | **Adequada e testada.** Papel por empresa conferido em toda rota; toda consulta filtrada pela empresa; 190 testes na api, vários só de "quem não pode" |
 | Proteção de dados | **Adequada.** HTTPS ponta a ponta, banco com TLS e criptografia em repouso, segredos fora do git, validação de toda entrada |
-| Vulnerabilidades | **2 de prioridade alta** (dependências desatualizadas com alertas críticos; cabeçalhos de segurança ausentes) e itens médios e baixos, todos com correção conhecida — ver seção 5 |
+| Vulnerabilidades | Os **2 de prioridade alta** (dependências com alertas críticos; cabeçalhos de segurança ausentes) e os **2 médios** (tipo do áudio; limite de tentativas de login) foram **corrigidos** com teste. Restam itens baixos e informativos — ver seção 5 |
 
 ## 2. Autenticação
 
@@ -28,7 +30,7 @@ sessão pela api.
 | Sessão | token aleatório guardado no banco (`session`), enviado em cookie `HttpOnly`, `Secure` (HTTPS) e `SameSite=Lax`, assinado com `BETTER_AUTH_SECRET`. Vale 30 dias e renova no máximo uma vez por dia |
 | Encerramento | sair apaga a sessão no banco; trocar a senha derruba as sessões dos outros aparelhos (testado em `test/conta/usuarios.test.ts`) |
 | CSRF | o Better Auth recusa POST de origem fora de `trustedOrigins` (`WEB_URL` + `ORIGENS_EXTRAS`); o cookie é `SameSite=Lax`; o CORS da api só aceita essas origens |
-| Força bruta | limitador do Better Auth ligado em produção: 3 tentativas a cada 10 s em `/sign-in`, `/change-password` e `/change-email`; 100 requisições a cada 10 s no resto. Ver ressalva V4 |
+| Força bruta | **dez senhas erradas para o mesmo e-mail em 15 minutos travam a entrada desse e-mail até fecharem os 15 minutos** (contados do primeiro erro), mesmo com a senha certa; a resposta é a mesma exista a conta ou não; o contador fica no banco, então vale igual para todas as instâncias da Vercel, e zera quando a pessoa entra (`apps/api/src/modulos/conta/regras/tentativas-login.ts`). A tela mostra quanto falta. Por cima disso, o limitador do Better Auth: 3 tentativas a cada 10 s em `/sign-in`, `/change-password` e `/change-email` e 100 requisições a cada 10 s no resto, por IP e em memória (cada instância conta a sua parte). Ver V4 e V10 |
 | Super usuário | o campo `tipo` tem `input: false`: ninguém se marca super pela api, nem no cadastro nem no próprio perfil. Só outro super usuário (`PATCH /api/admin/usuarios/:id`) ou o script `npm run super` (que exige acesso ao banco) promove |
 | Gravador de campo | não tem conta nem senha. Sorteia um segredo de 32 bytes na primeira vez que liga; manda `Authorization: Gravador <série> <segredo>`; o servidor guarda só o SHA-256 e compara em tempo constante (`timingSafeEqual`). Só passa a mandar notas depois que o super usuário digita o código que a própria placa mostra (derivado do segredo). Placas aguardando aprovação têm teto (20) e prazo (7 dias) |
 | Duas camadas no web | `proxy.ts` só olha se o cookie existe (otimista, sem custo); `lib/auth/dal.ts` confere de verdade na api e valida a resposta contra o contrato. Página nenhuma confia só no proxy |
@@ -74,7 +76,7 @@ senha dele.
 
 ### Evidência
 
-Os testes de rota (`apps/api/test/`, 179 casos) rodam contra um Postgres em
+Os testes da api (`apps/api/test/`, 190 casos) rodam contra um Postgres em
 memória com as migrações reais e o Better Auth de verdade. Exemplos de "quem
 não pode":
 
@@ -87,6 +89,9 @@ não pode":
   aprovação não manda nota; aprovada não manda para outra empresa e não lê
   notas.
 - `conta/super-acesso.test.ts`, `conta/admin.test.ts`: o que só o super faz.
+- `conta/tentativas-login.test.ts`: a décima senha errada trava o e-mail
+  (com qualquer maiúscula ou espaço), outra pessoa continua entrando, erros
+  simultâneos contam todos, a trava acaba em 15 minutos.
 
 ## 4. Proteção de dados
 
@@ -95,8 +100,9 @@ não pode":
 | Em trânsito | HTTPS em tudo (Vercel, com HSTS `max-age=63072000; preload`); api → Neon por WebSocket seguro (TLS, `sslmode=require`); api → Groq/Anthropic por HTTPS; gravador → web por HTTPS |
 | Em repouso | Neon criptografa o armazenamento; senhas com scrypt; segredo do gravador só como SHA-256 |
 | Segredos | só em variáveis de ambiente (Vercel e `.env` local, ignorado pelo git). `.env.example` sem valores. `segredos.h` do firmware ignorado pelo git. A api valida as variáveis na subida e, no log, mostra só o host do banco, nunca a credencial |
-| Entrada | todo corpo JSON é validado com o schema Zod do contrato antes de uso; consultas pelo Drizzle são parametrizadas (sem SQL montado com texto do usuário); avatar só PNG/JPEG/WebP até 2 MB; áudio até 25 MB (a Vercel limita a 4,5 MB) |
-| Saída | o React escapa todo texto; não há `dangerouslySetInnerHTML`; a saída da IA é validada pelo contrato antes de virar nota |
+| Entrada | todo corpo JSON é validado com o schema Zod do contrato antes de uso; consultas pelo Drizzle são parametrizadas (sem SQL montado com texto do usuário); avatar só PNG/JPEG/WebP até 2 MB; áudio só `audio/*` (outro tipo é recusado com 415) e até 25 MB (a Vercel limita a 4,5 MB) |
+| Saída | o React escapa todo texto; não há `dangerouslySetInnerHTML`; a saída da IA é validada pelo contrato antes de virar nota; o áudio só sai com tipo de áudio, `nosniff` e `Content-Security-Policy: sandbox` |
+| Cabeçalhos | em toda resposta do web (`apps/web/next.config.ts`): `Content-Security-Policy` (tudo do próprio site, `frame-ancestors 'none'`, `form-action 'self'`, `object-src 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` e `Permissions-Policy` (microfone só no próprio site; câmera e localização, ninguém); o HSTS a Vercel põe |
 | Isolamento entre empresas | pela aplicação (filtro por `organization_id`), coberto por testes. Ver V8 |
 | Mínimo de dados | o sistema pede só o necessário; ver [lgpd.md](lgpd.md) |
 | Registro | log de requisições da api (método, caminho, status, tempo), sem corpo e sem cabeçalho de autenticação |
@@ -107,13 +113,13 @@ não pode":
 
 | Verificação | Ferramenta / como | Resultado |
 | --- | --- | --- |
-| Testes automatizados | `npm test` (Vitest) numa cópia limpa da `main` | 316 testes passando (shared 76, web 61, api 179) |
+| Testes automatizados | `npm test` (Vitest) numa cópia limpa da `main` | 331 testes passando (shared 76, web 65, api 190); antes das correções, 316 |
 | Tipos e lint | `npm run typecheck`, `npm run lint` | sem erro |
 | Build | `npm run build` | ok |
-| Dependências | `npm audit` | 22 alertas (2 críticos, 4 altos, 15 moderados, 1 baixo); ver V1 |
+| Dependências | `npm audit` | antes: 22 alertas (2 críticos, 4 altos, 15 moderados, 1 baixo). Depois de V1: **5 moderados**, nenhum alcançável em produção (ver V1) |
 | Segredos no histórico | `git log -p --all` buscando chaves da Groq/Anthropic, URLs de banco com senha e `BETTER_AUTH_SECRET` | 1 achado; ver V5 |
 | Arquivos sensíveis versionados | `git log --all --name-only` buscando `.env` e `segredos.h` | só os `.example` |
-| Cabeçalhos HTTP | `curl -I` no ambiente publicado | só HSTS; ver V2 |
+| Cabeçalhos HTTP | `curl -I` no ambiente publicado; teste automatizado em `apps/web/next.config.test.ts` | antes: só HSTS. Depois de V2: os cinco cabeçalhos em toda rota, conferidos no teste e no navegador (nenhuma violação de CSP, página hidrata) |
 | Revisão manual | autenticação, autorização, upload, CORS/CSRF, injeção, XSS, IDOR, pela lista OWASP Top 10 (abaixo) | achados V3, V4, V6 a V9 |
 
 ### 5.2 OWASP Top 10 (2021)
@@ -124,37 +130,42 @@ não pode":
 | A02 Falhas criptográficas | HTTPS + HSTS, TLS no banco, scrypt, SHA-256 + comparação em tempo constante |
 | A03 Injeção | Drizzle parametrizado; o único `sql.raw` monta nomes de coluna vindos do próprio esquema, não do usuário; React escapa HTML |
 | A04 Design inseguro | IA não grava nada sem confirmação humana; gravador sem senha embarcada; tomada de conta por vínculo prevista e barrada |
-| A05 Configuração insegura | variáveis validadas na subida; cadastro público desligado; **cabeçalhos de segurança ausentes (V2)** |
-| A06 Componentes vulneráveis | **dependências com alertas (V1)** |
-| A07 Falhas de identificação e autenticação | Better Auth, limitador de tentativas (**em memória, V4**), sessão revogável; sem MFA e sem recuperação de senha (V6) |
+| A05 Configuração insegura | variáveis validadas na subida; cadastro público desligado; cabeçalhos de segurança em toda resposta (V2, corrigido) |
+| A06 Componentes vulneráveis | dependências atualizadas (V1, corrigido); restam 5 alertas moderados em ferramenta de desenvolvimento e em recurso não usado |
+| A07 Falhas de identificação e autenticação | Better Auth, trava de dez erros por e-mail guardada no banco (V4, corrigido), sessão revogável; sem MFA e sem recuperação de senha (V6) |
 | A08 Integridade de software e dados | `package-lock.json` versionado, `npm ci` no CI, saída da IA validada por schema |
 | A09 Falhas de log e monitoramento | log de requisição da api e erros na Vercel; histórico de erros dos gravadores; sem alerta automático |
 | A10 SSRF | a api só chama URLs fixas da configuração (Groq, Anthropic, transcrição); nenhuma URL vem do usuário |
 
 ### 5.3 Achados
 
-| # | Gravidade | Achado | Recomendação |
+| # | Gravidade | Achado | Recomendação ou correção |
 | --- | --- | --- | --- |
-| V1 | **Alta** | **Dependências com alertas de segurança.** Em produção: `next` 16.3.4 (alertas críticos e altos, entre eles execução remota na otimização de imagem com SVG e SSRF; o `npm audit` indica a 16.4.6), `better-auth` 1.7.5 (alertas críticos em OAuth e magic link — recursos que o Noteless **não usa**), `hono` 4.13.7 e `@hono/node-server` (desvio de middleware em `serveStatic` e `mount`, que não são usados), `zod` 4.6.5 (consumo de memória com coleções enormes). O resto (vite, vitest, esbuild, drizzle-kit, typescript-eslint) é só de desenvolvimento | `npm audit fix` resolve todos sem versão major, exceto o `drizzle-kit` (só desenvolvimento). Rodar `npm test` e `npm run build` depois e publicar |
-| V2 | **Alta** | **Cabeçalhos de segurança ausentes no web.** Só há HSTS (posto pela Vercel). Faltam `Content-Security-Policy`, `X-Frame-Options`/`frame-ancestors` (a tela pode ser embutida em outro site: clickjacking), `X-Content-Type-Options: nosniff` e `Referrer-Policy` | `headers()` no `apps/web/next.config.ts` com esses cabeçalhos para todas as rotas |
-| V3 | Média | **Áudio servido com o tipo informado por quem enviou.** `GET …/ocorrencias/:id/audio` devolve o `Content-Type` que veio no upload. Um arquivo com tipo `text/html` seria exibido como página no domínio do web. Mitigado porque o arquivo precisa antes passar pela transcrição (que recusa o que não é áudio) e só membros da empresa enviam | aceitar só `audio/*` no upload; na resposta, `X-Content-Type-Options: nosniff` e `Content-Security-Policy: sandbox` |
-| V4 | Média | **Limitador de tentativas de login guardado em memória.** Na Vercel cada instância da função tem o seu contador; um ataque espalhado entre instâncias passa de 3 tentativas a cada 10 s | `rateLimit: { storage: "database" }` no Better Auth (cria a tabela `rate_limit`) ou armazenamento secundário (Redis/Upstash) |
+| V1 | **Alta** | **Dependências com alertas de segurança.** Em produção: `next` 16.3.4 (alertas críticos e altos, entre eles execução remota na otimização de imagem com SVG e SSRF; o `npm audit` indica a 16.4.6), `better-auth` 1.7.5 (alertas críticos em OAuth e magic link — recursos que o Noteless **não usa**), `hono` 4.13.7 e `@hono/node-server` (desvio de middleware em `serveStatic` e `mount`, que não são usados), `zod` 4.6.5 (consumo de memória com coleções enormes). O resto (vite, vitest, esbuild, drizzle-kit, typescript-eslint) é só de desenvolvimento | **Corrigido (`45cf10b`):** `next` 16.4.6, `better-auth` 1.7.15, `hono` 4.13.19, `zod` 4.6.7 e o resto pelo `npm audit fix`; testes, lint, tipos e build verdes. Restam 5 moderados: `esbuild` antigo dentro do `drizzle-kit` (só desenvolvimento; a correção exige versão major) e `serveStatic` do `@hono/node-server` (não usado; correção só na 2.x) |
+| V2 | **Alta** | **Cabeçalhos de segurança ausentes no web.** Só há HSTS (posto pela Vercel). Faltam `Content-Security-Policy`, `X-Frame-Options`/`frame-ancestors` (a tela pode ser embutida em outro site: clickjacking), `X-Content-Type-Options: nosniff` e `Referrer-Policy` | **Corrigido (`302b5c7`):** `headers()` no `apps/web/next.config.ts` com CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy` e `Permissions-Policy` em toda rota, com teste. A CSP ainda permite script inline, porque o Next hidrata a página com script inline; trocar por *nonce* fica para depois |
+| V3 | Média | **Áudio servido com o tipo informado por quem enviou.** `GET …/ocorrencias/:id/audio` devolve o `Content-Type` que veio no upload. Um arquivo com tipo `text/html` seria exibido como página no domínio do web. Mitigado porque o arquivo precisa antes passar pela transcrição (que recusa o que não é áudio) e só membros da empresa enviam | **Corrigido (`b5facc6`):** o upload só aceita `audio/*` (outro tipo recebe 415 antes de gastar a IA); a resposta só devolve tipo de áudio (arquivo antigo com outro tipo sai como `application/octet-stream`), com `nosniff` e `Content-Security-Policy: sandbox`. Testado |
+| V4 | Média | **Limitador de tentativas de login guardado em memória.** Na Vercel cada instância da função tem o seu contador; um ataque espalhado entre instâncias passa de 3 tentativas a cada 10 s | **Corrigido (`20202f4`):** dez senhas erradas para o mesmo e-mail em 15 minutos travam esse e-mail até o fim dessa janela, mesmo com a senha certa. O contador fica no banco (tabela `verification`, gravação atômica), igual para todas as instâncias, sem migração nova; zera ao entrar. A tela mostra quanto falta (HTTP 429). Testado |
 | V5 | Baixa | **Segredo de sessão antigo no histórico do git.** Um valor de `BETTER_AUTH_SECRET` esteve em `apps/api/.env.example` nos commits `a81bc7d` e `574e774` (set/2026). **Não é o segredo usado hoje nos `.env` locais.** O repositório é privado | confirmar que o segredo da Vercel também é outro; se for igual, gerar um novo (`openssl rand -base64 32`) — todos precisarão entrar de novo |
 | V6 | Baixa | **Sem verificação de e-mail, sem recuperação de senha e sem MFA.** Esquecer a senha depende de um administrador. A troca do próprio e-mail não pede a senha atual | quando houver envio de e-mail: verificação e recuperação; exigir a senha atual para trocar o e-mail; MFA (plugin `twoFactor`) para administradores |
 | V7 | Baixa | **Sessão longa (30 dias).** Escolha consciente (quem está no campo não quer logar toda hora), mas aumenta a janela de uso de um cookie roubado | manter; reduzir para administradores se surgir MFA |
 | V8 | Informativa | **Isolamento entre empresas só na aplicação**, sem Row-Level Security no Postgres. Um erro numa consulta nova vazaria dados de outra empresa | manter a regra de teste "outra organização não vê" em toda rota nova; avaliar RLS no futuro |
 | V9 | Informativa | **Registro de placa aberto** (`POST /api/gravadores/estado`): qualquer um cria uma placa "aguardando". Sem acesso a dados; mitigado por teto de 20 e prazo de 7 dias | manter |
+| V10 | Informativa | **A trava de login pode ser acionada por outra pessoa** (efeito da correção de V4): quem souber o e-mail de alguém pode errar a senha dez vezes e impedir essa pessoa de entrar por até 15 minutos | aceitável: é melhor que deixar adivinhar a senha, e a trava acaba sozinha. Se virar problema: desbloqueio pelo administrador ou CAPTCHA depois de alguns erros |
 
 ## 6. Acompanhamento
 
 | # | Status | Data | Commit |
 | --- | --- | --- | --- |
-| V1 | aberto | | |
-| V2 | aberto | | |
-| V3 | aberto | | |
-| V4 | aberto | | |
+| V1 | corrigido | 16/11/2026 | `45cf10b` |
+| V2 | corrigido | 16/11/2026 | `302b5c7` |
+| V3 | corrigido | 16/11/2026 | `b5facc6` |
+| V4 | corrigido | 16/11/2026 | `20202f4` |
 | V5 | conferir na Vercel | | |
 | V6 | aberto (depende de envio de e-mail) | | |
+| V10 | aceito (ver 5.3) | 16/11/2026 | |
+
+As correções entram no ar com o deploy da `main`. Cada commit passou por
+`npm run typecheck` e `npm test` sozinho; o último, também por lint e build.
 
 ## 7. Como repetir esta verificação
 

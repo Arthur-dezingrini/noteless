@@ -13,6 +13,7 @@
 | [ia.md](ia.md) | IA no produto (transcrição, interpretação, avaliação) e no desenvolvimento, com justificativa de valor |
 | [infraestrutura.md](infraestrutura.md) | serviços, deploy, ambientes, variáveis, dependências e versões, ambiente de demonstração |
 | [../README.md](../README.md) | instalação, configuração e execução |
+| [pdf/](pdf/) | estes documentos em PDF: um volume único (`Noteless-documentacao-tecnica.pdf`) e um arquivo por documento em `pdf/separados/`. Para gerar de novo depois de mudar um `.md`: `node docs/pdf/gerar.mjs` (precisa do Google Chrome e de internet) |
 | [../firmware/README.md](../firmware/README.md) | gravador de campo: montagem, gravação do firmware, funcionamento |
 | [superpowers/specs/](superpowers/specs/) e [superpowers/plans/](superpowers/plans/) | especificação e plano de cada funcionalidade grande |
 
@@ -31,11 +32,11 @@
 | Documentação técnica atualizada | esta pasta |
 | Arquitetura, módulos e decisões técnicas | [arquitetura.md §4 e §8](arquitetura.md) |
 | README com instalação, configuração e execução | [../README.md](../README.md) |
-| Histórico de commits demonstrando a evolução | `git log` (135 commits); resumo abaixo |
+| Histórico de commits demonstrando a evolução | `git log` (141 commits); resumo abaixo |
 | Infraestrutura documentada | [infraestrutura.md §1–3](infraestrutura.md) |
 | Dependências, versões e configuração de ambiente | [infraestrutura.md §4–5](infraestrutura.md#4-variáveis-de-ambiente) |
 | Ambiente de demonstração acessível | https://vocare-iota.vercel.app — [infraestrutura.md §6](infraestrutura.md#6-ambiente-de-demonstração-para-a-banca) |
-| Testes automatizados | 316 testes (`npm test`); CI em `.github/workflows/ci.yml` |
+| Testes automatizados | 331 testes (`npm test`); CI em `.github/workflows/ci.yml` |
 | Regras de negócio além de CRUD | conferência de notas pela IA, aplicação em transação, aviário (alojamento, transferência, indicadores), pareamento do gravador — [arquitetura.md §5–6](arquitetura.md) |
 
 ## Evolução do projeto
@@ -54,12 +55,12 @@ Resumo do histórico do repositório (`git log --reverse`).
 | 09–10/11 | marca Noteless; "Ocorrências" vira "Notas"; kit de componentes; **módulo aviário** (galpões, lotes, apontamento por voz); nota com a hora da gravação; tela ao vivo; **firmware do gravador**; **modularização** por domínio com teste de estrutura; menu por módulo |
 | 11/11 | avaliação da IA com conjunto de casos; **super usuário** e vínculos; gravadores avisam o estado; cartão com falha detectado sem perder gravação |
 | 15/11 | gravador sem conta, aprovado pelo código; transcrição com o vocabulário da empresa (38 de 41 casos certos); IA corrige palavras mal ouvidas; parto cadastra as crias |
-| 16/11 | esta documentação técnica |
+| 16/11 | esta documentação técnica; correção dos achados de segurança V1 a V4 (dependências, cabeçalhos HTTP, tipo do áudio, trava de login no banco) |
 
 Comandos úteis para a banca conferir:
 
 ```bash
 git log --oneline --reverse          # evolução, commit a commit
 git log --format='%ad' --date=format:'%Y-%m' | sort | uniq -c   # commits por mês
-npm test                             # 316 testes
+npm test                             # 331 testes
 ```
