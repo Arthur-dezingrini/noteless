@@ -75,6 +75,9 @@ export const parto = pgTable(
     data: date("data").notNull(),
     crias: integer("crias"),
     observacoes: text("observacoes"),
+    // O pai das crias: do cadastro, ou em texto quando é de fora do rebanho.
+    paiId: text("pai_id").references(() => animal.id, { onDelete: "set null" }),
+    paiExterno: text("pai_externo"),
   },
   (t) => [index("parto_animal_id_idx").on(t.animalId)],
 );

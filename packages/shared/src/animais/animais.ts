@@ -70,6 +70,10 @@ export const animalSchema = z.object({
   /** "Onde fica": Casa, Baia 1, Lote 2… */
   local: z.string().nullish(),
   ultimaVisita: dataIso.nullish(),
+  /** Mãe e pai do cadastro; `paiExterno` é o pai de fora do rebanho ("sêmen Duroc"). */
+  maeId: z.string().nullish(),
+  paiId: z.string().nullish(),
+  paiExterno: z.string().nullish(),
   status: statusAnimalSchema,
   /** Tem tratamento em andamento (calculado pela api). */
   emTratamento: z.boolean().optional(),
@@ -95,6 +99,9 @@ const baseAnimalSchema = z.object({
   microchip: texto(40).nullish(),
   local: texto(60).nullish(),
   ultimaVisita: dataIso.nullish(),
+  maeId: z.string().nullish(),
+  paiId: z.string().nullish(),
+  paiExterno: texto(80).nullish(),
 });
 export type CriarAnimalInput = z.infer<typeof baseAnimalSchema>;
 
@@ -102,12 +109,17 @@ export type CriarAnimalInput = z.infer<typeof baseAnimalSchema>;
 const temNomeOuNumero = (d: { nome?: string | null; numero?: string | null }) => !!(d.nome || d.numero);
 const nomeOuNumero = { message: "Informe o nome ou o número do animal.", path: ["nome"] };
 
+/** O pai é do cadastro ou de fora, não os dois. */
+const umPaiSo = (d: { paiId?: string | null; paiExterno?: string | null }) => !(d.paiId && d.paiExterno);
+const paiDuplo = { message: "Escolha o pai do cadastro ou escreva o de fora, não os dois.", path: ["paiExterno"] };
+
 /** A edição manda o cadastro inteiro de volta, mais o status. */
-export const criarAnimalSchema = baseAnimalSchema.refine(temNomeOuNumero, nomeOuNumero);
+export const criarAnimalSchema = baseAnimalSchema.refine(temNomeOuNumero, nomeOuNumero).refine(umPaiSo, paiDuplo);
 
 export const atualizarAnimalSchema = baseAnimalSchema
   .extend({ status: statusAnimalSchema })
-  .refine(temNomeOuNumero, nomeOuNumero);
+  .refine(temNomeOuNumero, nomeOuNumero)
+  .refine(umPaiSo, paiDuplo);
 export type AtualizarAnimalInput = z.infer<typeof atualizarAnimalSchema>;
 
 /** "nº 07 Thor", "Thor" ou "nº 47" — como o animal aparece em toda a tela. */

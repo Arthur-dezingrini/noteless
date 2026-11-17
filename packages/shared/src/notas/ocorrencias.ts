@@ -92,6 +92,9 @@ export const operacaoSchema = z.discriminatedUnion("tipo", [
     cadastrarCrias: z.boolean().default(true),
     /** Nomes ditos para as crias, separados por vírgula ("Faísca"); as outras ficam "Cria 2 da Pintada". */
     nomesCrias: textoOpcional.default(null),
+    /** O pai, se foi dito: animal do cadastro, ou em texto quando é de fora ("sêmen Duroc"). */
+    paiId: z.string().nullable().default(null),
+    paiExterno: textoOpcional.default(null),
   }),
   baseOperacao.extend({
     tipo: z.literal("cadastrar_animal"),
@@ -208,7 +211,7 @@ export const CAMPOS_CORRIGIVEIS = {
   agendar_consulta: ["animalId", "grupoId", "tipoConsulta", "data", "hora", "observacoes"],
   aplicar_vacina: ["animalId", "grupoId", "vacina", "dose", "data", "proximaData"],
   registrar_remedio: ["animalId", "grupoId", "remedio", "dose", "dias", "carenciaDias"],
-  registrar_parto: ["animalId", "data", "crias", "cadastrarCrias", "nomesCrias", "observacoes"],
+  registrar_parto: ["animalId", "data", "crias", "paiId", "paiExterno", "cadastrarCrias", "nomesCrias", "observacoes"],
   cadastrar_animal: ["nome", "especie", "raca", "sexo", "nascimento"],
   apontar_galpao: ["instalacaoId", "data", ...CAMPOS_APONTAMENTO, "observacoes"],
   pesar_lote: ["loteId", "data", "sexo", "pesoMedioG", "uniformidadePct", "amostra"],

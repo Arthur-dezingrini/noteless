@@ -5,7 +5,7 @@ import { useState, type KeyboardEvent } from "react";
 
 import { Select } from "@/components/ui";
 
-import { ROTULO_CAMPO, CAMPOS_DATA, CAMPOS_INTEIROS, CAMPOS_DECIMAIS, CAMPOS_ESCOLHA, opcional, ehAviario, formatarCampo, opcoesDe, camposDe } from "./descricao";
+import { ROTULO_CAMPO, CAMPOS_ALVO, CAMPOS_DATA, CAMPOS_INTEIROS, CAMPOS_DECIMAIS, CAMPOS_ESCOLHA, opcional, ehAviario, formatarCampo, opcoesDe, camposDe } from "./descricao";
 import { type Cadastro } from "../tipos";
 
 /**
@@ -77,9 +77,7 @@ export function CamposEditaveis({
     if (CAMPOS_ESCOLHA.includes(c)) {
       return (
         <Select {...comum} value={rascunho} onChange={(e) => confirmar(c, e.target.value)} className="min-w-0 flex-[1_1_10rem]">
-          {(c === "animalId" || c === "grupoId" || c === "instalacaoId" || c === "loteId" || (c === "sexo" && opcional(op.tipo, c))) && (
-            <option value="">{c === "sexo" ? "Não informado" : "Escolha…"}</option>
-          )}
+          {(CAMPOS_ALVO.includes(c) || opcional(op.tipo, c)) && <option value="">{CAMPOS_ALVO.includes(c) ? "Escolha…" : "Não informado"}</option>}
           {opcoesDe(c, cad).map((o) => (
             <option key={o.v} value={o.v}>
               {o.r}

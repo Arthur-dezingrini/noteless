@@ -8,7 +8,7 @@ import {
   type CriarAnimalInput,
   type Papel,
 } from "@vocare/shared";
-import { and, asc, eq, gte, isNull, or } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, or } from "drizzle-orm";
 import { Hono } from "hono";
 
 import { db } from "../../../db";
@@ -40,6 +40,9 @@ export function paraContrato(r: typeof animal.$inferSelect, emTratamento?: boole
     microchip: r.microchip,
     local: r.local,
     ultimaVisita: r.ultimaVisita,
+    maeId: r.maeId,
+    paiId: r.paiId,
+    paiExterno: r.paiExterno,
     status: statusAnimalSchema.catch("ativo").parse(r.status),
     emTratamento,
     createdAt: r.createdAt,
@@ -62,7 +65,26 @@ function paraColunas(d: CriarAnimalInput) {
     microchip: d.microchip || null,
     local: d.local || null,
     ultimaVisita: d.ultimaVisita ?? null,
+    maeId: d.maeId || null,
+    paiId: d.paiId || null,
+    paiExterno: d.paiExterno || null,
   };
+}
+
+/**
+ * Mãe e pai têm de ser animais desta organização, e não o próprio animal.
+ * Devolve a mensagem de erro, ou null.
+ */
+async function conferirPais(orgId: string, d: CriarAnimalInput, proprioId?: string) {
+  const ids = [d.maeId, d.paiId].filter((x): x is string => !!x);
+  if (ids.length === 0) return null;
+  if (proprioId && ids.includes(proprioId)) return "O animal não pode ser mãe ou pai de si mesmo.";
+  if (d.maeId && d.maeId === d.paiId) return "Mãe e pai precisam ser animais diferentes.";
+  const achados = await db
+    .select({ id: animal.id })
+    .from(animal)
+    .where(and(inArray(animal.id, ids), eq(animal.organizationId, orgId)));
+  return achados.length === new Set(ids).size ? null : "Mãe ou pai não encontrado nesta organização.";
 }
 
 animaisRoutes.get("/:orgId/animais", async (c) => {
@@ -91,6 +113,8 @@ animaisRoutes.post("/:orgId/animais", async (c) => {
 
   const body = criarAnimalSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
+  const errPais = await conferirPais(orgId, body.data);
+  if (errPais) return c.json({ error: errPais }, 400);
 
   const [novo] = await db
     .insert(animal)
@@ -108,6 +132,8 @@ animaisRoutes.patch("/:orgId/animais/:id", async (c) => {
 
   const body = atualizarAnimalSchema.safeParse(await c.req.json().catch(() => null));
   if (!body.success) return c.json({ error: body.error.issues[0]?.message ?? "Dados inválidos." }, 400);
+  const errPais = await conferirPais(orgId, body.data, id);
+  if (errPais) return c.json({ error: errPais }, 400);
 
   // O filtro por organização é a garantia de que ninguém edita animal alheio.
   const [alvo] = await db

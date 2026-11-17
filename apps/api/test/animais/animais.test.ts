@@ -42,3 +42,45 @@ describe("animais", () => {
     expect(lista.json.map((a: { nome: string }) => a.nome)).not.toContain("Bolota");
   });
 });
+
+describe("mãe e pai", () => {
+  it("membro liga a cria à mãe e ao pai, e a ficha mostra a família", async () => {
+    const mae = (await chamar(f.membro, "POST", rota(), { nome: "Porca 7", especie: "suino", sexo: "femea" })).json.id;
+    const pai = (await chamar(f.membro, "POST", rota(), { numero: "12", nome: "Cachaço", especie: "suino", sexo: "macho" })).json.id;
+    const cria = await chamar(f.membro, "POST", rota(), { nome: "Cria 1", especie: "suino", nascimento: "2026-11-15", maeId: mae, paiId: pai });
+    expect(cria.status).toBe(201);
+    const irma = (await chamar(f.membro, "POST", rota(), { nome: "Cria 2", especie: "suino", nascimento: "2026-11-16", maeId: mae, paiExterno: "sêmen Duroc" })).json.id;
+
+    const fichaCria = (await chamar(f.membro, "GET", `${rota()}/${cria.json.id}/ficha`)).json;
+    expect(fichaCria.mae).toMatchObject({ id: mae, rotulo: "Porca 7" });
+    expect(fichaCria.pai).toMatchObject({ id: pai, rotulo: "nº 12 Cachaço" });
+    expect(fichaCria.animal).toMatchObject({ maeId: mae, paiId: pai, paiExterno: null });
+
+    const fichaMae = (await chamar(f.membro, "GET", `${rota()}/${mae}/ficha`)).json;
+    expect(fichaMae.mae).toBeNull();
+    // Do mais novo para o mais velho.
+    expect(fichaMae.filhos.map((x: { id: string }) => x.id)).toEqual([irma, cria.json.id]);
+    const fichaIrma = (await chamar(f.membro, "GET", `${rota()}/${irma}/ficha`)).json;
+    expect(fichaIrma).toMatchObject({ pai: null, animal: { paiExterno: "sêmen Duroc" } });
+
+    // Tirar a mãe na edição desfaz o vínculo.
+    await chamar(f.membro, "PATCH", `${rota()}/${irma}`, { nome: "Cria 2", especie: "suino", status: "ativo", paiExterno: "sêmen Duroc" });
+    expect((await chamar(f.membro, "GET", `${rota()}/${mae}/ficha`)).json.filhos).toHaveLength(1);
+  });
+
+  it("não aceita mãe ou pai de outra fazenda, nem o próprio animal", async () => {
+    const vizinha = await criarFazenda("Boa Vista");
+    const alheia = (await chamar(vizinha.dono, "POST", `/api/org/${vizinha.orgId}/animais`, { nome: "Alheia", especie: "suino" })).json.id;
+    const r = await chamar(f.membro, "POST", rota(), { nome: "Cria 3", especie: "suino", maeId: alheia });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toBe("Mãe ou pai não encontrado nesta organização.");
+
+    const { json } = await chamar(f.membro, "POST", rota(), { nome: "Solo", especie: "suino" });
+    const propria = await chamar(f.membro, "PATCH", `${rota()}/${json.id}`, { nome: "Solo", especie: "suino", status: "ativo", maeId: json.id });
+    expect(propria.status).toBe(400);
+    expect(propria.json.error).toBe("O animal não pode ser mãe ou pai de si mesmo.");
+
+    // E a vizinha não lê a família dos nossos.
+    expect((await chamar(vizinha.dono, "GET", `${rota()}/${json.id}/ficha`)).status).toBe(403);
+  });
+});

@@ -133,8 +133,18 @@ export async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: strin
       return null;
     case "registrar_parto": {
       const data = op.data ?? dia;
-      await tx.insert(parto).values({ ...origem, animalId: um, data, crias: op.crias, observacoes: op.observacoes });
-      if (op.cadastrarCrias) await cadastrarCrias(tx, orgId, um, { data, crias: op.crias, nomesCrias: op.nomesCrias });
+      // O pai escolhido por quem conferiu também tem de ser desta organização.
+      if (op.paiId) {
+        const [pai] = await tx
+          .select({ id: animal.id })
+          .from(animal)
+          .where(and(eq(animal.id, op.paiId), eq(animal.organizationId, orgId)))
+          .limit(1);
+        if (!pai || pai.id === um) return "Pai não encontrado nesta organização.";
+      }
+      const pai = { paiId: op.paiId, paiExterno: op.paiId ? null : op.paiExterno };
+      await tx.insert(parto).values({ ...origem, animalId: um, data, crias: op.crias, observacoes: op.observacoes, ...pai });
+      if (op.cadastrarCrias) await cadastrarCrias(tx, orgId, um, { data, crias: op.crias, nomesCrias: op.nomesCrias, ...pai });
       return null;
     }
   }

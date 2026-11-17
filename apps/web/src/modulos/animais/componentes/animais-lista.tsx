@@ -184,6 +184,7 @@ export function AnimaisLista({ orgId, animais, possoRemover }: Props) {
           animal={modal.animal}
           orgId={orgId}
           possoRemover={possoRemover}
+          animais={animais}
           onClose={() => setModal(null)}
           onDone={() => {
             setModal(null);

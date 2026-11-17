@@ -1,4 +1,4 @@
-import { date, index, numeric, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { date, index, numeric, pgTable, text, timestamp, type AnyPgColumn } from "drizzle-orm/pg-core";
 
 import { organization } from "../schema";
 
@@ -34,6 +34,11 @@ export const animal = pgTable(
     local: text("local"),
     // Preenchida à mão até existir o módulo de consultas.
     ultimaVisita: date("ultima_visita"),
+    // Genealogia. Pai de fora do rebanho (sêmen comprado, reprodutor do
+    // vizinho) não tem cadastro: fica em texto.
+    maeId: text("mae_id").references((): AnyPgColumn => animal.id, { onDelete: "set null" }),
+    paiId: text("pai_id").references((): AnyPgColumn => animal.id, { onDelete: "set null" }),
+    paiExterno: text("pai_externo"),
     status: text("status").notNull().default("ativo"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at")
@@ -41,5 +46,9 @@ export const animal = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [index("animal_organization_id_idx").on(table.organizationId)],
+  (table) => [
+    index("animal_organization_id_idx").on(table.organizationId),
+    index("animal_mae_id_idx").on(table.maeId),
+    index("animal_pai_id_idx").on(table.paiId),
+  ],
 );

@@ -1,10 +1,10 @@
 "use client";
 
-import { ROTULO_ESPECIE, ROTULO_SEXO, type Evento, type FichaAnimal, type TipoEvento } from "@vocare/shared";
+import { ROTULO_ESPECIE, ROTULO_SEXO, type Animal, type Evento, type FichaAnimal, type Parente, type TipoEvento } from "@vocare/shared";
 import { ChevronLeft, Mic } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { Button, Callout, PageHeader, StatusText, Tabs, type Tom } from "@/components/ui";
 import { formatar, idade } from "@/lib/datas";
@@ -24,21 +24,36 @@ const ABAS: { chave: string; rotulo: string; tipos: TipoEvento[] }[] = [
 /** "AAAA-MM-DD" → "DD/MM/AAAA". */
 const dma = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
+/** Quantos filhos a ficha mostra antes de "Ver todos". */
+const FILHOS_VISIVEIS = 10;
+
+function LinkParente({ p }: { p: Parente }) {
+  return (
+    <Link href={`/animais/${p.id}`} className="font-semibold text-brand-ink no-underline hover:underline">
+      {p.rotulo}
+    </Link>
+  );
+}
+
 export function FichaView({
   orgId,
   ficha,
+  animais,
   hoje,
   possoRemover,
 }: {
   orgId: string;
   ficha: FichaAnimal;
+  /** Para escolher mãe e pai na edição. */
+  animais: Animal[];
   hoje: string;
   possoRemover: boolean;
 }) {
   const router = useRouter();
-  const { animal: a, grupos, historico, proximos, pendencias, ocorrenciasPendentes } = ficha;
+  const { animal: a, mae, pai, filhos, grupos, historico, proximos, pendencias, ocorrenciasPendentes } = ficha;
   const [aba, setAba] = useState("tudo");
   const [editando, setEditando] = useState(false);
+  const [todosFilhos, setTodosFilhos] = useState(false);
 
   const situacao: { rotulo: string; tom: Tom } =
     a.status === "inativo"
@@ -56,17 +71,21 @@ export function FichaView({
   const atual = abas.find((t) => t.chave === aba) ?? abas[0]!;
   const visiveis = atual.tipos.length ? historico.filter((e) => atual.tipos.includes(e.tipo)) : historico;
 
-  const dados = [
+  const dados: [string, ReactNode][] = [
     ["Espécie", ROTULO_ESPECIE[a.especie]],
     ["Raça", a.raca],
     ["Sexo", a.sexo && ROTULO_SEXO[a.sexo]],
     ["Nascimento", a.nascimento && `${dma(a.nascimento)}${idade(a.nascimento) ? ` (${idade(a.nascimento)})` : ""}`],
     ["Peso", peso],
     ["Onde fica", a.local],
+    ["Mãe", mae && <LinkParente p={mae} />],
+    ["Pai", pai ? <LinkParente p={pai} /> : a.paiExterno && `${a.paiExterno} (de fora)`],
     ["Grupos", grupos.map((g) => g.nome).join(", ")],
     ["Microchip", a.microchip],
     ["Tutor", [a.tutor, a.tutorTelefone].filter(Boolean).join(" · ")],
-  ].filter(([, v]) => v) as [string, string][];
+  ];
+  const preenchidos = dados.filter(([, v]) => v);
+  const filhosVisiveis = todosFilhos ? filhos : filhos.slice(0, FILHOS_VISIVEIS);
 
   return (
     <div className="flex flex-col gap-6">
@@ -165,7 +184,7 @@ export function FichaView({
           <section className="flex flex-col gap-2">
             <h2 className="text-sm font-semibold text-ink-muted">Dados</h2>
             <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-2 text-[15px]">
-              {dados.map(([k, v]) => (
+              {preenchidos.map(([k, v]) => (
                 <div key={k} className="contents">
                   <dt className="text-ink-muted">{k}</dt>
                   <dd className="text-ink">{v}</dd>
@@ -173,6 +192,23 @@ export function FichaView({
               ))}
             </dl>
           </section>
+
+          {filhos.length > 0 && (
+            <section className="flex flex-col gap-2">
+              <h2 className="text-sm font-semibold text-ink-muted">Filhos ({filhos.length})</h2>
+              {filhosVisiveis.map((f) => (
+                <div key={f.id} className="flex justify-between gap-3 border-b border-line-soft py-2 text-[15px]">
+                  <LinkParente p={f} />
+                  {f.nascimento && <span className="shrink-0 text-ink-muted tabular-nums">{dma(f.nascimento)}</span>}
+                </div>
+              ))}
+              {filhos.length > FILHOS_VISIVEIS && (
+                <button type="button" onClick={() => setTodosFilhos((v) => !v)} className="cursor-pointer self-start text-sm font-semibold text-ink-soft">
+                  {todosFilhos ? "Mostrar menos" : `Ver todos os ${filhos.length}`}
+                </button>
+              )}
+            </section>
+          )}
         </aside>
       </div>
 
@@ -181,6 +217,7 @@ export function FichaView({
           animal={a}
           orgId={orgId}
           possoRemover={possoRemover}
+          animais={animais}
           onClose={() => setEditando(false)}
           onDone={(r) => {
             setEditando(false);

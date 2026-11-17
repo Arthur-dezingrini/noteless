@@ -2,13 +2,15 @@ import {
   ROTULO_STATUS_CONSULTA,
   ROTULO_TIPO_CONSULTA,
   operacaoSchema,
+  rotuloAnimal,
   statusConsultaSchema,
   tipoConsultaSchema,
   type Evento,
   type FichaAnimal,
   type Pendencia,
 } from "@vocare/shared";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -32,6 +34,7 @@ const TZ = "America/Sao_Paulo";
 const diaSP = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
 const kg = (v: string | number) => `${Number(v).toLocaleString("pt-BR")} kg`;
 const dm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+const paiDoParto = alias(animal, "pai_do_parto");
 
 fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
   const orgId = c.req.param("orgId");
@@ -45,7 +48,8 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
     .limit(1);
   if (!a) return c.json({ error: "Animal não encontrado." }, 404);
 
-  const [grupos, pesagens, vacinas, consultas, anotacoes, tratamentos, partos, pendentes, prontuarios] = await Promise.all([
+  const pais = [a.maeId, a.paiId].filter((x): x is string => !!x);
+  const [grupos, pesagens, vacinas, consultas, anotacoes, tratamentos, partos, pendentes, prontuarios, parentes] = await Promise.all([
     db
       .select({ id: grupo.id, nome: grupo.nome })
       .from(grupoAnimal)
@@ -82,9 +86,21 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
       .where(eq(tratamento.animalId, id))
       .orderBy(desc(tratamento.inicio)),
     db
-      .select({ id: parto.id, data: parto.data, crias: parto.crias, obs: parto.observacoes, por: user.name, oc: parto.ocorrenciaId, em: parto.createdAt })
+      .select({
+        id: parto.id,
+        data: parto.data,
+        crias: parto.crias,
+        obs: parto.observacoes,
+        paiNome: paiDoParto.nome,
+        paiNumero: paiDoParto.numero,
+        paiExterno: parto.paiExterno,
+        por: user.name,
+        oc: parto.ocorrenciaId,
+        em: parto.createdAt,
+      })
       .from(parto)
       .leftJoin(user, eq(user.id, parto.criadoPorId))
+      .leftJoin(paiDoParto, eq(paiDoParto.id, parto.paiId))
       .where(eq(parto.animalId, id))
       .orderBy(desc(parto.data)),
     db
@@ -96,6 +112,16 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
       .from(prontuario)
       .leftJoin(user, eq(user.id, prontuario.veterinarioId))
       .where(eq(prontuario.animalId, id)),
+    // Família: a mãe e o pai do cadastro, e os filhos (de quem ele é mãe ou pai).
+    db
+      .select({ id: animal.id, nome: animal.nome, numero: animal.numero, nascimento: animal.nascimento, maeId: animal.maeId, paiId: animal.paiId })
+      .from(animal)
+      .where(
+        and(
+          eq(animal.organizationId, orgId),
+          or(eq(animal.maeId, id), eq(animal.paiId, id), ...(pais.length ? [inArray(animal.id, pais)] : [])),
+        ),
+      ),
   ]);
 
   const hoje = diaSP(new Date());
@@ -189,7 +215,9 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
 
   for (const p of partos) {
     const crias = p.crias == null ? null : `${p.crias} ${p.crias === 1 ? "cria" : "crias"}`;
-    historico.push({ id: p.id, tipo: "parto", data: p.data, titulo: "Parto", detalhe: [crias, p.obs].filter(Boolean).join(" · ") || null, por: p.por, ocorrenciaId: p.oc, novo: novo(p.oc, p.em) });
+    const pai = p.paiNome !== null ? rotuloAnimal({ nome: p.paiNome, numero: p.paiNumero }) : p.paiExterno;
+    const detalhe = [crias, pai && `pai: ${pai}`, p.obs].filter(Boolean).join(" · ") || null;
+    historico.push({ id: p.id, tipo: "parto", data: p.data, titulo: "Parto", detalhe, por: p.por, ocorrenciaId: p.oc, novo: novo(p.oc, p.em) });
   }
 
   // Ocorrências para conferir que falam deste animal (ou de um grupo dele).
@@ -207,9 +235,21 @@ fichaRoutes.get("/:orgId/animais/:id/ficha", async (c) => {
   historico.sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : 0));
   proximos.sort((x, y) => (x.data < y.data ? -1 : x.data > y.data ? 1 : 0));
 
+  const parente = (p: (typeof parentes)[number]) => ({ id: p.id, rotulo: rotuloAnimal(p), nascimento: p.nascimento });
+  const achado = (pid: string | null) => parentes.find((p) => p.id === pid);
+  const filhos = parentes
+    .filter((p) => p.maeId === id || p.paiId === id)
+    .sort((x, y) => (y.nascimento ?? "").localeCompare(x.nascimento ?? ""))
+    .map(parente);
+
   const emTratamento = tratamentos.some((t) => !t.fim || t.fim >= hoje);
+  const mae = achado(a.maeId);
+  const pai = achado(a.paiId);
   const ficha: FichaAnimal = {
     animal: paraContrato(a, emTratamento),
+    mae: mae ? parente(mae) : null,
+    pai: pai ? parente(pai) : null,
+    filhos,
     grupos,
     historico,
     proximos,

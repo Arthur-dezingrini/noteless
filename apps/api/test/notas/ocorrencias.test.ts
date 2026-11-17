@@ -119,14 +119,18 @@ describe("conferência de ocorrências", () => {
       observacoes: null,
       cadastrarCrias: true,
       nomesCrias: "Faísca",
+      paiId: null,
+      paiExterno: "sêmen Duroc",
     };
     const id = await ocorrenciaDoMembro([parto]);
     expect((await chamar(f.admin, "POST", `${org()}/ocorrencias/${id}/confirmar`, { operacoes: [0] })).status).toBe(200);
 
-    const animais = (await chamar(f.admin, "GET", `${org()}/animais`)).json as { id: string; nome: string; especie: string; raca: string; local: string; nascimento: string }[];
+    const animais = (await chamar(f.admin, "GET", `${org()}/animais`)).json as { id: string; nome: string; maeId: string }[];
     const crias = animais.filter((a) => ["Faísca", "Cria 2 da Porca 7", "Cria 3 da Porca 7"].includes(a.nome));
     expect(crias).toHaveLength(3);
-    for (const c of crias) expect(c).toMatchObject({ especie: "suino", raca: "Landrace", local: "Maternidade", nascimento: "2026-11-15" });
+    for (const c of crias) {
+      expect(c).toMatchObject({ especie: "suino", raca: "Landrace", local: "Maternidade", nascimento: "2026-11-15", maeId: porca, paiId: null, paiExterno: "sêmen Duroc" });
+    }
     const grupos = (await chamar(f.admin, "GET", `${org()}/grupos`)).json as { nome: string; animalIds: string[] }[];
     const grupo = grupos.find((g) => g.nome === "Crias da Porca 7 · 15/11");
     expect(grupo?.animalIds.sort()).toEqual(crias.map((c) => c.id).sort());
@@ -134,7 +138,7 @@ describe("conferência de ocorrências", () => {
 
   it("com o cadastro das crias desligado por quem confere, só o parto entra", async () => {
     const vaca = (await chamar(f.dono, "POST", `${org()}/animais`, { nome: "Estrela", especie: "bovino" })).json.id;
-    const parto: Operacao = { ...base, tipo: "registrar_parto", alvo: "Estrela", animalId: vaca, data: null, crias: 1, observacoes: null, cadastrarCrias: true, nomesCrias: null };
+    const parto: Operacao = { ...base, tipo: "registrar_parto", alvo: "Estrela", animalId: vaca, data: null, crias: 1, observacoes: null, cadastrarCrias: true, nomesCrias: null, paiId: null, paiExterno: null };
     const id = await ocorrenciaDoMembro([parto]);
     const r = await chamar(f.admin, "POST", `${org()}/ocorrencias/${id}/confirmar`, { operacoes: [0], correcoes: { "0": { cadastrarCrias: false } } });
     expect(r.status).toBe(200);
@@ -144,10 +148,36 @@ describe("conferência de ocorrências", () => {
     expect(p).toMatchObject({ animalId: vaca, crias: 1 });
   });
 
+  it("o pai dito fica no parto e nas crias; pai de outra fazenda não salva", async () => {
+    const mae = (await chamar(f.dono, "POST", `${org()}/animais`, { nome: "Porca 9", especie: "suino" })).json.id;
+    const cachaco = (await chamar(f.dono, "POST", `${org()}/animais`, { nome: "Cachaço 12", especie: "suino", sexo: "macho" })).json.id;
+    const parto: Operacao = { ...base, tipo: "registrar_parto", alvo: "porca 9", animalId: mae, data: null, crias: 2, observacoes: null, cadastrarCrias: true, nomesCrias: null, paiId: cachaco, paiExterno: null };
+
+    const vizinha = await criarFazenda("Vizinha do cachaço");
+    const alheio = (await chamar(vizinha.dono, "POST", `/api/org/${vizinha.orgId}/animais`, { nome: "Alheio", especie: "suino" })).json.id;
+    const recusado = await ocorrenciaDoMembro([{ ...parto, paiId: alheio }]);
+    const r = await chamar(f.admin, "POST", `${org()}/ocorrencias/${recusado}/confirmar`, { operacoes: [0] });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toBe("Pai não encontrado nesta organização.");
+
+    const id = await ocorrenciaDoMembro([parto]);
+    expect((await chamar(f.admin, "POST", `${org()}/ocorrencias/${id}/confirmar`, { operacoes: [0] })).status).toBe(200);
+    const [p] = await db.select().from(partoTabela).where(eq(partoTabela.ocorrenciaId, id));
+    expect(p).toMatchObject({ paiId: cachaco, paiExterno: null });
+    const ficha = (await chamar(f.admin, "GET", `${org()}/animais/${cachaco}/ficha`)).json as { filhos: { rotulo: string }[] };
+    expect(ficha.filhos.map((x) => x.rotulo).sort()).toEqual(["Cria 1 da Porca 9", "Cria 2 da Porca 9"]);
+
+    // O parto seguinte da mesma mãe continua a conta, sem repetir nome.
+    const outro = await ocorrenciaDoMembro([{ ...parto, paiId: null, crias: 1 }]);
+    expect((await chamar(f.admin, "POST", `${org()}/ocorrencias/${outro}/confirmar`, { operacoes: [0] })).status).toBe(200);
+    const daMae = (await chamar(f.admin, "GET", `${org()}/animais/${mae}/ficha`)).json as { filhos: { rotulo: string }[] };
+    expect(daMae.filhos.map((x) => x.rotulo).sort()).toEqual(["Cria 1 da Porca 9", "Cria 2 da Porca 9", "Cria 3 da Porca 9"]);
+  });
+
   it("parto na mãe de outra fazenda não salva nem cadastra cria nenhuma", async () => {
     const vizinha = await criarFazenda("Vizinha do parto");
     const alheia = (await chamar(vizinha.dono, "POST", `/api/org/${vizinha.orgId}/animais`, { nome: "Alheia", especie: "bovino" })).json.id;
-    const parto: Operacao = { ...base, tipo: "registrar_parto", alvo: "Alheia", animalId: alheia, data: null, crias: 2, observacoes: null, cadastrarCrias: true, nomesCrias: null };
+    const parto: Operacao = { ...base, tipo: "registrar_parto", alvo: "Alheia", animalId: alheia, data: null, crias: 2, observacoes: null, cadastrarCrias: true, nomesCrias: null, paiId: null, paiExterno: null };
     const id = await ocorrenciaDoMembro([parto]);
     const r = await chamar(f.admin, "POST", `${org()}/ocorrencias/${id}/confirmar`, { operacoes: [0] });
     expect(r.status).toBe(400);

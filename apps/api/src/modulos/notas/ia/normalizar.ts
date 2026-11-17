@@ -104,6 +104,9 @@ export function normalizar(
         observacoes: nulo(bruta.observacoes),
         cadastrarCrias: true,
         nomesCrias: nomesDitos(bruta.nomesCrias),
+        // Pai fora da lista (ou a própria mãe, por engano) não vale como id.
+        paiId: typeof bruta.paiId === "string" && idsAnimais.has(bruta.paiId) && bruta.paiId !== base.animalId ? bruta.paiId : null,
+        paiExterno: nulo(bruta.paiExterno),
       };
       break;
     case "cadastrar_animal": {

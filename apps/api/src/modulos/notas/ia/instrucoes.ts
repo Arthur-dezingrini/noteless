@@ -80,7 +80,7 @@ Tipos de operação:
 - registrar_peso: pesagem.
 - aplicar_vacina: vacina aplicada (nome, dose, data; próxima dose se dita).
 - registrar_remedio: remédio/tratamento iniciado (nome, dose, por quantos dias, carência).
-- registrar_parto: um animal da lista pariu (mãe = animalId; data; crias = quantas nasceram vivas, natimortos vão em observacoes). O sistema cadastra as crias junto com o parto.
+- registrar_parto: um animal da lista pariu (mãe = animalId; data; crias = quantas nasceram vivas, natimortos vão em observacoes; o pai, se dito, em paiId quando está na lista, senão em paiExterno). O sistema cadastra as crias junto com o parto.
 - cadastrar_animal: um animal NOVO, que não está na lista (nome, espécie, sexo, raça, nascimento). animalId = null.
 - registrar_anotacao: qualquer outra observação clínica ou de manejo sobre um animal.${blocoAviario}
 

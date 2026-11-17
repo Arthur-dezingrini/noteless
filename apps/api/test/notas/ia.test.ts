@@ -228,6 +228,9 @@ describe("crias do parto", () => {
     expect(nomesDasCrias(0, null, "Mimosa")).toEqual([]);
     // Nome dito sem o número de crias: cadastra quem tem nome.
     expect(nomesDasCrias(0, "Faísca, Estrela", "Pintada")).toEqual(["Faísca", "Estrela"]);
+    // Segunda leitegada: a conta continua de onde a mãe parou.
+    expect(nomesDasCrias(2, null, "Porca 7", 7)).toEqual(["Cria 8 da Porca 7", "Cria 9 da Porca 7"]);
+    expect(nomesDasCrias(1, null, "Mimosa", 1)).toEqual(["Cria 2 da Mimosa"]);
   });
 
   it("da IA, só o que é nome", () => {
@@ -239,5 +242,13 @@ describe("crias do parto", () => {
   it("o parto da IA já vem para cadastrar as crias", () => {
     const bruta = { tipo: "registrar_parto", titulo: "", alvo: "Pintada", animalId: "a-Pintada", detalhe: "", trecho: "", confianca: 90, crias: 2, nomesCrias: "Faísca" };
     expect(normalizar(bruta, new Set(["a-Pintada"]), vazio)).toMatchObject({ crias: 2, cadastrarCrias: true, nomesCrias: "Faísca" });
+  });
+
+  it("pai da lista vira id; fora da lista, ou a própria mãe, não", () => {
+    const bruta = { tipo: "registrar_parto", titulo: "", alvo: "Porca 7", animalId: "a-porca", detalhe: "", trecho: "", confianca: 90, crias: 7 };
+    const ids = new Set(["a-porca", "a-cachaco"]);
+    expect(normalizar({ ...bruta, paiId: "a-cachaco" }, ids, vazio)).toMatchObject({ paiId: "a-cachaco", paiExterno: null });
+    expect(normalizar({ ...bruta, paiId: "inventado", paiExterno: "sêmen Duroc" }, ids, vazio)).toMatchObject({ paiId: null, paiExterno: "sêmen Duroc" });
+    expect(normalizar({ ...bruta, paiId: "a-porca" }, ids, vazio)).toMatchObject({ paiId: null });
   });
 });

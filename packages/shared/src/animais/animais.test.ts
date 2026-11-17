@@ -54,6 +54,19 @@ describe("criarAnimalSchema", () => {
   });
 });
 
+describe("mãe e pai", () => {
+  it("aceita mãe e pai do cadastro, ou o pai de fora", () => {
+    expect(criarAnimalSchema.safeParse({ nome: "Cria 1", especie: "suino", maeId: "m", paiId: "p" }).success).toBe(true);
+    expect(criarAnimalSchema.safeParse({ nome: "Cria 1", especie: "suino", maeId: "m", paiExterno: "sêmen Duroc" }).success).toBe(true);
+  });
+
+  it("recusa o pai do cadastro e o de fora juntos", () => {
+    const r = criarAnimalSchema.safeParse({ nome: "Cria 1", especie: "suino", paiId: "p", paiExterno: "sêmen Duroc" });
+    expect(r.error?.issues[0]).toMatchObject({ path: ["paiExterno"] });
+    expect(atualizarAnimalSchema.safeParse({ nome: "Cria 1", especie: "suino", status: "ativo", paiId: "p", paiExterno: "x" }).success).toBe(false);
+  });
+});
+
 describe("atualizarAnimalSchema", () => {
   it("exige a situação", () => {
     expect(atualizarAnimalSchema.safeParse({ nome: "Thor", especie: "cao" }).success).toBe(false);

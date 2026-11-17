@@ -34,6 +34,8 @@ export const ROTULO_CAMPO: Record<CampoCorrigivel, string> = {
   dias: "Duração",
   carenciaDias: "Carência",
   crias: "Crias",
+  paiId: "Pai",
+  paiExterno: "Pai de fora",
   cadastrarCrias: "Cadastrar as crias",
   nomesCrias: "Nomes das crias",
   nome: "Nome",
@@ -59,10 +61,10 @@ export const CAMPOS_INTEIROS: CampoCorrigivel[] = [
 export const CAMPOS_DECIMAIS: CampoCorrigivel[] = ["pesoMedioG", "uniformidadePct", "racaoKg", "aguaL"];
 /** Podem ficar vazios (null). */
 export const CAMPOS_OPCIONAIS: CampoCorrigivel[] = [
-  "data", "hora", "observacoes", "dose", "proximaData", "dias", "carenciaDias", "crias", "nomesCrias", "raca", "sexo", "nascimento",
+  "data", "hora", "observacoes", "dose", "proximaData", "dias", "carenciaDias", "crias", "nomesCrias", "paiId", "paiExterno", "raca", "sexo", "nascimento",
   "uniformidadePct", "amostra", "via", ...CAMPOS_APONTAMENTO,
 ];
-export const CAMPOS_ESCOLHA: CampoCorrigivel[] = ["animalId", "grupoId", "instalacaoId", "loteId", "tipoConsulta", "especie", "sexo", "cadastrarCrias"];
+export const CAMPOS_ESCOLHA: CampoCorrigivel[] = ["animalId", "grupoId", "instalacaoId", "loteId", "tipoConsulta", "especie", "sexo", "cadastrarCrias", "paiId"];
 /** O alvo aparece na linha "nº 07 Thor → …"; na tabela, só quando falta, foi corrigido ou é grupo. */
 export const CAMPOS_ALVO: CampoCorrigivel[] = ["animalId", "grupoId", "instalacaoId", "loteId"];
 
@@ -175,6 +177,10 @@ export function formatarCampo(c: CampoCorrigivel, valor: unknown, cad: Cadastro,
       const a = cad.animais.get(String(valor));
       return a ? rotulo(a) : "animal novo";
     }
+    case "paiId": {
+      const a = cad.animais.get(String(valor));
+      return a ? rotulo(a) : "Animal removido";
+    }
     case "grupoId":
       return cad.grupos.get(String(valor))?.nome ?? "Grupo removido";
     case "instalacaoId":
@@ -212,6 +218,8 @@ export function opcoesDe(c: CampoCorrigivel, cad: Cadastro): { v: string; r: str
   switch (c) {
     case "animalId":
       return [...cad.animais.values()].map((a) => ({ v: a.id, r: rotulo(a) }));
+    case "paiId":
+      return [...cad.animais.values()].filter((a) => a.sexo !== "femea").map((a) => ({ v: a.id, r: rotulo(a) }));
     case "grupoId":
       return [...cad.grupos.values()].map((g) => ({ v: g.id, r: `${g.nome} (${g.animais})` }));
     case "instalacaoId":
@@ -238,9 +246,11 @@ export function opcoesDe(c: CampoCorrigivel, cad: Cadastro): { v: string; r: str
 export function camposDe(op: Operacao): CampoCorrigivel[] {
   const todos = CAMPOS_CORRIGIVEIS[op.tipo] as readonly CampoCorrigivel[];
   const corrigido = op.original ?? {};
-  // Sem cria, nada a cadastrar; com o cadastro desligado, os nomes não importam.
+  // Sem cria, nada a cadastrar; com o cadastro desligado, os nomes não
+  // importam; com o pai do cadastro escolhido, o de fora não vale.
   const semCadastro = (c: CampoCorrigivel) =>
-    op.tipo === "registrar_parto" && ((c === "cadastrarCrias" && !op.crias && !op.nomesCrias) || (c === "nomesCrias" && !op.cadastrarCrias));
+    op.tipo === "registrar_parto" &&
+    ((c === "cadastrarCrias" && !op.crias && !op.nomesCrias) || (c === "nomesCrias" && !op.cadastrarCrias) || (c === "paiExterno" && !!op.paiId));
   return [
     ...todos.filter((c) => !CAMPOS_ALVO.includes(c) && !semCadastro(c)),
     ...todos.filter((c) => {

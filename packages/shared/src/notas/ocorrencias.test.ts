@@ -118,7 +118,7 @@ describe("parto", () => {
   const parto = { ...base, tipo: "registrar_parto", animalId: "a1", data: null, crias: 7, observacoes: null };
 
   it("parto gravado antes de existir o cadastro das crias também as cadastra", () => {
-    expect(operacaoSchema.parse(parto)).toMatchObject({ cadastrarCrias: true, nomesCrias: null });
+    expect(operacaoSchema.parse(parto)).toMatchObject({ cadastrarCrias: true, nomesCrias: null, paiId: null, paiExterno: null });
   });
 
   it("quem confere pode desligar o cadastro das crias e escrever os nomes", () => {
@@ -127,6 +127,7 @@ describe("parto", () => {
     expect(r).toMatchObject({ ok: true, op: { cadastrarCrias: false, original: { cadastrarCrias: true } } });
     expect(corrigirOperacao(op, { nomesCrias: "Faísca, Estrela" })).toMatchObject({ ok: true, op: { nomesCrias: "Faísca, Estrela" } });
     expect(corrigirOperacao(op, { cadastrarCrias: "sim" }).ok).toBe(false);
+    expect(corrigirOperacao(op, { paiId: "cachaco-12" })).toMatchObject({ ok: true, op: { paiId: "cachaco-12", original: { paiId: null } } });
   });
 });
 

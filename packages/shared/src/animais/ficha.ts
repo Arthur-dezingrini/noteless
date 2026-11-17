@@ -42,9 +42,21 @@ export const pendenciaSchema = z.object({
 });
 export type Pendencia = z.infer<typeof pendenciaSchema>;
 
+/** Um parente na ficha: o link e como ele aparece ("nº 12 Cachaço"). */
+export const parenteSchema = z.object({
+  id: z.string(),
+  rotulo: z.string(),
+  nascimento: dataIso.nullish(),
+});
+export type Parente = z.infer<typeof parenteSchema>;
+
 /** Tudo que a ficha do animal mostra, numa resposta. */
 export const fichaAnimalSchema = z.object({
   animal: animalSchema,
+  mae: parenteSchema.nullable(),
+  pai: parenteSchema.nullable(),
+  /** Do mais novo para o mais velho. */
+  filhos: z.array(parenteSchema),
   grupos: z.array(z.object({ id: z.string(), nome: z.string() })),
   historico: z.array(eventoSchema),
   proximos: z.array(eventoSchema),

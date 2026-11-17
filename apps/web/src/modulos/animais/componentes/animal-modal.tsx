@@ -17,6 +17,8 @@ import { useState, useTransition, type FormEvent } from "react";
 import { Button, ConfirmBar, Field, FormMessage, Input, Modal, ModalFooter, Select } from "@/components/ui";
 import { chamarApi, chamarApiJson } from "@/lib/api-client";
 
+import { CamposPais, PAI_DE_FORA } from "./campos-pais";
+
 /** Texto do formulário: vazio vira null, como o contrato espera. */
 function texto(form: FormData, nome: string): string | null {
   const v = form.get(nome);
@@ -31,6 +33,7 @@ export function AnimalModal({
   animal,
   orgId,
   possoRemover,
+  animais,
   inicial,
   onClose,
   onDone,
@@ -38,6 +41,8 @@ export function AnimalModal({
   animal: Animal | null;
   orgId: string;
   possoRemover: boolean;
+  /** Os animais da conta, para escolher mãe e pai. Sem a lista, mãe e pai ficam como estão. */
+  animais?: Animal[];
   /** Pré-preenche o cadastro (ex.: o nome que foi dito no áudio). */
   inicial?: { nome?: string; numero?: string };
   onClose: () => void;
@@ -52,7 +57,16 @@ export function AnimalModal({
     e.preventDefault();
     setErro(null);
     const form = new FormData(e.currentTarget);
+    const pai = texto(form, "paiId");
+    const pais = animais
+      ? {
+          maeId: texto(form, "maeId"),
+          paiId: pai === PAI_DE_FORA ? null : pai,
+          paiExterno: pai === PAI_DE_FORA ? texto(form, "paiExterno") : null,
+        }
+      : { maeId: animal?.maeId ?? null, paiId: animal?.paiId ?? null, paiExterno: animal?.paiExterno ?? null };
     const dados = {
+      ...pais,
       numero: texto(form, "numero"),
       nome: texto(form, "nome"),
       especie: form.get("especie"),
@@ -164,6 +178,8 @@ export function AnimalModal({
             <Input name="tutorTelefone" type="tel" defaultValue={animal?.tutorTelefone ?? ""} />
           </Field>
         </div>
+
+        {animais && <CamposPais animal={animal} animais={animais} />}
 
         {erro && <FormMessage>{erro}</FormMessage>}
 

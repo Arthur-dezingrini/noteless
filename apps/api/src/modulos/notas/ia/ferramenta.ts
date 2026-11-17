@@ -116,6 +116,8 @@ const FERRAMENTA_BASE = {
             carenciaDias: inteiroOuNulo("registrar_remedio: carência em dias, se foi dita."),
             crias: inteiroOuNulo("registrar_parto: quantas crias nasceram vivas."),
             nomesCrias: textoOuNulo("registrar_parto: nomes ditos para as crias, separados por vírgula ('Faísca'); null se nenhum."),
+            paiId: textoOuNulo("registrar_parto: id do animal da lista que é o pai (cachaço, touro, reprodutor), se foi dito; senão null."),
+            paiExterno: textoOuNulo("registrar_parto: o pai dito que não está na lista ('sêmen Duroc', 'touro do vizinho'); null se não foi dito."),
             nome: textoOuNulo(
               "cadastrar_animal: o nome ou o número dito ('Mimosa', 'brinco 45'). Descrição não é nome ('porco novo', 'uma vaca', a raça): null.",
             ),
