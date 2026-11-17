@@ -50,15 +50,15 @@ function salvar(e: EstadoGravadorInput, agora: Date, errosAntigos: ErroSalvo[]):
 }
 
 function aguardando(codigo: string): RespostaEstado {
-  return { destino: null, aviso: `Aguardando aprovação no Noteless (código ${codigo}).` };
+  return { destino: null, aviso: `Aguardando aprovação no Noteless (código ${codigo}).`, pausado: false };
 }
 
-/** Para onde as notas da placa vão agora — ou por que não vão para lugar nenhum. */
-async function destinoDe(organizationId: string | null): Promise<RespostaEstado> {
-  if (!organizationId) return { destino: null, aviso: "Nenhuma empresa escolhida para este gravador." };
+/** Para onde as notas da placa vão agora — ou por que não vão para lugar nenhum — e se o envio está pausado. */
+async function destinoDe(organizationId: string | null, pausado: boolean): Promise<RespostaEstado> {
+  if (!organizationId) return { destino: null, aviso: "Nenhuma empresa escolhida para este gravador.", pausado };
   const [o] = await db.select({ id: organization.id, nome: organization.name }).from(organization).where(eq(organization.id, organizationId)).limit(1);
-  if (!o) return { destino: null, aviso: "A empresa deste gravador não existe mais." };
-  return { destino: { id: o.id, nome: o.nome }, aviso: null };
+  if (!o) return { destino: null, aviso: "A empresa deste gravador não existe mais.", pausado };
+  return { destino: { id: o.id, nome: o.nome }, aviso: null, pausado };
 }
 
 export type AvisoRecebido = { aguardando: boolean; resposta: RespostaEstado };
@@ -77,7 +77,7 @@ export async function receberEstado(cred: CredencialGravador, e: EstadoGravadorI
   if (atual) {
     await db.update(gravador).set({ estado, vistoEm: agora }).where(eq(gravador.id, atual.id));
     if (!atual.aprovadoEm) return ok({ aguardando: true, resposta: aguardando(atual.codigo) });
-    return ok({ aguardando: false, resposta: await destinoDe(atual.organizationId) });
+    return ok({ aguardando: false, resposta: await destinoDe(atual.organizationId, atual.envioPausado) });
   }
 
   await db.delete(gravador).where(and(isNull(gravador.aprovadoEm), lt(gravador.vistoEm, new Date(agora.getTime() - AGUARDANDO_EXPIRA_MS))));
@@ -134,7 +134,7 @@ export async function aprovarGravador(id: string, input: AprovarGravadorInput, a
   return ok(undefined);
 }
 
-/** Nome e empresa de destino (super usuário). */
+/** Nome, empresa de destino e pausa do envio (super usuário). */
 export async function mudarGravador(id: string, input: MudarGravadorInput): Promise<Resultado<void>> {
   const [g] = await db.select({ id: gravador.id, userId: gravador.userId }).from(gravador).where(eq(gravador.id, id)).limit(1);
   if (!g) return falha(404, "Gravador não encontrado.");
@@ -149,6 +149,7 @@ export async function mudarGravador(id: string, input: MudarGravadorInput): Prom
     .set({
       ...(input.nome !== undefined ? { nome: input.nome } : {}),
       ...(input.organizationId !== undefined ? { organizationId: input.organizationId } : {}),
+      ...(input.envioPausado !== undefined ? { envioPausado: input.envioPausado } : {}),
     })
     .where(eq(gravador.id, id));
   // As notas novas saem com o nome novo.

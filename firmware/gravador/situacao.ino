@@ -6,11 +6,12 @@
 //
 // Pouco, de propósito: cada aviso é uma requisição na Vercel e acorda o banco.
 // Avisa logo ao conectar, quando algo muda (erro novo, fila, cartão) com pelo
-// menos 5 min entre um e outro, antes de enviar a fila (para conferir a
-// empresa) e, fora isso, a cada 15 min. Servidor fora do ar: de novo a cada
-// minuto. Aguardando aprovação na primeira meia hora depois de ligar (alguém
-// deve estar aprovando agora): a cada minuto; esquecida assim, volta ao ritmo
-// normal e não deixa o banco acordado.
+// menos 5 min entre um e outro, antes de cada envio (a empresa pode ter mudado,
+// ou o envio ter sido pausado no Noteless) e, fora isso, a cada 15 min.
+// Servidor fora do ar: de novo a cada minuto. Aguardando aprovação na primeira
+// meia hora depois de ligar (alguém deve estar aprovando agora): a cada minuto;
+// esquecida assim, volta ao ritmo normal e não deixa o banco acordado. Com o
+// envio pausado e gravação esperando: a cada minuto, para retomar logo.
 
 const uint32_t AVISO_A_CADA_MS = 15 * 60000;
 const uint32_t AVISO_MINIMO_MS = 5 * 60000;
@@ -46,16 +47,16 @@ bool cartaoGravando() { return cartaoOk && registroAberto(); }
 bool avisoDevido() {
   uint32_t desde = millis() - ultimoAvisoMs;
   if (!ultimoAvisoMs || desde >= AVISO_A_CADA_MS) return true;
-  if (desde >= DE_NOVO_MS && (avisoFalhando || (aguardandoAprovacao && millis() < AGUARDANDO_LOGO_MS))) return true;
+  if (desde >= DE_NOVO_MS && (avisoFalhando || (aguardandoAprovacao && millis() < AGUARDANDO_LOGO_MS) || (envioPausado && naFila > 0))) return true;
   if (desde < AVISO_MINIMO_MS) return false;
   char t[2];
   return ultimoErro(t, sizeof(t)) != erroAvisado || naFila != filaAvisada || cartaoGravando() != cartaoAvisado;
 }
 
-// Antes de enviar a fila: a empresa de destino pode ter mudado no Noteless.
-void conferirEmpresa() {
-  if (!ultimoAvisoMs || millis() - ultimoAvisoMs >= AVISO_MINIMO_MS) avisarEstado();
-}
+// Antes de cada envio: a empresa de destino pode ter mudado no Noteless, ou o
+// envio ter sido pausado (aí a gravação fica no cartão). Um aviso a mais por
+// nota, para a pausa valer na hora.
+void conferirEmpresa() { avisarEstado(); }
 
 String jsonEstado(const char *erro, uint32_t erroMs, int fila, uint32_t &errosAteAqui) {
   String j = String("{\"serie\":\"") + serieDaPlaca + "\",\"versao\":\"" + __DATE__ " " __TIME__ + "\"";
@@ -110,6 +111,10 @@ void avisarEstado() {
       if (destino.length()) registrar("Notas vão para a empresa \"%s\" (escolhida no Noteless).", campo(resp, "nome").c_str());
       orgId = destino;
     }
+    bool pausado = resp.indexOf("\"pausado\":true") >= 0;
+    if (pausado != envioPausado)
+      registrar(pausado ? "Envio pausado no Noteless: as gravações ficam no cartão." : "Envio retomado no Noteless: a fila volta a subir.");
+    envioPausado = pausado;
     String aviso = campo(resp, "aviso");
     if (aviso != avisoDoSistema && aviso.length()) registrar(st == 202 ? "%s Aprove em Configurações › Gravadores." : "AVISO: %s", aviso.c_str());
     avisoDoSistema = aviso;

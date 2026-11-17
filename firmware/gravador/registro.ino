@@ -235,6 +235,10 @@ const char *nomeSeguranca(wifi_auth_mode_t tipo) {
 // As redes que a placa vê daqui, para quando uma não conecta: as de 5 GHz não
 // aparecem, e as dos canais 12 e 13 (comuns no Brasil) só se o país deixar.
 void listarRedes() {
+  if (wifiDesligado) {
+    Serial.println("O Wi-Fi está desligado (\"wifi off\"): mande \"wifi on\" antes.");
+    return;
+  }
   wifi_country_t pais;
   esp_wifi_get_country(&pais);
   Serial.printf("Rede salva: \"%s\" (%u letras). Procurando redes (país %.2s, canais %d a %d%s)...\n", wifiNome.c_str(), wifiNome.length(), pais.cc,
@@ -275,7 +279,9 @@ void atenderSerial() {
     else if (cmd == "apagar log") apagarRegistro();
     else if (cmd == "cartao") diagnosticarCartao();
     else if (cmd == "redes") listarRedes();
-    else if (cmd.length()) Serial.println("Comandos: log | log tudo | apagar log | cartao | redes");
+    else if (cmd == "wifi off") ligarWifi(false);
+    else if (cmd == "wifi on") ligarWifi(true);
+    else if (cmd.length()) Serial.println("Comandos: log | log tudo | apagar log | cartao | redes | wifi off | wifi on");
     loopUsandoCartao = false;
     cmd = "";
   }

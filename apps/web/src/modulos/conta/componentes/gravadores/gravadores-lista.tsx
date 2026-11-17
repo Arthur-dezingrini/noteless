@@ -99,6 +99,7 @@ export function GravadoresLista({
                     <span className={!g.estado.cartao.ok ? "text-danger" : g.estado.fila === 0 ? "text-ink-muted" : "text-ink"}>
                       {filaEmPalavras(g.estado, true)}
                     </span>
+                    {g.envioPausado && <span className="block text-[13px] text-warn">Envio pausado</span>}
                   </td>
                   <td className={cx(tabela.td, "hidden lg:table-cell")}>
                     {g.estado.cartao.ok ? (

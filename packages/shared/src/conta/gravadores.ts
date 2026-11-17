@@ -50,10 +50,15 @@ export const estadoSalvoSchema = estadoGravadorSchema.omit({ serie: true, ultimo
 });
 export type EstadoSalvo = z.infer<typeof estadoSalvoSchema>;
 
-/** Resposta para a placa: a empresa que recebe as notas, ou `null` com o motivo (aguardando aprovação, sem empresa). */
+/**
+ * Resposta para a placa: a empresa que recebe as notas, ou `null` com o motivo
+ * (aguardando aprovação, sem empresa); e se o envio está pausado — aí as
+ * gravações esperam no cartão.
+ */
 export const respostaEstadoSchema = z.object({
   destino: z.object({ id: z.string(), nome: z.string() }).nullable(),
   aviso: z.string().nullable(),
+  pausado: z.boolean(),
 });
 export type RespostaEstado = z.infer<typeof respostaEstadoSchema>;
 
@@ -65,6 +70,8 @@ export const gravadorSchema = z.object({
   /** Falso enquanto aguarda aprovação: a placa se apresentou, mas ainda não manda notas. */
   aprovado: z.boolean(),
   destino: z.object({ id: z.string(), nome: z.string() }).nullable(),
+  /** Pausado no Noteless: a placa não envia, as gravações esperam no cartão. */
+  envioPausado: z.boolean(),
   vistoEm: z.string(),
   estado: estadoSalvoSchema,
 });
@@ -76,8 +83,9 @@ export const mudarGravadorSchema = z
   .object({
     nome: z.string().trim().min(1, "Dê um nome ao gravador.").max(60, "Nome longo demais.").optional(),
     organizationId: z.string().min(1, "Escolha a empresa.").optional(),
+    envioPausado: z.boolean().optional(),
   })
-  .refine((v) => v.nome !== undefined || v.organizationId !== undefined, "Nada para mudar.");
+  .refine((v) => v.nome !== undefined || v.organizationId !== undefined || v.envioPausado !== undefined, "Nada para mudar.");
 export type MudarGravadorInput = z.infer<typeof mudarGravadorSchema>;
 
 /** Aprovar a placa: o código que ela mostra na página de Wi-Fi, a empresa e, se quiser, outro nome. */

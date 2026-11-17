@@ -61,3 +61,8 @@ sair/entrar da sessão).
   tentando sem parar e o LED acende a cada resposta: aperte fio por fio, as
   soldas e o cartão olhando o LED para achar o mau contato; com 2 s
   respondendo firme, o teste continua. O cartão precisa estar em FAT32.
+- `energia/` — para quando o cartão responde, mas não monta: a cada 2 s tenta
+  acordá-lo (só lê) e, com um fio do VCC do módulo no D15, mede a menor
+  tensão nesse momento. "REINICIOU ao acordar" com a tensão caindo é
+  alimentação fraca: fio de energia direto no 3V3, capacitor de 10–100 µF no
+  módulo, outro cabo ou porta USB. LED aceso = o cartão acordou.

@@ -1,4 +1,4 @@
-import { index, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, index, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 import { organization, user } from "../schema";
 
@@ -32,6 +32,9 @@ export const gravador = pgTable(
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
     // Empresa que recebe as notas.
     organizationId: text("organization_id").references(() => organization.id, { onDelete: "set null" }),
+    // Pausado no Noteless: a placa segue avisando o estado, mas não envia; as
+    // gravações esperam no cartão.
+    envioPausado: boolean("envio_pausado").notNull().default(false),
     estado: jsonb("estado").notNull(),
     vistoEm: timestamp("visto_em").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),

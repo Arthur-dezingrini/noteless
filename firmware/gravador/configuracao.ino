@@ -20,14 +20,28 @@ void carregarRede() {
   prefs.begin("wifi", true);
   wifiNome = prefs.getString("nome", "");
   wifiSenha = prefs.getString("senha", "");
+  wifiDesligado = prefs.getBool("desligado", false);
   prefs.end();
 }
 
+// Rede escolhida pelo celular: quem trocou quer usá-la, então o Wi-Fi religa.
 void salvarRede(const String &nome, const String &senha) {
   prefs.begin("wifi", false);
   prefs.putString("nome", nome);
   prefs.putString("senha", senha);
+  prefs.remove("desligado");
   prefs.end();
+}
+
+// "wifi off" / "wifi on" no monitor serial. Fica salvo: desligar e ligar a USB
+// não religa. Quem solta e conecta o rádio é a tarefa de rede (rede.ino).
+void ligarWifi(bool ligar) {
+  prefs.begin("wifi", false);
+  prefs.putBool("desligado", !ligar);
+  prefs.end();
+  wifiDesligado = !ligar;
+  Serial.println(ligar ? "Wi-Fi ligado: conecta em instantes, e a fila sobe para o Noteless."
+                       : "Wi-Fi desligado: as gravações ficam no cartão, nada é enviado. \"wifi on\" religa.");
 }
 
 String escaparHtml(const String &s) {

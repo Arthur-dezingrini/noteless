@@ -99,7 +99,7 @@ describe("POST /api/gravadores/estado — a placa se apresenta", () => {
   it("placa nova entra aguardando aprovação (202), com o código que sai do segredo", async () => {
     const r = await avisar(P1);
     expect(r.status).toBe(202);
-    expect(r.json).toEqual({ destino: null, aviso: `Aguardando aprovação no Noteless (código ${codigoDePareamento(P1.segredo)}).` });
+    expect(r.json).toEqual({ destino: null, aviso: `Aguardando aprovação no Noteless (código ${codigoDePareamento(P1.segredo)}).`, pausado: false });
 
     const g = await achar(P1.serie);
     expect(g).toMatchObject({ nome: "Gravador 1A2B", aprovado: false, destino: null });
@@ -173,7 +173,7 @@ describe("aprovação", () => {
 
     const r = await avisar(P1);
     expect(r.status).toBe(200);
-    expect(r.json).toEqual({ destino: { id: a.orgId, nome: "Granja A" }, aviso: null });
+    expect(r.json).toEqual({ destino: { id: a.orgId, nome: "Granja A" }, aviso: null, pausado: false });
     expect((await aprovar(P1.serie, { codigo: codigoDePareamento(P1.segredo), organizationId: a.orgId })).status).toBe(409);
   });
 
@@ -245,11 +245,29 @@ describe("/api/admin/gravadores", () => {
     expect((await chamar(sup, "PATCH", `/api/admin/gravadores/${g.id}`, { organizationId: "nao-existe" })).status).toBe(404);
     expect((await chamar(sup, "PATCH", `/api/admin/gravadores/${g.id}`, { organizationId: b.orgId })).status).toBe(200);
 
-    expect((await avisar(P1)).json).toEqual({ destino: { id: b.orgId, nome: "Granja B" }, aviso: null });
+    expect((await avisar(P1)).json).toEqual({ destino: { id: b.orgId, nome: "Granja B" }, aviso: null, pausado: false });
     expect((await enviarNota(P1, b.orgId)).status).toBe(201);
     expect((await enviarNota(P1, a.orgId)).status).toBe(403);
     expect(await series(b.admin, b.orgId)).toContain(P1.serie);
     expect(await series(a.admin, a.orgId)).not.toContain(P1.serie);
+  });
+
+  it("pausa o envio: o próximo aviso responde pausado e a lista mostra; retomar volta ao normal", async () => {
+    const g = await achar(P1.serie);
+    expect((await chamar(sup, "PATCH", `/api/admin/gravadores/${g.id}`, { envioPausado: true })).status).toBe(200);
+    expect((await avisar(P1)).json).toEqual({ destino: { id: b.orgId, nome: "Granja B" }, aviso: null, pausado: true });
+    expect(await achar(P1.serie)).toMatchObject({ envioPausado: true, destino: { id: b.orgId } });
+    const daEmpresa = (await chamar(b.admin, "GET", `/api/org/${b.orgId}/gravadores`)).json as { serie: string; envioPausado: boolean }[];
+    expect(daEmpresa.find((x) => x.serie === P1.serie)?.envioPausado).toBe(true);
+
+    expect((await chamar(sup, "PATCH", `/api/admin/gravadores/${g.id}`, { envioPausado: false })).status).toBe(200);
+    expect((await avisar(P1)).json.pausado).toBe(false);
+  });
+
+  it("dono e administrador da empresa de destino não pausam (403)", async () => {
+    const g = await achar(P1.serie);
+    for (const quem of [b.dono, b.admin]) expect((await chamar(quem, "PATCH", `/api/admin/gravadores/${g.id}`, { envioPausado: true })).status).toBe(403);
+    expect((await achar(P1.serie)).envioPausado).toBe(false);
   });
 
   it("esquecer corta o acesso na hora; ligada, a placa volta aguardando e, aprovada de novo, assina com a mesma conta", async () => {

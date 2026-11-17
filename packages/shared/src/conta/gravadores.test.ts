@@ -6,6 +6,7 @@ import {
   filaEmPalavras,
   gravadorOnline,
   juntarErros,
+  mudarGravadorSchema,
   nomePadraoGravador,
   normalizarCodigo,
   sinalEmPalavras,
@@ -124,5 +125,14 @@ describe("aprovarGravadorSchema", () => {
     expect(aprovarGravadorSchema.safeParse({ codigo: "K7F-3QX", organizationId: "org-1", nome: "Galpão 1" }).success).toBe(true);
     expect(aprovarGravadorSchema.safeParse({ codigo: "  ", organizationId: "org-1" }).success).toBe(false);
     expect(aprovarGravadorSchema.safeParse({ codigo: "K7F-3QX", organizationId: "" }).success).toBe(false);
+  });
+});
+
+describe("mudarGravadorSchema", () => {
+  it("pausar ou retomar o envio sozinho já é uma mudança; corpo vazio não", () => {
+    expect(mudarGravadorSchema.safeParse({ envioPausado: true }).success).toBe(true);
+    expect(mudarGravadorSchema.safeParse({ envioPausado: false }).success).toBe(true);
+    expect(mudarGravadorSchema.safeParse({ envioPausado: "sim" }).success).toBe(false);
+    expect(mudarGravadorSchema.safeParse({}).success).toBe(false);
   });
 });

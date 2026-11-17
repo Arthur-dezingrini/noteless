@@ -293,7 +293,18 @@ void tarefaRede(void *) {
     // Gravação que ficou como .raw (cartão falhou ao fechar, energia caiu): vira .wav.
     if (cartaoOk && haPendentes && !gravando && !loopUsandoCartao) recuperarPendente();
 
-    if (WiFi.status() != WL_CONNECTED) {
+    // Desligado pelo monitor serial: solta o rádio e não tenta; ao religar,
+    // conecta na hora.
+    if (wifiDesligado) {
+      if (WiFi.getMode() != WIFI_OFF) {
+        WiFi.disconnect(true);
+        WiFi.mode(WIFI_OFF);
+        registrar("AVISO: Wi-Fi desligado (\"wifi off\"): as gravações ficam no cartão.");
+      }
+      estavaNoWifi = false;
+      online = false;
+      primeiraVez = true;
+    } else if (WiFi.status() != WL_CONNECTED) {
       if (estavaNoWifi) registrar("AVISO: Wi-Fi caiu (status %d).", (int)WiFi.status());
       estavaNoWifi = false;
       online = false;
@@ -322,9 +333,10 @@ void tarefaRede(void *) {
     }
 
     atualizarFila();
-    if (online && cartaoOk && naFila > 0 && (int32_t)(millis() - proximoEnvio) >= 0) {
+    if (online && cartaoOk && naFila > 0 && !envioPausado && (int32_t)(millis() - proximoEnvio) >= 0) {
       conferirEmpresa();
-      if (orgId.isEmpty()) continue;  // esquecida no Noteless, ou a empresa sumiu: não envia
+      // Esquecida no Noteless, a empresa sumiu ou o envio foi pausado: não envia.
+      if (orgId.isEmpty() || envioPausado) continue;
       String caminho = proximaDaFila();
       Resultado r = caminho.isEmpty() ? TENTAR_DEPOIS : enviarArquivo(caminho);
       if (r == RECUSADO) {

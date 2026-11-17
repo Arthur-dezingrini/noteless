@@ -127,6 +127,13 @@
       "when": 1794874536946,
       "tag": "0017_genealogia",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794874559786,
+      "tag": "0018_pausar_envio",
+      "breakpoints": true
     }
   ]
 }

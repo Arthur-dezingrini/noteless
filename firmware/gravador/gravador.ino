@@ -1,5 +1,5 @@
 // Gravador de campo: segure o botão para gravar e solte para parar. O áudio vai
-// para a memória interna da placa (ou para o cartão microSD, ver USAR_CARTAO)
+// para o cartão microSD (ou para a memória interna da placa, ver USAR_CARTAO)
 // e, de lá, para o Noteless como nota (POST /api/org/:orgId/ocorrencias), igual
 // à gravação pelo site. Sem Wi-Fi, as gravações esperam guardadas e sobem
 // sozinhas quando a rede voltar. No código, "cartão" (cartaoOk, montarCartao...)
@@ -40,11 +40,11 @@
 
 #include "segredos.h"
 
-// Onde ficam as gravações. Os cartões microSD testados na protoboard falharam
-// (11/2026): por enquanto, a memória interna da placa, em LittleFS na partição
-// de partitions.csv (2,5 MB, perto de 1 min e 15 s por nota com a fila vazia). Com
-// um cartão bom, USAR_CARTAO 1 volta para o microSD.
-#define USAR_CARTAO 0
+// Onde ficam as gravações: 1 = cartão microSD; 0 = a memória interna da placa,
+// em LittleFS na partição de partitions.csv (2,5 MB, perto de 1 min e 15 s por
+// nota com a fila vazia), para quando não há cartão bom (os primeiros testados
+// na protoboard falharam, 11/2026).
+#define USAR_CARTAO 1
 #if USAR_CARTAO
 #include <SD.h>
 #include <SPI.h>
@@ -103,6 +103,8 @@ volatile uint32_t perdidas = 0;  // amostras que não couberam (cartão lento de
 // Estado para o LED: o loop e a tarefa de rede escrevem.
 volatile bool cartaoOk = false;
 volatile bool online = false;  // Wi-Fi + aprovada no Noteless, com empresa
+volatile bool envioPausado = false;   // pausado no Noteless (situacao.ino): as gravações esperam no cartão
+volatile bool wifiDesligado = false;  // "wifi off" no monitor serial: nada sai da placa, tudo fica no cartão
 volatile int naFila = 0;       // gravações esperando envio
 float cartaoLivreGb = 0;        // medido ao montar (medir de novo leva segundos)
 volatile bool loopUsandoCartao = false;  // gravando ou comando da serial: a tarefa de rede não remonta
@@ -345,6 +347,7 @@ void setup() {
   carregarRede();
   if (wifiNome.isEmpty() || trocarWifi) configurarWifi();
   registrar("Rede salva: \"%s\" (para trocar, clique %d vezes seguidas no botão)\n", wifiNome.c_str(), CLIQUES_PARA_TROCAR_WIFI);
+  if (wifiDesligado) registrar("AVISO: Wi-Fi desligado (\"wifi off\"): as gravações ficam no cartão. \"wifi on\" no monitor serial religa.");
 
   // Microfone: I2S padrão, 32 bits por canal. Fica rodando direto; gravar é só ler.
   i2s.setPins(PINO_SCK, PINO_WS, -1, PINO_SD);

@@ -4,7 +4,7 @@ import { filaEmPalavras, mudarGravadorSchema, sinalEmPalavras, type Empresa, typ
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 
-import { Button, ConfirmBar, Field, FormMessage, Input, Modal, Select } from "@/components/ui";
+import { Button, ConfirmBar, Field, FormMessage, Input, Modal, Select, StatusText } from "@/components/ui";
 import { chamarApi } from "@/lib/api-client";
 import { haQuantoTempo, TZ } from "@/lib/datas";
 
@@ -107,6 +107,7 @@ export function GerenciarGravador({
           <Linha rotulo="Fila">
             {filaEmPalavras(g.estado)}
             {g.estado.recusadas > 0 ? ` · ${g.estado.recusadas} recusada(s) guardada(s) no cartão` : ""}
+            {g.envioPausado && <StatusText tone="aviso"> · envio pausado</StatusText>}
           </Linha>
           <Linha rotulo="Cartão">
             {g.estado.cartao.ok ? `Ok${g.estado.cartao.livreGb !== null ? ` · ${g.estado.cartao.livreGb.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} GB livres` : ""}` : "Com problema: não está gravando"}
@@ -120,6 +121,23 @@ export function GerenciarGravador({
         <ErrosRecentes g={g} />
 
         {podeMexer && !g.aprovado && <AprovarGravador key={g.id} g={g} empresas={empresas} />}
+
+        {podeMexer && g.aprovado && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+            <p className="min-w-60 flex-1 text-sm text-ink-muted">
+              {g.envioPausado
+                ? "Envio pausado: as gravações ficam guardadas no cartão. Ao retomar, a placa começa a enviar em até 1 min."
+                : "Pausar faz as gravações esperarem no cartão, sem virar nota. A placa confere antes de cada envio."}
+            </p>
+            <Button
+              variant={g.envioPausado ? "primario" : "secundario"}
+              loading={pending}
+              onClick={() => chamar({ method: "PATCH", body: JSON.stringify({ envioPausado: !g.envioPausado }) })}
+            >
+              {g.envioPausado ? "Retomar envios" : "Pausar envios"}
+            </Button>
+          </div>
+        )}
 
         {podeMexer && g.aprovado && (
           <form onSubmit={salvar} className="flex flex-col gap-3 border-t border-line pt-4">

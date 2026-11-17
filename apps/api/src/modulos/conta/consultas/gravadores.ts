@@ -18,6 +18,7 @@ export async function listarGravadores(organizationId?: string): Promise<Gravado
       aprovadoEm: gravador.aprovadoEm,
       destinoId: organization.id,
       destinoNome: organization.name,
+      envioPausado: gravador.envioPausado,
       vistoEm: gravador.vistoEm,
       estado: gravador.estado,
     })
@@ -33,6 +34,7 @@ export async function listarGravadores(organizationId?: string): Promise<Gravado
       nome: l.nome,
       aprovado: l.aprovadoEm !== null,
       destino: l.destinoId && l.destinoNome !== null ? { id: l.destinoId, nome: l.destinoNome } : null,
+      envioPausado: l.envioPausado,
       vistoEm: l.vistoEm.toISOString(),
       // Gravado por receberEstado no formato EstadoSalvo; os de antes do histórico não têm `erros`.
       estado: { ...(l.estado as EstadoSalvo), erros: (l.estado as Partial<EstadoSalvo>).erros ?? [] },
