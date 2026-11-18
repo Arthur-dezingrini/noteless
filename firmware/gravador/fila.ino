@@ -130,7 +130,7 @@ void recuperarPendente() {
   if (!b) return cartaoFalhou("abrir uma gravação para recuperar");
   char riff[4] = {0};
   bool temCabecalho = b.read((uint8_t *)riff, 4) == 4 && !memcmp(riff, "RIFF", 4);
-  size_t n = b.size() > CABECALHO_WAV ? (b.size() - CABECALHO_WAV) / sizeof(int16_t) : 0;
+  size_t n = b.size() > CABECALHO_WAV ? (b.size() - CABECALHO_WAV) / BYTES_POR_AMOSTRA : 0;
   if (!temCabecalho) {
     // Bruto sem cabeçalho, do firmware de antes dos 16 kHz: não vira .wav
     // aqui. Fica guardado fora da fila.
@@ -195,6 +195,57 @@ void apagarTemporarios() {
 }
 
 // A mais antiga: os nomes começam pela hora. As sem hora ("b...") vêm antes.
+// As adiadas (3 falhas seguidas) esperam a vez delas voltar.
+// Gravação que falhou 3 vezes seguidas sai da frente por 15 min: as seguintes
+// sobem antes (uma gravação grande num Wi-Fi fraco não segura a fila inteira),
+// e ela volta depois, uma tentativa a cada 15 min. Só na memória: reiniciar zera.
+const int FALHAS_PARA_ADIAR = 3;
+const uint32_t ADIAR_MS = 15 * 60000;
+const int MAX_ADIADAS = 8;
+struct Tentativas {
+  String caminho;
+  uint8_t falhas = 0;
+  uint32_t voltaEm = 0;
+};
+Tentativas tentativas[MAX_ADIADAS];
+
+int tentativasDe(const String &caminho) {
+  for (int i = 0; i < MAX_ADIADAS; i++)
+    if (tentativas[i].caminho == caminho) return i;
+  return -1;
+}
+
+bool adiada(const String &caminho) {
+  int i = tentativasDe(caminho);
+  return i >= 0 && tentativas[i].falhas >= FALHAS_PARA_ADIAR && (int32_t)(millis() - tentativas[i].voltaEm) < 0;
+}
+
+// Conta uma falha de envio; true quando a gravação acabou de sair da frente.
+bool contarFalha(const String &caminho) {
+  int i = tentativasDe(caminho);
+  if (i < 0) {
+    i = 0;  // sem lugar livre, reaproveita a que volta antes
+    for (int j = 0; j < MAX_ADIADAS; j++) {
+      if (tentativas[j].caminho.isEmpty()) {
+        i = j;
+        break;
+      }
+      if ((int32_t)(tentativas[j].voltaEm - tentativas[i].voltaEm) < 0) i = j;
+    }
+    tentativas[i] = Tentativas();
+    tentativas[i].caminho = caminho;
+  }
+  if (++tentativas[i].falhas < FALHAS_PARA_ADIAR) return false;
+  tentativas[i].voltaEm = millis() + ADIAR_MS;
+  return true;
+}
+
+// Subiu ou saiu da fila: as falhas dela não contam mais.
+void esquecerFalhas(const String &caminho) {
+  int i = tentativasDe(caminho);
+  if (i >= 0) tentativas[i] = Tentativas();
+}
+
 String proximaDaFila() {
   File p = memoria.open(PASTA_FILA);
   String menor;
@@ -205,6 +256,7 @@ String proximaDaFila() {
   for (File f = p.openNextFile(); f; f = p.openNextFile()) {
     String nome = f.name();
     if (f.isDirectory() || !nome.endsWith(".wav")) continue;
+    if (adiada(String(PASTA_FILA) + "/" + nome)) continue;
     if (menor.isEmpty() || nome < menor) menor = nome;
   }
   p.close();

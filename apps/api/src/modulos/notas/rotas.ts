@@ -16,6 +16,7 @@ import { administradores, notificar } from "../avisos";
 import { buscar, animaisDaOrg, donoSeOutro, gruposDaOrg } from "./consultas";
 import { confirmarNota } from "./regras/aplicar";
 import { quandoFoiGravado, tipoDeAudio } from "./regras/gravacao";
+import { wavMuLawParaPcm16 } from "./regras/wav";
 
 /**
  * Registros de ocorrência: áudio entra, IA propõe, humano confirma. Qualquer
@@ -49,11 +50,15 @@ notasRotas.post("/:orgId/ocorrencias", async (c) => {
   if (!eu) return c.json({ error: "Sem acesso a esta organização." }, 403);
 
   const body = await c.req.parseBody().catch(() => null);
-  const audio = body?.audio;
-  if (!(audio instanceof File) || audio.size === 0) return c.json({ error: "Envie um áudio no campo 'audio'." }, 400);
-  if (audio.size > TAMANHO_MAXIMO) return c.json({ error: "Áudio grande demais (máximo 25 MB)." }, 413);
-  const mime = tipoDeAudio(audio.type);
+  const recebido = body?.audio;
+  if (!(recebido instanceof File) || recebido.size === 0) return c.json({ error: "Envie um áudio no campo 'audio'." }, 400);
+  if (recebido.size > TAMANHO_MAXIMO) return c.json({ error: "Áudio grande demais (máximo 25 MB)." }, 413);
+  const mime = tipoDeAudio(recebido.type);
   if (!mime) return c.json({ error: "Envie um arquivo de áudio (WAV, WebM, MP3…)." }, 415);
+  // O gravador manda μ-law (metade do tamanho: sobe em Wi-Fi fraco); daqui em
+  // diante — transcrição e player da nota — é PCM de 16 bits, como sempre foi.
+  const pcm = wavMuLawParaPcm16(new Uint8Array(await recebido.arrayBuffer()));
+  const audio = pcm ? new File([pcm], recebido.name, { type: "audio/wav" }) : recebido;
   const duracaoSeg = Number(body?.duracaoSeg) || null;
   // Vira a data da ocorrência e o "hoje" da IA: "nasceu hoje", gravado sem
   // sinal e enviado no dia seguinte, é do dia da gravação.

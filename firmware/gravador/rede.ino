@@ -209,7 +209,7 @@ Resultado enviarArquivo(const String &caminho) {
   if (tamArq <= CABECALHO_WAV) return RECUSADO;  // só o cabeçalho: nada para ouvir
   String base = caminho.substring(caminho.lastIndexOf('/') + 1);
   String quando = gravadoEmDe(caminho);
-  float seg = (tamArq - CABECALHO_WAV) / (float)(TAXA * sizeof(int16_t));
+  float seg = (tamArq - CABECALHO_WAV) / (float)(TAXA * BYTES_POR_AMOSTRA);
   String ini = String("--") + FRONTEIRA + "\r\nContent-Disposition: form-data; name=\"duracaoSeg\"\r\n\r\n" +
                String((int)(seg + 0.5f)) + "\r\n";
   if (quando.length())
@@ -342,6 +342,16 @@ void tarefaRede(void *) {
       if (r == RECUSADO) {
         if (moverParaErro(caminho)) registrar("ERRO: recusada pelo Noteless: guardada em %s, fora da fila.\n", PASTA_ERRO);
         else r = TENTAR_DEPOIS;
+      }
+      if (r != TENTAR_DEPOIS) esquecerFalhas(caminho);
+      // A mesma gravação falhou de novo e de novo: as seguintes passam na frente.
+      if (r == TENTAR_DEPOIS && !caminho.isEmpty() && contarFalha(caminho)) {
+        registrar("AVISO: %s falhou %d vezes seguidas: as gravações seguintes sobem antes, e ela tenta de novo em %lu min.",
+                  caminho.substring(caminho.lastIndexOf('/') + 1).c_str(), FALHAS_PARA_ADIAR, (unsigned long)(ADIAR_MS / 60000));
+        espera = 0;
+        proximoEnvio = millis() + 15000;
+        atualizarFila();
+        continue;
       }
       if (r == TENTAR_DEPOIS) {
         // Espera cada vez mais entre as tentativas: 15 s, 30 s... até 5 min.

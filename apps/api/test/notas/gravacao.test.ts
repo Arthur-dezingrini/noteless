@@ -43,9 +43,9 @@ const diaEmSaoPaulo = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: 
 const haHoras = (horas: number) => new Date(Math.floor((Date.now() - horas * H) / 1000) * 1000);
 
 /** Manda um áudio como o gravador manda: multipart, com os campos opcionais. */
-async function enviarAudio(quem: Pessoa | null, campos: Record<string, string> = {}) {
+async function enviarAudio(quem: Pessoa | null, campos: Record<string, string> = {}, arquivo: Uint8Array = new Uint8Array(800)) {
   const form = new FormData();
-  form.set("audio", new File([new Uint8Array(800)], "gravacao.wav", { type: "audio/wav" }));
+  form.set("audio", new File([arquivo], "gravacao.wav", { type: "audio/wav" }));
   for (const [k, v] of Object.entries(campos)) form.set(k, v);
   const res = await app.request(`/api/org/${f.orgId}/ocorrencias`, {
     method: "POST",
@@ -153,5 +153,53 @@ describe("vocabulário da transcrição", () => {
     const [, vocab] = ia.transcrever.mock.calls[0] as unknown as [File, string];
     expect(vocab).toContain("Mimosa");
     expect(vocab).not.toContain("Trovoada");
+  });
+});
+
+describe("áudio μ-law do gravador", () => {
+  /** WAV μ-law de 16 kHz, como o gravador grava (metade do tamanho do PCM). */
+  function wavMuLaw(amostras: number[]) {
+    const b = new Uint8Array(44 + amostras.length);
+    const v = new DataView(b.buffer);
+    b.set([...Buffer.from("RIFFxxxxWAVEfmt ")], 0);
+    v.setUint32(4, 36 + amostras.length, true);
+    v.setUint32(16, 16, true);
+    v.setUint16(20, 7, true); // μ-law
+    v.setUint16(22, 1, true);
+    v.setUint32(24, 16000, true);
+    v.setUint32(28, 16000, true);
+    v.setUint16(32, 1, true);
+    v.setUint16(34, 8, true);
+    b.set([...Buffer.from("data")], 36);
+    v.setUint32(40, amostras.length, true);
+    b.set(amostras, 44);
+    return b;
+  }
+  const formato = (b: Uint8Array) => {
+    const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    return { pcm: v.getUint16(20, true), bits: v.getUint16(34, true), taxa: v.getUint32(24, true), dados: v.getUint32(40, true) };
+  };
+
+  it("vira PCM de 16 bits para a transcrição e para o player da nota", async () => {
+    ia.transcrever.mockClear();
+    const r = await enviarAudio(f.membro, {}, wavMuLaw([0xff, 0x80, 0x00, 0x7f]));
+    expect(r.status).toBe(201);
+
+    const [recebido] = ia.transcrever.mock.calls[0] as unknown as [File];
+    expect(formato(new Uint8Array(await recebido.arrayBuffer()))).toEqual({ pcm: 1, bits: 16, taxa: 16000, dados: 8 });
+
+    const res = await app.request(`/api/org/${f.orgId}/ocorrencias/${r.json.id}/audio`, { headers: { Cookie: f.membro.cookie } });
+    expect(res.status).toBe(200);
+    const guardado = new Uint8Array(await res.arrayBuffer());
+    expect(formato(guardado)).toEqual({ pcm: 1, bits: 16, taxa: 16000, dados: 8 });
+    expect(new DataView(guardado.buffer).getInt16(46, true)).toBe(32124);
+  });
+
+  it("WAV PCM (gravador antigo) e outros formatos passam como vieram", async () => {
+    ia.transcrever.mockClear();
+    const pcm = new Uint8Array(800);
+    await enviarAudio(f.membro, {}, pcm);
+    const [recebido] = ia.transcrever.mock.calls[0] as unknown as [File];
+    expect(new Uint8Array(await recebido.arrayBuffer())).toEqual(pcm);
   });
 });

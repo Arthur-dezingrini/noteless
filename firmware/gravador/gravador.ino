@@ -123,20 +123,37 @@ uint32_t histograma[256];  // |amostra| em faixas de 128, para medir o volume
 void escrever32(uint8_t *p, uint32_t v) { for (int i = 0; i < 4; i++) p[i] = v >> (8 * i); }
 void escrever16(uint8_t *p, uint16_t v) { p[0] = v; p[1] = v >> 8; }
 
-// WAV PCM mono, 16 bits com sinal; n = bytes de áudio depois do cabeçalho.
+// WAV μ-law (G.711) mono: 1 byte por amostra, metade do PCM de 16 bits, com a
+// mesma faixa útil para a fala (a escala é logarítmica, como a do ouvido). Com
+// Wi-Fi fraco, o envio termina antes de a conexão cair. O Noteless converte em
+// PCM na chegada. n = bytes de áudio depois do cabeçalho.
 const size_t CABECALHO_WAV = 44;
+const size_t BYTES_POR_AMOSTRA = 1;
 void cabecalhoWav(uint8_t *p, uint32_t n) {
   memcpy(p, "RIFF", 4); escrever32(p + 4, 36 + n); memcpy(p + 8, "WAVEfmt ", 8);
-  escrever32(p + 16, 16); escrever16(p + 20, 1); escrever16(p + 22, 1);
-  escrever32(p + 24, TAXA); escrever32(p + 28, TAXA * 2); escrever16(p + 32, 2); escrever16(p + 34, 16);
+  escrever32(p + 16, 16); escrever16(p + 20, 7); escrever16(p + 22, 1);  // 7 = μ-law
+  escrever32(p + 24, TAXA); escrever32(p + 28, TAXA); escrever16(p + 32, 1); escrever16(p + 34, 8);
   memcpy(p + 36, "data", 4); escrever32(p + 40, n);
+}
+
+// Amostra de 16 bits → μ-law (codificador G.711 de referência).
+uint8_t muLaw(int16_t amostra) {
+  const int VIES = 0x84, TETO = 32635;
+  int sinal = (amostra >> 8) & 0x80;
+  int v = sinal ? -(int)amostra : amostra;
+  if (v > TETO) v = TETO;
+  v += VIES;
+  int expoente = 7;
+  for (int mascara = 0x4000; (v & mascara) == 0 && expoente > 0; mascara >>= 1) expoente--;
+  int mantissa = (v >> (expoente + 3)) & 0x0F;
+  return ~(sinal | (expoente << 4) | mantissa);
 }
 
 // Põe o tamanho certo no cabeçalho de um .wav que já está escrito (gravação
 // terminada, ou interrompida e recuperada).
 bool fecharWav(File &f, size_t amostras) {
   uint8_t cab[CABECALHO_WAV];
-  cabecalhoWav(cab, amostras * sizeof(int16_t));
+  cabecalhoWav(cab, amostras * BYTES_POR_AMOSTRA);
   return f.seek(0) && f.write(cab, sizeof(cab)) == sizeof(cab);
 }
 
@@ -193,19 +210,19 @@ void comecarCaptura(Gravacao &g) {
 
 // Grava no cartão o que está sendo capturado até soltar o botão (ou até o
 // limite), já sem os graves (passa-alta ~100 Hz: deriva lenta e zumbido de 60
-// Hz). O arquivo já é o .wav: o cabeçalho vai na frente e ganha o tamanho no
-// fim. Volume não se acerta — em 16 bits a fala tem folga de sobra, e o
-// Whisper não depende dele.
+// Hz). O arquivo já é o .wav (μ-law): o cabeçalho vai na frente e ganha o
+// tamanho no fim. Volume não se acerta — o μ-law guarda a fala baixa e a alta
+// com a mesma precisão relativa, e o Whisper não depende dele.
 bool gravar(Gravacao &g) {
   size_t limite = (size_t)LIMITE_SEG * TAXA;
 #if !USAR_CARTAO
-  // A memória interna é pequena: a gravação para antes de enchê-la (2 bytes
+  // A memória interna é pequena: a gravação para antes de enchê-la (1 byte
   // por amostra). A folga fica para o registro (até 2 x 64 KB, registro.ino) e
   // para o próprio LittleFS.
   const size_t FOLGA = 160 * 1024;
   size_t livre = memoria.totalBytes() - memoria.usedBytes();
   cartaoLivreGb = livre / 1e9;
-  limite = min(limite, livre > FOLGA ? (livre - FOLGA) / sizeof(int16_t) : 0);
+  limite = min(limite, livre > FOLGA ? (livre - FOLGA) / BYTES_POR_AMOSTRA : 0);
   if (limite < (size_t)TAXA) {
     gravando = false;
     registrar("AVISO: memória cheia (%u KB livres): espere as notas da fila subirem.", (unsigned)(livre / 1024));
@@ -227,6 +244,7 @@ bool gravar(Gravacao &g) {
   // aqui até deixarem de ser o fim.
   static uint8_t recentes[TAXA / 10];
   static int16_t bloco[2048];
+  static uint8_t comprimido[2048];  // o mesmo bloco em μ-law, que vai para o cartão
   const float k = 1 / (1 + 2 * PI * 100.0f / TAXA);  // RC/(RC+dt) para ~100 Hz
   float ant = 0, y = 0;
   size_t n = 0;
@@ -245,8 +263,9 @@ bool gravar(Gravacao &g) {
       size_t r = n % (TAXA / 10);
       if (n >= TAXA / 5) histograma[recentes[r]]++;
       recentes[r] = min(255, abs(v) / 128);
+      comprimido[i] = muLaw(v);
     }
-    if (m && bruto.write((uint8_t *)bloco, m * sizeof(int16_t)) != m * sizeof(int16_t)) {
+    if (m && bruto.write(comprimido, m) != m) {
       falhou = true;
       break;
     }
