@@ -364,6 +364,14 @@ void tarefaRede(void *) {
       atualizarFila();
       continue;  // já parte para a próxima da fila
     }
+    conferirTesteDaVersao();
+    // Atualização do firmware (versao.ino): só com a placa parada — sem gravar,
+    // sem comando da serial e sem envio da fila na vez dele.
+    if (online && otaPendente() && !gravando && !loopUsandoCartao &&
+        (naFila == 0 || envioPausado || (int32_t)(millis() - proximoEnvio) < 0)) {
+      passoDaAtualizacao();
+      continue;
+    }
     vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }

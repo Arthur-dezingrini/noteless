@@ -31,14 +31,25 @@
 #include <Preferences.h>
 #include <WebServer.h>
 #include <WiFi.h>
+#include <Update.h>
 #include <WiFiClientSecure.h>
+#include <esp_ota_ops.h>
 #include <esp_wifi.h>
+#include <mbedtls/base64.h>
+#include <mbedtls/pk.h>
+#include <mbedtls/sha256.h>
 #include <freertos/stream_buffer.h>
 #include <sys/time.h>
 
 #include <vector>
 
 #include "segredos.h"
+
+// Versão do firmware: aumente a cada versão publicada no Noteless (a mesma
+// versão não publica duas vezes). Fica marcada no binário: o Noteless a lê de
+// dentro do .bin ao publicar (apps/api, regras/firmware.ts).
+#define FIRMWARE_VERSAO "1.0.0"
+const char MARCA_VERSAO[] = "NOTELESS_FW_VERSAO=" FIRMWARE_VERSAO;
 
 // Onde ficam as gravações: 1 = cartão microSD; 0 = a memória interna da placa,
 // em LittleFS na partição de partitions.csv (2,5 MB, perto de 1 min e 15 s por
@@ -357,8 +368,10 @@ void setup() {
   if (trocarWifi) prefs.remove("trocarWifi");
   prefs.end();
 
-  registrar("=== Noteless - gravador de campo === boot %lu: %s | memória livre %u", (unsigned long)bootId, motivoDoBoot(),
-            ESP.getFreeHeap());
+  // A marca vem daqui (e não de FIRMWARE_VERSAO): usada, ela fica no binário.
+  registrar("=== Noteless - gravador de campo %s === boot %lu: %s | memória livre %u", MARCA_VERSAO + 19, (unsigned long)bootId,
+            motivoDoBoot(), ESP.getFreeHeap());
+  conferirVersaoNova();  // veio de uma atualização? (versao.ino)
   carregarIdentidade();  // antes do Wi-Fi e do microfone (ver pareamento.ino); o portal mostra o código
 
   // Sem rede salva (ou depois dos 5 cliques): configurar pelo celular antes de

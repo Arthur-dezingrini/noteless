@@ -9,6 +9,8 @@ import {
   type UsuarioAdmin,
   gravadorListaSchema,
   type Gravador,
+  firmwareListaSchema,
+  type Firmware,
   aceiteTermosSchema,
   type AceiteTermos,
 } from "@vocare/shared";
@@ -60,6 +62,14 @@ export const getGravadoresAdmin = cache(async (): Promise<Gravador[]> => {
   const res = await apiFetch("/api/admin/gravadores");
   if (!res.ok) return [];
   const parsed = gravadorListaSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data : [];
+});
+
+/** Versões do firmware publicadas (só super usuário; senão, lista vazia). */
+export const getFirmwares = cache(async (): Promise<Firmware[]> => {
+  const res = await apiFetch("/api/admin/gravadores/firmware");
+  if (!res.ok) return [];
+  const parsed = firmwareListaSchema.safeParse(await res.json());
   return parsed.success ? parsed.data : [];
 });
 

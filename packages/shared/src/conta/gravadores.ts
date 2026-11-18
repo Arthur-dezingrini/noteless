@@ -18,6 +18,15 @@ export const GRAVADOR_ONLINE_SEG = 20 * 60;
  * O que a placa manda (POST /api/gravadores/estado). Os tempos vêm em "há N
  * segundos": antes de acertar o relógio pela internet, a placa não sabe a hora.
  */
+/** Andamento de uma atualização do firmware pelo Noteless, como a placa conta. */
+export const atualizacaoSchema = z.object({
+  versao: z.string().max(20),
+  etapa: z.enum(["baixando", "instalando", "falhou"]),
+  progresso: z.number().int().min(0).max(100),
+  erro: z.string().max(200).nullable(),
+});
+export type Atualizacao = z.infer<typeof atualizacaoSchema>;
+
 export const estadoGravadorSchema = z.object({
   serie: z.string().min(1).max(32),
   versao: z.string().max(40),
@@ -32,6 +41,8 @@ export const estadoGravadorSchema = z.object({
     .max(20)
     .default([]),
   boot: z.object({ motivo: z.string().max(80), haSeg: z.number().int().min(0) }),
+  /** Atualização do firmware em andamento ou que falhou (firmware antigo não manda). */
+  atualizacao: atualizacaoSchema.nullable().default(null),
 });
 export type EstadoGravadorInput = z.infer<typeof estadoGravadorSchema>;
 
@@ -55,10 +66,24 @@ export type EstadoSalvo = z.infer<typeof estadoSalvoSchema>;
  * (aguardando aprovação, sem empresa); e se o envio está pausado — aí as
  * gravações esperam no cartão.
  */
+/**
+ * Versão do firmware oferecida à placa. Sem `id` nem `nome`: a placa lê a
+ * empresa pela primeira chave "id" da resposta.
+ */
+export const firmwareOferecidoSchema = z.object({
+  versao: z.string(),
+  tamanho: z.number().int().positive(),
+  sha256: z.string(),
+  assinatura: z.string(),
+});
+export type FirmwareOferecido = z.infer<typeof firmwareOferecidoSchema>;
+
 export const respostaEstadoSchema = z.object({
   destino: z.object({ id: z.string(), nome: z.string() }).nullable(),
   aviso: z.string().nullable(),
   pausado: z.boolean(),
+  /** Versão que a placa deve instalar (escolhida no Noteless); null = fica como está. */
+  firmware: firmwareOferecidoSchema.nullable(),
 });
 export type RespostaEstado = z.infer<typeof respostaEstadoSchema>;
 
@@ -72,6 +97,8 @@ export const gravadorSchema = z.object({
   destino: z.object({ id: z.string(), nome: z.string() }).nullable(),
   /** Pausado no Noteless: a placa não envia, as gravações esperam no cartão. */
   envioPausado: z.boolean(),
+  /** Versão do firmware que a placa deve ter; null = nenhuma escolhida. */
+  firmwareAlvo: z.string().nullable(),
   vistoEm: z.string(),
   estado: estadoSalvoSchema,
 });
@@ -84,8 +111,13 @@ export const mudarGravadorSchema = z
     nome: z.string().trim().min(1, "Dê um nome ao gravador.").max(60, "Nome longo demais.").optional(),
     organizationId: z.string().min(1, "Escolha a empresa.").optional(),
     envioPausado: z.boolean().optional(),
+    /** Versão do firmware a instalar; null cancela. */
+    firmwareAlvo: z.string().min(1, "Escolha a versão.").nullable().optional(),
   })
-  .refine((v) => v.nome !== undefined || v.organizationId !== undefined || v.envioPausado !== undefined, "Nada para mudar.");
+  .refine(
+    (v) => v.nome !== undefined || v.organizationId !== undefined || v.envioPausado !== undefined || v.firmwareAlvo !== undefined,
+    "Nada para mudar.",
+  );
 export type MudarGravadorInput = z.infer<typeof mudarGravadorSchema>;
 
 /** Aprovar a placa: o código que ela mostra na página de Wi-Fi, a empresa e, se quiser, outro nome. */
@@ -137,4 +169,28 @@ export function juntarErros(antigos: ErroSalvo[], novos: ErroSalvo[], max = GRAV
   const repetido = (e: ErroSalvo) =>
     antigos.some((a) => a.texto === e.texto && Math.abs(new Date(a.em).getTime() - new Date(e.em).getTime()) < 10_000);
   return [...novos.filter((e) => !repetido(e)).reverse(), ...antigos].slice(0, max);
+}
+
+/**
+ * Tamanho máximo do firmware: a partição de cada cópia (firmware/gravador/
+ * partitions.csv, 0x160000). Maior que isso não cabe para atualizar sem fio.
+ */
+export const FIRMWARE_TAMANHO_MAXIMO = 0x160000;
+
+/** Uma versão do firmware publicada no Noteless. */
+export const firmwareSchema = z.object({
+  versao: z.string(),
+  tamanho: z.number().int(),
+  sha256: z.string(),
+  publicadoEm: z.string(),
+  publicadoPor: z.string().nullable(),
+});
+export const firmwareListaSchema = z.array(firmwareSchema);
+export type Firmware = z.infer<typeof firmwareSchema>;
+
+/** O andamento da atualização para a tela. */
+export function atualizacaoEmPalavras(a: Atualizacao): string {
+  if (a.etapa === "baixando") return `Baixando a ${a.versao}: ${a.progresso}%`;
+  if (a.etapa === "instalando") return `Instalando a ${a.versao}`;
+  return `A ${a.versao} falhou${a.erro ? `: ${a.erro}` : ""}`;
 }

@@ -1,4 +1,4 @@
-import { boolean, index, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, customType, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 import { organization, user } from "../schema";
 
@@ -35,6 +35,9 @@ export const gravador = pgTable(
     // Pausado no Noteless: a placa segue avisando o estado, mas não envia; as
     // gravações esperam no cartão.
     envioPausado: boolean("envio_pausado").notNull().default(false),
+    // Versão do firmware que a placa deve ter (o super usuário escolhe); o aviso
+    // de estado a oferece enquanto a placa estiver em outra.
+    firmwareAlvo: text("firmware_alvo").references(() => firmware.versao, { onDelete: "set null" }),
     estado: jsonb("estado").notNull(),
     vistoEm: timestamp("visto_em").notNull(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -62,3 +65,21 @@ export const aceiteTermos = pgTable(
   },
   (t) => [uniqueIndex("aceite_termos_user_versao_uq").on(t.userId, t.versao)],
 );
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+
+/**
+ * Versões do firmware do gravador publicadas pelo super usuário, para as placas
+ * baixarem sem fio. A versão vem de dentro do próprio arquivo; a assinatura
+ * (ECDSA P-256 sobre o arquivo, com a chave de FIRMWARE_CHAVE_PRIVADA) é o que
+ * a placa confere antes de instalar.
+ */
+export const firmware = pgTable("firmware", {
+  versao: text("versao").primaryKey(),
+  tamanho: integer("tamanho").notNull(),
+  sha256: text("sha256").notNull(),
+  assinatura: text("assinatura").notNull(),
+  dados: bytea("dados").notNull(),
+  publicadoPorId: text("publicado_por_id").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

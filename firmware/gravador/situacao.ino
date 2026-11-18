@@ -59,7 +59,8 @@ bool avisoDevido() {
 void conferirEmpresa() { avisarEstado(); }
 
 String jsonEstado(const char *erro, uint32_t erroMs, int fila, uint32_t &errosAteAqui) {
-  String j = String("{\"serie\":\"") + serieDaPlaca + "\",\"versao\":\"" + __DATE__ " " __TIME__ + "\"";
+  String j = String("{\"serie\":\"") + serieDaPlaca + "\",\"versao\":\"" + FIRMWARE_VERSAO + "\"";
+  j += String(",\"atualizacao\":") + atualizacaoJson();
   j += String(",\"wifi\":{\"rede\":\"") + jsonTexto(wifiNome.c_str()) + "\",\"sinalDbm\":" + String(WiFi.RSSI()) + ",\"ip\":\"" +
        WiFi.localIP().toString() + "\"}";
   j += String(",\"fila\":") + String(fila) + ",\"recusadas\":" + String(cartaoOk ? max(0, contar(PASTA_ERRO)) : 0);
@@ -102,6 +103,8 @@ void avisarEstado() {
   }
 
   if (st == 200 || st == 202) {  // 202: aguardando aprovação
+    validarVersaoNova();  // versão nova que fala com o Noteless fica (versao.ino)
+    if (st == 200) receberOferta(resp);
     if (avisoFalhando) registrar("O estado do gravador voltou a chegar no Noteless.");
     avisoFalhando = false;
     aguardandoAprovacao = st == 202;

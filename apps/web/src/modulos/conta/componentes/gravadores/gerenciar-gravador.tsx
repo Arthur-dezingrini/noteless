@@ -1,6 +1,6 @@
 "use client";
 
-import { filaEmPalavras, mudarGravadorSchema, sinalEmPalavras, type Empresa, type Gravador } from "@vocare/shared";
+import { filaEmPalavras, mudarGravadorSchema, sinalEmPalavras, type Empresa, type Gravador, type Firmware } from "@vocare/shared";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 
@@ -9,6 +9,7 @@ import { chamarApi } from "@/lib/api-client";
 import { haQuantoTempo, TZ } from "@/lib/datas";
 
 import { AprovarGravador } from "./aprovar-gravador";
+import { FirmwareGravador, situacaoDoFirmware } from "./firmware-gravador";
 import { Destino, Situacao } from "./situacao";
 
 const DIA_HORA = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: TZ });
@@ -47,11 +48,14 @@ function Linha({ rotulo, children }: { rotulo: string; children: ReactNode }) {
 export function GerenciarGravador({
   gravador: g,
   empresas,
+  firmwares,
   podeMexer,
   onClose,
 }: {
   gravador: Gravador | null;
   empresas: Empresa[];
+  /** Versões publicadas (só o super usuário escolhe). */
+  firmwares: Firmware[];
   podeMexer: boolean;
   onClose: () => void;
 }) {
@@ -115,12 +119,27 @@ export function GerenciarGravador({
           <Linha rotulo="Ligou">
             {ha(g.estado.boot.em)} · {g.estado.boot.motivo}
           </Linha>
-          <Linha rotulo="Firmware">{g.estado.versao}</Linha>
+          <Linha rotulo="Firmware">
+            {g.estado.versao}
+            {situacaoDoFirmware(g).texto && (
+              <StatusText tone={situacaoDoFirmware(g).tom ?? "neutro"} size="herda">
+                {" "}
+                · {situacaoDoFirmware(g).texto}
+              </StatusText>
+            )}
+          </Linha>
         </dl>
 
         <ErrosRecentes g={g} />
 
         {podeMexer && !g.aprovado && <AprovarGravador key={g.id} g={g} empresas={empresas} />}
+
+        {podeMexer && g.aprovado && (
+          <section className="flex flex-col gap-2 border-t border-line pt-4">
+            <h3 className="text-[15px] font-semibold text-ink">Atualizar firmware</h3>
+            <FirmwareGravador key={g.id} g={g} firmwares={firmwares} />
+          </section>
+        )}
 
         {podeMexer && g.aprovado && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">

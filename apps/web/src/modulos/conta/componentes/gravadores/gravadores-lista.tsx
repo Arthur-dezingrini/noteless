@@ -1,6 +1,6 @@
 "use client";
 
-import { filaEmPalavras, sinalEmPalavras, type Empresa, type Gravador } from "@vocare/shared";
+import { filaEmPalavras, sinalEmPalavras, type Empresa, type Gravador, type Firmware } from "@vocare/shared";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type KeyboardEvent } from "react";
 
@@ -18,11 +18,14 @@ import { Destino, Situacao } from "./situacao";
 export function GravadoresLista({
   gravadores,
   empresas,
+  firmwares = [],
   podeMexer,
 }: {
   gravadores: Gravador[];
   /** Empresas que podem receber as notas (só o super usuário escolhe). */
   empresas: Empresa[];
+  /** Versões do firmware publicadas (só o super usuário escolhe). */
+  firmwares?: Firmware[];
   podeMexer: boolean;
 }) {
   const router = useRouter();
@@ -123,6 +126,7 @@ export function GravadoresLista({
       <GerenciarGravador
         gravador={aberto}
         empresas={empresas}
+        firmwares={firmwares}
         podeMexer={podeMexer}
         onClose={() => setAbertoId(null)}
       />

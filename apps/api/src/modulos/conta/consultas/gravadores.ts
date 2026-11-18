@@ -19,6 +19,7 @@ export async function listarGravadores(organizationId?: string): Promise<Gravado
       destinoId: organization.id,
       destinoNome: organization.name,
       envioPausado: gravador.envioPausado,
+      firmwareAlvo: gravador.firmwareAlvo,
       vistoEm: gravador.vistoEm,
       estado: gravador.estado,
     })
@@ -35,9 +36,14 @@ export async function listarGravadores(organizationId?: string): Promise<Gravado
       aprovado: l.aprovadoEm !== null,
       destino: l.destinoId && l.destinoNome !== null ? { id: l.destinoId, nome: l.destinoNome } : null,
       envioPausado: l.envioPausado,
+      firmwareAlvo: l.firmwareAlvo,
       vistoEm: l.vistoEm.toISOString(),
-      // Gravado por receberEstado no formato EstadoSalvo; os de antes do histórico não têm `erros`.
-      estado: { ...(l.estado as EstadoSalvo), erros: (l.estado as Partial<EstadoSalvo>).erros ?? [] },
+      // Gravado por receberEstado no formato EstadoSalvo; os mais antigos não têm `erros` nem `atualizacao`.
+      estado: {
+        ...(l.estado as EstadoSalvo),
+        erros: (l.estado as Partial<EstadoSalvo>).erros ?? [],
+        atualizacao: (l.estado as Partial<EstadoSalvo>).atualizacao ?? null,
+      },
     }))
     .sort((a, b) => Number(a.aprovado) - Number(b.aprovado));
 }

@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 
 import { getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
-import { GravadoresLista, LinkAvisoGravador } from "@/modulos/conta";
-import { getEmpresas, getGravadores, getGravadoresAdmin } from "@/modulos/conta/dados";
+import { FirmwareLista, GravadoresLista, LinkAvisoGravador } from "@/modulos/conta";
+import { getEmpresas, getFirmwares, getGravadores, getGravadoresAdmin } from "@/modulos/conta/dados";
 
 export const metadata = { title: "Gravadores" };
 
@@ -11,11 +11,12 @@ export default async function GravadoresPage() {
   const [{ user }, org] = await Promise.all([requireSession(), getOrgAtiva()]);
 
   if (user.tipo === "super") {
-    const [gravadores, empresas] = await Promise.all([getGravadoresAdmin(), getEmpresas()]);
+    const [gravadores, empresas, firmwares] = await Promise.all([getGravadoresAdmin(), getEmpresas(), getFirmwares()]);
     return (
       <>
         <LinkAvisoGravador />
-        <GravadoresLista gravadores={gravadores} empresas={empresas} podeMexer />
+        <GravadoresLista gravadores={gravadores} empresas={empresas} firmwares={firmwares} podeMexer />
+        <FirmwareLista firmwares={firmwares} />
       </>
     );
   }

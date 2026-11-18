@@ -42,6 +42,9 @@ const schema = z.object({
   // Sem validar formato: um erro de digitação aqui não pode derrubar a api na subida.
   ALERTA_EMAILS: z.string().optional().transform(listaDeEmails),
   ROTINAS_SEGREDO: z.string().optional(), // rotina diária (limpeza do áudio); sem ela a rota responde 503
+  // Chave privada EC P-256 (PEM) que assina o firmware publicado; a pública vai
+  // no firmware (gravador.ino). Sem ela, publicar firmware responde 503.
+  FIRMWARE_CHAVE_PRIVADA: z.string().optional(),
 });
 
 const parsed = schema.safeParse(process.env);

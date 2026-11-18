@@ -134,6 +134,13 @@
       "when": 1794874559786,
       "tag": "0018_pausar_envio",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795032717880,
+      "tag": "0019_firmware",
+      "breakpoints": true
     }
   ]
 }

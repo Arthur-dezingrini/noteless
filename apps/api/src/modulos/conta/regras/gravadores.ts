@@ -23,6 +23,7 @@ import { falha, ok, type Resultado } from "../../../base/resultado";
 import { db } from "../../../db";
 import { organization, user } from "../../../db/schema";
 import { gravador } from "../../../db/tabelas/conta";
+import { alvoValido, ofertaDeFirmware } from "./firmware";
 
 const OUTRO_SEGREDO =
   "Esta placa já foi pareada com outro segredo (a memória dela foi apagada?). O super usuário pode esquecê-la em Configurações › Gravadores para parear de novo.";
@@ -46,19 +47,20 @@ function salvar(e: EstadoGravadorInput, agora: Date, errosAntigos: ErroSalvo[]):
       e.erros.map((x) => ({ texto: x.texto, em: ha(x.haSeg) })),
     ),
     boot: { motivo: e.boot.motivo, em: ha(e.boot.haSeg) },
+    atualizacao: e.atualizacao,
   };
 }
 
 function aguardando(codigo: string): RespostaEstado {
-  return { destino: null, aviso: `Aguardando aprovação no Noteless (código ${codigo}).`, pausado: false };
+  return { destino: null, aviso: `Aguardando aprovação no Noteless (código ${codigo}).`, pausado: false, firmware: null };
 }
 
 /** Para onde as notas da placa vão agora — ou por que não vão para lugar nenhum — e se o envio está pausado. */
 async function destinoDe(organizationId: string | null, pausado: boolean): Promise<RespostaEstado> {
-  if (!organizationId) return { destino: null, aviso: "Nenhuma empresa escolhida para este gravador.", pausado };
+  if (!organizationId) return { destino: null, aviso: "Nenhuma empresa escolhida para este gravador.", pausado, firmware: null };
   const [o] = await db.select({ id: organization.id, nome: organization.name }).from(organization).where(eq(organization.id, organizationId)).limit(1);
-  if (!o) return { destino: null, aviso: "A empresa deste gravador não existe mais.", pausado };
-  return { destino: { id: o.id, nome: o.nome }, aviso: null, pausado };
+  if (!o) return { destino: null, aviso: "A empresa deste gravador não existe mais.", pausado, firmware: null };
+  return { destino: { id: o.id, nome: o.nome }, aviso: null, pausado, firmware: null };
 }
 
 export type AvisoRecebido = { aguardando: boolean; resposta: RespostaEstado };
@@ -77,7 +79,8 @@ export async function receberEstado(cred: CredencialGravador, e: EstadoGravadorI
   if (atual) {
     await db.update(gravador).set({ estado, vistoEm: agora }).where(eq(gravador.id, atual.id));
     if (!atual.aprovadoEm) return ok({ aguardando: true, resposta: aguardando(atual.codigo) });
-    return ok({ aguardando: false, resposta: await destinoDe(atual.organizationId, atual.envioPausado) });
+    const resposta = await destinoDe(atual.organizationId, atual.envioPausado);
+    return ok({ aguardando: false, resposta: { ...resposta, firmware: await ofertaDeFirmware(atual.firmwareAlvo, e.versao) } });
   }
 
   await db.delete(gravador).where(and(isNull(gravador.aprovadoEm), lt(gravador.vistoEm, new Date(agora.getTime() - AGUARDANDO_EXPIRA_MS))));
@@ -143,6 +146,7 @@ export async function mudarGravador(id: string, input: MudarGravadorInput): Prom
     const [o] = await db.select({ id: organization.id }).from(organization).where(eq(organization.id, input.organizationId)).limit(1);
     if (!o) return falha(404, "Empresa não encontrada.");
   }
+  if (input.firmwareAlvo !== undefined && !(await alvoValido(input.firmwareAlvo))) return falha(404, "Versão de firmware não encontrada.");
 
   await db
     .update(gravador)
@@ -150,6 +154,7 @@ export async function mudarGravador(id: string, input: MudarGravadorInput): Prom
       ...(input.nome !== undefined ? { nome: input.nome } : {}),
       ...(input.organizationId !== undefined ? { organizationId: input.organizationId } : {}),
       ...(input.envioPausado !== undefined ? { envioPausado: input.envioPausado } : {}),
+      ...(input.firmwareAlvo !== undefined ? { firmwareAlvo: input.firmwareAlvo } : {}),
     })
     .where(eq(gravador.id, id));
   // As notas novas saem com o nome novo.

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   aprovarGravadorSchema,
+  atualizacaoEmPalavras,
   estadoGravadorSchema,
   filaEmPalavras,
   gravadorOnline,
@@ -129,10 +130,48 @@ describe("aprovarGravadorSchema", () => {
 });
 
 describe("mudarGravadorSchema", () => {
+  it("escolher a versão do firmware (ou cancelar com null) já é uma mudança", () => {
+    expect(mudarGravadorSchema.safeParse({ firmwareAlvo: "1.1.0" }).success).toBe(true);
+    expect(mudarGravadorSchema.safeParse({ firmwareAlvo: null }).success).toBe(true);
+    expect(mudarGravadorSchema.safeParse({ firmwareAlvo: "" }).success).toBe(false);
+  });
+
   it("pausar ou retomar o envio sozinho já é uma mudança; corpo vazio não", () => {
     expect(mudarGravadorSchema.safeParse({ envioPausado: true }).success).toBe(true);
     expect(mudarGravadorSchema.safeParse({ envioPausado: false }).success).toBe(true);
     expect(mudarGravadorSchema.safeParse({ envioPausado: "sim" }).success).toBe(false);
     expect(mudarGravadorSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe("atualização do firmware no aviso", () => {
+  const base = {
+    serie: "a4:cf:12:9b:1a:2b",
+    versao: "1.0.0",
+    wifi: { rede: "x", sinalDbm: -60, ip: "10.0.0.2" },
+    fila: 0,
+    recusadas: 0,
+    cartao: { ok: true, livreGb: 7.9 },
+    ultimoErro: null,
+    boot: { motivo: "ligada na energia", haSeg: 10 },
+  };
+
+  it("firmware antigo não manda: entende como sem atualização", () => {
+    const r = estadoGravadorSchema.safeParse(base);
+    expect(r.success && r.data.atualizacao).toBeNull();
+  });
+
+  it("aceita o andamento e recusa progresso fora de 0–100", () => {
+    const atualizacao = { versao: "1.1.0", etapa: "baixando", progresso: 40, erro: null };
+    expect(estadoGravadorSchema.safeParse({ ...base, atualizacao }).success).toBe(true);
+    expect(estadoGravadorSchema.safeParse({ ...base, atualizacao: { ...atualizacao, progresso: 140 } }).success).toBe(false);
+  });
+
+  it("em palavras, para a tela", () => {
+    expect(atualizacaoEmPalavras({ versao: "1.1.0", etapa: "baixando", progresso: 40, erro: null })).toBe("Baixando a 1.1.0: 40%");
+    expect(atualizacaoEmPalavras({ versao: "1.1.0", etapa: "instalando", progresso: 100, erro: null })).toBe("Instalando a 1.1.0");
+    expect(atualizacaoEmPalavras({ versao: "1.1.0", etapa: "falhou", progresso: 0, erro: "assinatura inválida" })).toBe(
+      "A 1.1.0 falhou: assinatura inválida",
+    );
   });
 });
