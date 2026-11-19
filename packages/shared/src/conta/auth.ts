@@ -9,6 +9,23 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Informe sua senha."),
 });
 
+/** Pedido de "esqueci a senha": só o e-mail. */
+export const esqueciSenhaSchema = loginSchema.pick({ email: true });
+
+/** Senha nova, escolhida pelo link que chegou por e-mail. Mesmas regras do cadastro. */
+export const novaSenhaSchema = z
+  .object({
+    password: z
+      .string()
+      .min(8, "A senha precisa ter pelo menos 8 caracteres.")
+      .max(128, "A senha precisa ter no máximo 128 caracteres."),
+    confirmPassword: z.string().min(1, "Confirme a senha."),
+  })
+  .refine((dados) => dados.password === dados.confirmPassword, {
+    message: "As senhas devem ser iguais.",
+    path: ["confirmPassword"],
+  });
+
 
 /**
  * Forma da sessão que o web consome de GET /api/auth/get-session.

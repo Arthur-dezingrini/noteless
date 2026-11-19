@@ -7,7 +7,7 @@ dose") num gravador de bolso. O áudio entra numa fila que tolera falta de
 sinal, é transcrito, e uma IA **propõe** as operações que a fala pede. Um
 administrador confere e salva; só então algo entra no sistema.
 
-- **Demonstração:** https://vocare-iota.vercel.app
+- **Demonstração:** https://app.noteless.com.br (também em https://vocare-iota.vercel.app)
 - **Documentação técnica:** [docs/](docs/README.md) — arquitetura, modelo de
   dados, segurança, LGPD, IA e infraestrutura
 
@@ -104,7 +104,11 @@ compartilhado do time isso já foi feito.
 | api | `WEB_URL` | sim | origem do front (local: `http://localhost:3000`) |
 | api | `GROQ_API_KEY` | para a IA | transcrição e interpretação |
 | api | `ANTHROPIC_API_KEY`, `IA_MODELO`, `TRANSCRICAO_*`, `ORIGENS_EXTRAS` | não | ver `apps/api/.env.example` |
+| api | `RESEND_API_KEY`, `EMAIL_REMETENTE`, `ALERTA_EMAILS` | para o "esqueci a senha" | e-mail do "esqueci a senha" e dos alertas; o remetente precisa ser de um domínio verificado na Resend |
+| api | `ROTINAS_SEGREDO` | não | autoriza a rotina diária (limpeza do áudio vencido) |
+| api | `FIRMWARE_CHAVE_PRIVADA` | para OTA | assina o firmware publicado para os gravadores |
 | web | `API_URL` | na Vercel | URL da api (local: `http://localhost:4000`) |
+| api e web | `APP_ENV` | não | `hom` nos projetos de homologação: aviso "Homologação" na tela e nos alertas (local, o `npm run dev:hom` já define) |
 
 Lista completa e explicada em [docs/infraestrutura.md](docs/infraestrutura.md#4-variáveis-de-ambiente).
 
@@ -135,6 +139,12 @@ Lista completa e explicada em [docs/infraestrutura.md](docs/infraestrutura.md#4-
 homologação. Se ele não existir, `dev:hom` se recusa a subir. Os dois são
 ignorados pelo git.
 
+**Homologação publicada:** um par de projetos à parte na Vercel, publicado a
+partir do branch `homologacao`, com o banco de homologação e o aviso
+"Homologação: dados de teste" na tela. Serve para o time e os gravadores
+testarem antes de ir para a `main`. Passo a passo em
+[docs/infraestrutura.md](docs/infraestrutura.md#homologação-publicada).
+
 **Mudou o esquema?** `npm run db:generate`, teste com `npm run db:migrate:hom`,
 commite `apps/api/drizzle/` junto com o código e avise o time. Migração
 destrutiva só vai para o principal depois que o código novo estiver
@@ -163,6 +173,10 @@ dela. Passo a passo da primeira vez em
 - E-mail e senha pelo Better Auth, que vive na api. **Não há cadastro
   público**: usuários são criados por um administrador da empresa, em
   Configurações › Usuários.
+- **Esqueci a senha:** link por e-mail, válido por 1 hora e de uso único.
+  Trocar a senha derruba as sessões abertas e libera o e-mail travado por
+  tentativas erradas. Sem e-mail configurado, fora de produção o link sai no
+  terminal da api.
 - Cada fazenda ou clínica é uma organização. Um usuário pode estar em várias e
   troca no seletor do menu.
 - Papéis: `owner` (dono), `admin` (gerencia usuários e salva notas) e `member`
@@ -205,4 +219,6 @@ Mais regras para quem programa (inclusive assistentes de IA) em
 
 Código e instruções em [firmware/README.md](firmware/README.md). A placa é
 aprovada por um super usuário em Configurações › Gravadores, com o código que
-ela mostra.
+ela mostra. Depois de uma gravação pela USB, as versões novas do firmware vão
+pelo ar (Configurações › Gravadores › Firmware), assinadas; se a nova falhar,
+a placa volta sozinha para a anterior.

@@ -14,6 +14,9 @@ export const auth = betterAuth({
   // O front roda em outra origem. Sem isso o Better Auth rejeita o POST de
   // login como possível CSRF.
   trustedOrigins: origensConfiaveis,
+  // Origem conferida também nos testes (o padrão do Better Auth é pular com
+  // NODE_ENV=test): assim eles cobrem o CSRF e o destino dos links de e-mail.
+  advanced: { disableOriginCheck: false },
 
   database: drizzleAdapter(db, { provider: "pg", schema }),
 
@@ -22,8 +25,24 @@ export const auth = betterAuth({
     // Não existe cadastro público: usuários são criados por um administrador
     // da organização (rota /api/org/:orgId/usuarios) ou pelo seed.
     disableSignUp: true,
-    // TODO(auth): ligar quando houver envio de e-mail (recuperação de senha).
+    // Continua desligado: as contas já criadas nunca confirmaram o e-mail e
+    // deixariam de entrar.
     requireEmailVerification: false,
+    // "Esqueci a senha": o link vai por e-mail, vale 1 hora e serve uma vez.
+    // Import dinâmico porque o módulo conta importa este arquivo; o estático
+    // fecharia um ciclo na carga.
+    sendResetPassword: async ({ user, url }) => {
+      const { enviarLinkDeSenha } = await import("./modulos/conta");
+      await enviarLinkDeSenha(user, url);
+    },
+    resetPasswordTokenExpiresIn: 60 * 60,
+    // Senha redefinida derruba as sessões abertas: aparelho perdido, senha vazada.
+    revokeSessionsOnPasswordReset: true,
+    // A senha nova vale na hora, mesmo com o e-mail travado por tentativas erradas.
+    onPasswordReset: async ({ user }) => {
+      const { zerarFalhas } = await import("./modulos/conta");
+      await zerarFalhas(user.email);
+    },
   },
 
   user: {

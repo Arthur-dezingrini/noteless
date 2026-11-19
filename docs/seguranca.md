@@ -4,7 +4,7 @@
 > do código, testes automatizados, `npm audit`, varredura de segredos no
 > histórico do git e inspeção dos cabeçalhos HTTP do ambiente publicado.
 > Os achados V1 a V4 foram corrigidos no mesmo dia (seção 6); os números da
-> seção 5.1 são da versão corrigida (commit `20202f4`), com os de antes ao
+> seção 5.1 são da versão corrigida (commit `e0fb021`), com os de antes ao
 > lado. Itens corrigidos depois devem ser marcados na seção 6.
 
 ## 1. Resumo
@@ -12,7 +12,7 @@
 | Área | Situação |
 | --- | --- |
 | Autenticação | **Adequada.** Better Auth, senha com scrypt, sessão em banco, cookie `HttpOnly`/`Secure`, sem cadastro público, gravador com segredo próprio |
-| Autorização | **Adequada e testada.** Papel por empresa conferido em toda rota; toda consulta filtrada pela empresa; 190 testes na api, vários só de "quem não pode" |
+| Autorização | **Adequada e testada.** Papel por empresa conferido em toda rota; toda consulta filtrada pela empresa; 254 testes na api, vários só de "quem não pode" |
 | Proteção de dados | **Adequada.** HTTPS ponta a ponta, banco com TLS e criptografia em repouso, segredos fora do git, validação de toda entrada |
 | Vulnerabilidades | Os **2 de prioridade alta** (dependências com alertas críticos; cabeçalhos de segurança ausentes) e os **2 médios** (tipo do áudio; limite de tentativas de login) foram **corrigidos** com teste. Restam itens baixos e informativos — ver seção 5 |
 
@@ -29,6 +29,7 @@ sessão pela api.
 | Cadastro | **não existe cadastro público** (`disableSignUp`). Usuário é criado por um administrador da empresa, com senha temporária, ou pelo `seed`. Empresa nova só pelo servidor (`allowUserToCreateOrganization: false`) |
 | Sessão | token aleatório guardado no banco (`session`), enviado em cookie `HttpOnly`, `Secure` (HTTPS) e `SameSite=Lax`, assinado com `BETTER_AUTH_SECRET`. Vale 30 dias e renova no máximo uma vez por dia |
 | Encerramento | sair apaga a sessão no banco; trocar a senha derruba as sessões dos outros aparelhos (testado em `test/conta/usuarios.test.ts`) |
+| Recuperação de senha | "esqueci a senha" por e-mail desde 19/11/2026: link de uso único, válido por 1 hora; a resposta é a mesma exista a conta ou não; o destino do link precisa ser uma origem confiável; trocar a senha derruba as sessões e zera a trava de tentativas (testado em `test/conta/redefinir-senha.test.ts`, com a checagem de origem do Better Auth ligada também nos testes) |
 | CSRF | o Better Auth recusa POST de origem fora de `trustedOrigins` (`WEB_URL` + `ORIGENS_EXTRAS`); o cookie é `SameSite=Lax`; o CORS da api só aceita essas origens |
 | Força bruta | **dez senhas erradas para o mesmo e-mail em 15 minutos travam a entrada desse e-mail até fecharem os 15 minutos** (contados do primeiro erro), mesmo com a senha certa; a resposta é a mesma exista a conta ou não; o contador fica no banco, então vale igual para todas as instâncias da Vercel, e zera quando a pessoa entra (`apps/api/src/modulos/conta/regras/tentativas-login.ts`). A tela mostra quanto falta. Por cima disso, o limitador do Better Auth: 3 tentativas a cada 10 s em `/sign-in`, `/change-password` e `/change-email` e 100 requisições a cada 10 s no resto, por IP e em memória (cada instância conta a sua parte). Ver V4 e V10 |
 | Super usuário | o campo `tipo` tem `input: false`: ninguém se marca super pela api, nem no cadastro nem no próprio perfil. Só outro super usuário (`PATCH /api/admin/usuarios/:id`) ou o script `npm run super` (que exige acesso ao banco) promove |
@@ -76,7 +77,7 @@ senha dele.
 
 ### Evidência
 
-Os testes da api (`apps/api/test/`, 190 casos) rodam contra um Postgres em
+Os testes da api (`apps/api/test/`, 254 casos) rodam contra um Postgres em
 memória com as migrações reais e o Better Auth de verdade. Exemplos de "quem
 não pode":
 
@@ -106,6 +107,8 @@ não pode":
 | Isolamento entre empresas | pela aplicação (filtro por `organization_id`), coberto por testes. Ver V8 |
 | Mínimo de dados | o sistema pede só o necessário; ver [lgpd.md](lgpd.md) |
 | Registro | log de requisições da api (método, caminho, status, tempo), sem corpo e sem cabeçalho de autenticação |
+| Cópias de segurança | cópia diária do banco criptografada (GPG) antes de sair do GitHub Actions para o Cloudflare R2; a restauração é testada todo dia; a cópia mensal vai sem o áudio |
+| Firmware | a placa só instala versão com SHA-256 e assinatura ECDSA P-256 válidas (chave pública embutida no firmware); a chave privada fica só na api |
 
 ## 5. Verificação de vulnerabilidades básicas
 
@@ -113,10 +116,10 @@ não pode":
 
 | Verificação | Ferramenta / como | Resultado |
 | --- | --- | --- |
-| Testes automatizados | `npm test` (Vitest) numa cópia limpa da `main` | 331 testes passando (shared 76, web 65, api 190); antes das correções, 316 |
+| Testes automatizados | `npm test` (Vitest) numa cópia limpa da `main` | em 16/11: 331 testes passando (shared 76, web 65, api 190); antes das correções, 316. Em 19/11/2026: **410 passando** (shared 85, web 71, api 254) |
 | Tipos e lint | `npm run typecheck`, `npm run lint` | sem erro |
 | Build | `npm run build` | ok |
-| Dependências | `npm audit` | antes: 22 alertas (2 críticos, 4 altos, 15 moderados, 1 baixo). Depois de V1: **5 moderados**, nenhum alcançável em produção (ver V1) |
+| Dependências | `npm audit` | antes: 22 alertas (2 críticos, 4 altos, 15 moderados, 1 baixo). Depois de V1: **5 moderados**, nenhum alcançável em produção (ver V1). Repetido em 19/11/2026: os mesmos 5 moderados, nenhum alto ou crítico |
 | Segredos no histórico | `git log -p --all` buscando chaves da Groq/Anthropic, URLs de banco com senha e `BETTER_AUTH_SECRET` | 1 achado; ver V5 |
 | Arquivos sensíveis versionados | `git log --all --name-only` buscando `.env` e `segredos.h` | só os `.example` |
 | Cabeçalhos HTTP | `curl -I` no ambiente publicado; teste automatizado em `apps/web/next.config.test.ts` | antes: só HSTS. Depois de V2: os cinco cabeçalhos em toda rota, conferidos no teste e no navegador (nenhuma violação de CSP, página hidrata) |
@@ -132,21 +135,21 @@ não pode":
 | A04 Design inseguro | IA não grava nada sem confirmação humana; gravador sem senha embarcada; tomada de conta por vínculo prevista e barrada |
 | A05 Configuração insegura | variáveis validadas na subida; cadastro público desligado; cabeçalhos de segurança em toda resposta (V2, corrigido) |
 | A06 Componentes vulneráveis | dependências atualizadas (V1, corrigido); restam 5 alertas moderados em ferramenta de desenvolvimento e em recurso não usado |
-| A07 Falhas de identificação e autenticação | Better Auth, trava de dez erros por e-mail guardada no banco (V4, corrigido), sessão revogável; sem MFA e sem recuperação de senha (V6) |
-| A08 Integridade de software e dados | `package-lock.json` versionado, `npm ci` no CI, saída da IA validada por schema |
-| A09 Falhas de log e monitoramento | log de requisição da api e erros na Vercel; histórico de erros dos gravadores; sem alerta automático |
+| A07 Falhas de identificação e autenticação | Better Auth, trava de dez erros por e-mail guardada no banco (V4, corrigido), sessão revogável; recuperação de senha por e-mail; sem MFA (V6) |
+| A08 Integridade de software e dados | `package-lock.json` versionado, `npm ci` no CI, saída da IA validada por schema; firmware do gravador assinado (ECDSA P-256) e conferido pela placa antes de instalar, com volta automática para a versão anterior |
+| A09 Falhas de log e monitoramento | log de requisição da api e erros na Vercel; histórico de erros dos gravadores; alerta por e-mail (Resend) para erro não tratado na api, falha da IA nas notas e falha da rotina diária; `/health` confere o banco |
 | A10 SSRF | a api só chama URLs fixas da configuração (Groq, Anthropic, transcrição); nenhuma URL vem do usuário |
 
 ### 5.3 Achados
 
 | # | Gravidade | Achado | Recomendação ou correção |
 | --- | --- | --- | --- |
-| V1 | **Alta** | **Dependências com alertas de segurança.** Em produção: `next` 16.3.4 (alertas críticos e altos, entre eles execução remota na otimização de imagem com SVG e SSRF; o `npm audit` indica a 16.4.6), `better-auth` 1.7.5 (alertas críticos em OAuth e magic link — recursos que o Noteless **não usa**), `hono` 4.13.7 e `@hono/node-server` (desvio de middleware em `serveStatic` e `mount`, que não são usados), `zod` 4.6.5 (consumo de memória com coleções enormes). O resto (vite, vitest, esbuild, drizzle-kit, typescript-eslint) é só de desenvolvimento | **Corrigido (`45cf10b`):** `next` 16.4.6, `better-auth` 1.7.15, `hono` 4.13.19, `zod` 4.6.7 e o resto pelo `npm audit fix`; testes, lint, tipos e build verdes. Restam 5 moderados: `esbuild` antigo dentro do `drizzle-kit` (só desenvolvimento; a correção exige versão major) e `serveStatic` do `@hono/node-server` (não usado; correção só na 2.x) |
-| V2 | **Alta** | **Cabeçalhos de segurança ausentes no web.** Só há HSTS (posto pela Vercel). Faltam `Content-Security-Policy`, `X-Frame-Options`/`frame-ancestors` (a tela pode ser embutida em outro site: clickjacking), `X-Content-Type-Options: nosniff` e `Referrer-Policy` | **Corrigido (`302b5c7`):** `headers()` no `apps/web/next.config.ts` com CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy` e `Permissions-Policy` em toda rota, com teste. A CSP ainda permite script inline, porque o Next hidrata a página com script inline; trocar por *nonce* fica para depois |
-| V3 | Média | **Áudio servido com o tipo informado por quem enviou.** `GET …/ocorrencias/:id/audio` devolve o `Content-Type` que veio no upload. Um arquivo com tipo `text/html` seria exibido como página no domínio do web. Mitigado porque o arquivo precisa antes passar pela transcrição (que recusa o que não é áudio) e só membros da empresa enviam | **Corrigido (`b5facc6`):** o upload só aceita `audio/*` (outro tipo recebe 415 antes de gastar a IA); a resposta só devolve tipo de áudio (arquivo antigo com outro tipo sai como `application/octet-stream`), com `nosniff` e `Content-Security-Policy: sandbox`. Testado |
-| V4 | Média | **Limitador de tentativas de login guardado em memória.** Na Vercel cada instância da função tem o seu contador; um ataque espalhado entre instâncias passa de 3 tentativas a cada 10 s | **Corrigido (`20202f4`):** dez senhas erradas para o mesmo e-mail em 15 minutos travam esse e-mail até o fim dessa janela, mesmo com a senha certa. O contador fica no banco (tabela `verification`, gravação atômica), igual para todas as instâncias, sem migração nova; zera ao entrar. A tela mostra quanto falta (HTTP 429). Testado |
+| V1 | **Alta** | **Dependências com alertas de segurança.** Em produção: `next` 16.3.4 (alertas críticos e altos, entre eles execução remota na otimização de imagem com SVG e SSRF; o `npm audit` indica a 16.4.6), `better-auth` 1.7.5 (alertas críticos em OAuth e magic link — recursos que o Noteless **não usa**), `hono` 4.13.7 e `@hono/node-server` (desvio de middleware em `serveStatic` e `mount`, que não são usados), `zod` 4.6.5 (consumo de memória com coleções enormes). O resto (vite, vitest, esbuild, drizzle-kit, typescript-eslint) é só de desenvolvimento | **Corrigido (`c8130f1`):** `next` 16.4.6, `better-auth` 1.7.15, `hono` 4.13.19, `zod` 4.6.7 e o resto pelo `npm audit fix`; testes, lint, tipos e build verdes. Restam 5 moderados: `esbuild` antigo dentro do `drizzle-kit` (só desenvolvimento; a correção exige versão major) e `serveStatic` do `@hono/node-server` (não usado; correção só na 2.x) |
+| V2 | **Alta** | **Cabeçalhos de segurança ausentes no web.** Só há HSTS (posto pela Vercel). Faltam `Content-Security-Policy`, `X-Frame-Options`/`frame-ancestors` (a tela pode ser embutida em outro site: clickjacking), `X-Content-Type-Options: nosniff` e `Referrer-Policy` | **Corrigido (`cca74da`):** `headers()` no `apps/web/next.config.ts` com CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy` e `Permissions-Policy` em toda rota, com teste. A CSP ainda permite script inline, porque o Next hidrata a página com script inline; trocar por *nonce* fica para depois |
+| V3 | Média | **Áudio servido com o tipo informado por quem enviou.** `GET …/ocorrencias/:id/audio` devolve o `Content-Type` que veio no upload. Um arquivo com tipo `text/html` seria exibido como página no domínio do web. Mitigado porque o arquivo precisa antes passar pela transcrição (que recusa o que não é áudio) e só membros da empresa enviam | **Corrigido (`bce4628`):** o upload só aceita `audio/*` (outro tipo recebe 415 antes de gastar a IA); a resposta só devolve tipo de áudio (arquivo antigo com outro tipo sai como `application/octet-stream`), com `nosniff` e `Content-Security-Policy: sandbox`. Testado |
+| V4 | Média | **Limitador de tentativas de login guardado em memória.** Na Vercel cada instância da função tem o seu contador; um ataque espalhado entre instâncias passa de 3 tentativas a cada 10 s | **Corrigido (`e0fb021`):** dez senhas erradas para o mesmo e-mail em 15 minutos travam esse e-mail até o fim dessa janela, mesmo com a senha certa. O contador fica no banco (tabela `verification`, gravação atômica), igual para todas as instâncias, sem migração nova; zera ao entrar. A tela mostra quanto falta (HTTP 429). Testado |
 | V5 | Baixa | **Segredo de sessão antigo no histórico do git.** Um valor de `BETTER_AUTH_SECRET` esteve em `apps/api/.env.example` nos commits `a81bc7d` e `574e774` (set/2026). **Não é o segredo usado hoje nos `.env` locais.** O repositório é privado | confirmar que o segredo da Vercel também é outro; se for igual, gerar um novo (`openssl rand -base64 32`) — todos precisarão entrar de novo |
-| V6 | Baixa | **Sem verificação de e-mail, sem recuperação de senha e sem MFA.** Esquecer a senha depende de um administrador. A troca do próprio e-mail não pede a senha atual | quando houver envio de e-mail: verificação e recuperação; exigir a senha atual para trocar o e-mail; MFA (plugin `twoFactor`) para administradores |
+| V6 | Baixa | **Sem verificação de e-mail, sem recuperação de senha e sem MFA.** Esquecer a senha dependia de um administrador. A troca do próprio e-mail não pede a senha atual | **Recuperação de senha por e-mail feita (19/11/2026).** Faltam: verificação de e-mail; exigir a senha atual para trocar o e-mail; MFA (plugin `twoFactor`) para administradores |
 | V7 | Baixa | **Sessão longa (30 dias).** Escolha consciente (quem está no campo não quer logar toda hora), mas aumenta a janela de uso de um cookie roubado | manter; reduzir para administradores se surgir MFA |
 | V8 | Informativa | **Isolamento entre empresas só na aplicação**, sem Row-Level Security no Postgres. Um erro numa consulta nova vazaria dados de outra empresa | manter a regra de teste "outra organização não vê" em toda rota nova; avaliar RLS no futuro |
 | V9 | Informativa | **Registro de placa aberto** (`POST /api/gravadores/estado`): qualquer um cria uma placa "aguardando". Sem acesso a dados; mitigado por teto de 20 e prazo de 7 dias | manter |
@@ -156,16 +159,25 @@ não pode":
 
 | # | Status | Data | Commit |
 | --- | --- | --- | --- |
-| V1 | corrigido | 16/11/2026 | `45cf10b` |
-| V2 | corrigido | 16/11/2026 | `302b5c7` |
-| V3 | corrigido | 16/11/2026 | `b5facc6` |
-| V4 | corrigido | 16/11/2026 | `20202f4` |
+| V1 | corrigido | 16/11/2026 | `c8130f1` |
+| V2 | corrigido | 16/11/2026 | `cca74da` |
+| V3 | corrigido | 16/11/2026 | `bce4628` |
+| V4 | corrigido | 16/11/2026 | `e0fb021` |
 | V5 | conferir na Vercel | | |
-| V6 | aberto (depende de envio de e-mail) | | |
+| V6 | em parte: recuperação de senha feita; faltam verificação de e-mail e MFA | 19/11/2026 | |
 | V10 | aceito (ver 5.3) | 16/11/2026 | |
 
 As correções entram no ar com o deploy da `main`. Cada commit passou por
 `npm run typecheck` e `npm test` sozinho; o último, também por lint e build.
+
+**Revisão de 19/11/2026.** `npm audit` repetido (os mesmos 5 moderados,
+nenhum alto ou crítico); 410 testes passando; os seis cabeçalhos conferidos
+com `curl -I` em https://app.noteless.com.br; nenhum segredo nos commits
+posteriores a 16/11 (mesma busca de 5.1). Mudanças posteriores a 16/11 que
+mexem com segurança, conferidas pelos testes: a atualização do firmware pelo
+ar — só o super usuário publica, a placa só baixa a versão-alvo dela, com o
+próprio segredo, e confere SHA-256 e assinatura antes de instalar
+(`apps/api/test/conta/firmware.test.ts`) — e os alertas por e-mail (A09).
 
 ## 7. Como repetir esta verificação
 

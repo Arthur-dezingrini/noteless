@@ -2,6 +2,7 @@
 
 import { loginSchema } from "@vocare/shared";
 import type { Route } from "next";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition, type FormEvent } from "react";
 import { z } from "zod";
@@ -26,12 +27,10 @@ export function LoginForm({ next }: { next?: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [showPassword, setShowPassword] = useState(false);
-  const [showForgotHint, setShowForgotHint] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const emailId = useId();
   const passwordId = useId();
-  const forgotHintId = useId();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -100,17 +99,9 @@ export function LoginForm({ next }: { next?: string }) {
           <label htmlFor={passwordId} className="block text-sm font-semibold text-ink">
             Senha
           </label>
-          {/* Ainda não há recuperação por e-mail: quem redefine a senha é um
-              administrador, em Configurações → Usuários. */}
-          <button
-            type="button"
-            onClick={() => setShowForgotHint((v) => !v)}
-            aria-expanded={showForgotHint}
-            aria-controls={forgotHintId}
-            className="cursor-pointer text-sm font-semibold text-brand-ink hover:underline"
-          >
+          <Link href="/esqueci-senha" className="text-sm font-semibold text-brand-ink hover:underline">
             Esqueci a senha
-          </button>
+          </Link>
         </div>
         <div className="relative">
           <Input
@@ -137,11 +128,6 @@ export function LoginForm({ next }: { next?: string }) {
         {fieldErrors.password && (
           <p id={`${passwordId}-error`} className="text-sm text-danger">
             {fieldErrors.password}
-          </p>
-        )}
-        {showForgotHint && (
-          <p id={forgotHintId} className="text-sm text-ink-soft">
-            Peça ao administrador da sua fazenda para definir uma nova senha.
           </p>
         )}
       </div>

@@ -15,3 +15,5 @@ export { Privacidade } from "./componentes/legal/privacidade";
 export { Termos } from "./componentes/legal/termos";
 export { precisaAceitar, versaoParaAceitar } from "./aceite";
 export { AceiteForm } from "./componentes/aceite-form";
+export { EsqueciSenhaForm } from "./componentes/senha/esqueci-senha-form";
+export { NovaSenhaForm } from "./componentes/senha/nova-senha-form";
