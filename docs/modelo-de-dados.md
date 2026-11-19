@@ -108,7 +108,9 @@ erDiagram
     animal ||--o{ pesagem : ""
     animal ||--o{ vacina : ""
     animal ||--o{ tratamento : ""
-    animal ||--o{ parto : ""
+    animal ||--o{ parto : "mãe"
+    animal |o--o{ parto : "pai"
+    animal |o--o{ animal : "mãe ou pai de"
     animal ||--o{ anotacao_animal : ""
     animal ||--o{ consulta : ""
     grupo ||--o{ consulta : ""
@@ -125,6 +127,8 @@ erDiagram
     user ||--o{ notificacao : "recebe"
     organization |o--o{ gravador : "recebe notas de"
     user |o--o| gravador : "conta técnica"
+    firmware |o--o{ gravador : "versão-alvo"
+    user ||--o{ aceite_termos : "aceitou"
 
     organization ||--o{ instalacao : ""
     organization ||--o{ lote : ""
@@ -201,6 +205,23 @@ erDiagram
         text organization_id FK
         jsonb estado "último aviso"
         timestamp visto_em
+        boolean envio_pausado
+        text firmware_alvo FK "versão a instalar"
+    }
+    firmware {
+        text versao PK
+        int tamanho
+        text sha256
+        text assinatura "ECDSA P-256"
+        bytea dados "o .bin"
+        text publicado_por_id FK
+    }
+    aceite_termos {
+        text id PK
+        text user_id FK
+        text versao "dos termos"
+        timestamp aceito_em
+        text ip
     }
     notificacao {
         text id PK
@@ -219,6 +240,9 @@ erDiagram
     user ||--o{ invitation : "convidou"
     user |o--o| gravador : ""
     organization |o--o{ gravador : ""
+    firmware |o--o{ gravador : "versão-alvo"
+    user |o--o{ firmware : "publicou"
+    user ||--o{ aceite_termos : "aceitou"
     user ||--o{ notificacao : ""
     organization ||--o{ notificacao : ""
 ```
@@ -247,6 +271,9 @@ erDiagram
         text microchip
         text local
         text status
+        text mae_id FK "animal"
+        text pai_id FK "animal"
+        text pai_externo "sêmen, reprodutor de fora"
     }
     grupo {
         text id PK
@@ -288,6 +315,8 @@ erDiagram
     parto {
         text id PK
         text animal_id FK "a mãe"
+        text pai_id FK "animal"
+        text pai_externo
         text ocorrencia_id FK
         date data
         int crias
@@ -329,6 +358,7 @@ erDiagram
         text revisado_por_id FK
         text encaminhada_por_id FK
         timestamp created_at "hora da gravação"
+        timestamp audio_apagado_em "90 dias após revisar"
     }
     ocorrencia_audio {
         text ocorrencia_id PK, FK
@@ -347,7 +377,9 @@ erDiagram
     animal ||--o{ pesagem : ""
     animal ||--o{ vacina : ""
     animal ||--o{ tratamento : ""
-    animal ||--o{ parto : ""
+    animal ||--o{ parto : "mãe"
+    animal |o--o{ parto : "pai"
+    animal |o--o{ animal : "mãe ou pai de"
     animal ||--o{ anotacao_animal : ""
     animal |o--o{ consulta : ""
     grupo |o--o{ consulta : ""
@@ -452,6 +484,8 @@ gravados: dado derivado gravado fica velho.
 | `session` | `token` único | — |
 | `organization` | `slug` único | — |
 | `gravador` | `serie` única | uma placa = um registro |
+| `firmware` | PK `versao` | cada versão é publicada uma vez; a versão vem de dentro do `.bin` |
+| `aceite_termos` | (`user_id`, `versao`) | um aceite por pessoa para cada versão dos termos |
 | `prontuario` | `consulta_id` único | um atendimento por consulta |
 | `instalacao` | (`organization_id`, `nome`) | nome de galpão não se repete na empresa |
 | `lote` | (`organization_id`, `codigo`) | código de lote não se repete na empresa |
@@ -465,6 +499,7 @@ Cada índice existe por causa de uma consulta da tela ou de um relatório.
 | Índice | Colunas | Atende |
 | --- | --- | --- |
 | `animal_organization_id_idx` | `organization_id` | lista de animais da empresa |
+| `animal_mae_id_idx`, `animal_pai_id_idx` | `mae_id` / `pai_id` | filhos de um animal na ficha |
 | `grupo_organization_id_idx` | `organization_id` | lista de grupos |
 | `grupo_animal_animal_id_idx` | `animal_id` | grupos de um animal (a PK já cobre por grupo) |
 | `pesagem_animal_id_idx` | `animal_id`, `data` | curva de peso na ficha |
@@ -492,22 +527,29 @@ Cada índice existe por causa de uma consulta da tela ou de um relatório.
 | --- | --- | --- |
 | a organização | apaga tudo dela (`cascade`) | os dados são da empresa |
 | um animal | apaga o histórico dele (pesagens, vacinas, consultas, prontuários) | histórico sem animal não tem sentido |
-| um usuário | autoria vira nula (`set null`); vínculos e sessões somem | o histórico da fazenda fica |
+| um usuário | autoria vira nula (`set null`), inclusive de quem publicou firmware; vínculos, sessões e aceites dos termos somem | o histórico da fazenda fica |
 | uma consulta | o prontuário fica, sem a consulta (`set null`) | o atendimento aconteceu |
 | uma nota | os registros que ela gerou ficam, sem a origem (`set null`); o áudio vai junto (`cascade`) | o dado salvo já foi conferido |
 | um lote ou galpão | alojamentos, apontamentos, pesagens e vacinações dele vão junto | — |
 | a empresa do gravador | o gravador fica sem empresa (`set null`) e para de mandar notas | — |
+| a mãe ou o pai de um animal | o filho fica, sem a mãe ou o pai (`set null`); o mesmo vale para o pai em `parto` | a cria continua existindo |
+| uma versão de firmware | a placa que ia instalá-la fica sem versão-alvo (`set null`) | — |
 
 Na prática o sistema **quase não apaga**: remover usuário tira o vínculo
 com a empresa (a conta fica); consulta se cancela; nota se descarta (e pode
 voltar).
 
-## 5. Em desenvolvimento
+## 5. Mudanças recentes
 
-A migração `0016_genealogia` (ainda não na `main`) acrescenta mãe e pai ao
-`animal` (`mae_id`, `pai_id`, autorrelacionamento com `set null`, e
-`pai_externo` em texto para reprodutor de fora do rebanho), com índices nas
-duas colunas, e o pai das crias em `parto`.
+Migrações que entraram na `main` depois da primeira versão deste documento
+(16/11/2026). Todas já estão nos diagramas e tabelas acima.
+
+| Migração | O que muda | Para quê |
+| --- | --- | --- |
+| `0016_aceite_termos_e_audio_apagado` | tabela `aceite_termos` (um aceite por pessoa e versão, com data e IP) e `ocorrencia.audio_apagado_em` | registrar o aceite dos termos (LGPD) e marcar a nota cujo áudio a rotina diária apagou |
+| `0017_genealogia` | `animal.mae_id` e `animal.pai_id` (autorrelacionamento com `set null` e índice), `animal.pai_externo` em texto (sêmen, reprodutor de fora do rebanho); `parto.pai_id` e `parto.pai_externo` | mãe, pai e filhos na ficha; o parto liga as crias aos pais |
+| `0018_pausar_envio` | `gravador.envio_pausado` | o super usuário pausa os envios de uma placa |
+| `0019_firmware` | tabela `firmware` (versão, tamanho, SHA-256, assinatura e o binário) e `gravador.firmware_alvo` | atualização do firmware do gravador pelo ar (OTA) |
 
 ## 6. Como mudar o esquema
 

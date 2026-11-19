@@ -92,13 +92,13 @@ encarregado do Noteless (seção 6), que tem até 15 dias para responder
 
 | # | Ação | Responsável | Prioridade |
 | --- | --- | --- | --- |
-| L1 | **Política de privacidade** e **termos de uso** publicados, com link na tela de login, citando os suboperadores e a transferência internacional | jurídico (Luiz) | alta |
+| L1 | **Política de privacidade** e **termos de uso** publicados, com link na tela de login, citando os suboperadores e a transferência internacional. **Parte técnica feita (16/11/2026):** as páginas existem, com texto em rascunho (fora de vigor), e o aceite de cada versão é registrado na entrada (tabela `aceite_termos`, com data e IP). Falta o texto final | jurídico (Luiz) | alta |
 | L2 | **Contrato com a empresa cliente** com cláusula de operador (art. 39): o Noteless trata só conforme as instruções da cliente | jurídico (Luiz) | alta |
 | L3 | **Nomear o encarregado** (DPO) e publicar o contato | time | alta |
-| L4 | **Prazo de retenção do áudio**: apagar o áudio de notas salvas ou descartadas depois de um prazo (sugestão: 90 dias), mantendo a transcrição | técnico | média |
+| L4 | **Prazo de retenção do áudio.** **Feito (16/11/2026):** a rotina diária apaga o áudio das notas revisadas (salvas ou descartadas) há mais de 90 dias e mantém a transcrição; a nota mostra que o áudio foi apagado. A cópia mensal do banco vai sem o áudio | técnico | feito |
 | L5 | Exclusão da própria conta e exportação dos dados pela tela | técnico | média |
 | L6 | Aceitar os DPAs da Groq, Vercel, Neon e Anthropic e guardar as cópias | time | média |
-| L7 | Aviso no gravador/manual: "o áudio é enviado para transcrição automática" | produto | média |
+| L7 | Aviso no gravador/manual: "o áudio é enviado para transcrição automática". Já existe uma página de aviso do gravador, em rascunho junto com L1; falta levá-la ao manual | produto | média |
 | L8 | Plano de resposta a incidente: quem avalia, como comunicar a ANPD e os titulares no prazo do regulamento da ANPD (art. 48) | time | média |
 | L9 | Itens de segurança ainda abertos em [seguranca.md](seguranca.md): V5 (conferir o segredo da Vercel) e V6 (recuperação de senha e MFA). V1 a V4 foram corrigidos em 16/11/2026 | técnico | média |
 
@@ -109,7 +109,9 @@ encarregado do Noteless (seção 6), que tem até 15 dias para responder
 | Conta do usuário | enquanto existir; sair da empresa não apaga | apagar a pedido ou após o fim do contrato com a cliente |
 | Sessões | expiram em 30 dias | — |
 | Contador de senhas erradas | apagado ao entrar; vence 15 minutos depois do primeiro erro e é removido na próxima falha de login | — |
-| Áudio das notas | indefinido | 90 dias após salvar/descartar (L4) |
+| Áudio das notas | 90 dias depois da revisão (salvar ou descartar), apagado pela rotina diária; a transcrição fica (L4) | — |
+| Cópias do banco (Cloudflare R2) | diária: 30 dias; mensal, sem o áudio: 365 dias | — |
+| Aceite dos termos | enquanto a conta existir; some com ela | — |
 | Transcrição, registros de animais | enquanto a empresa for cliente | idem; prontuário veterinário segue o prazo das normas do CFMV |
 | Placas aguardando aprovação | 7 dias | — |
 | Logs da Vercel | prazo do plano da Vercel | — |

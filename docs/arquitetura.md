@@ -219,10 +219,19 @@ Detalhes da IA em [ia.md](ia.md).
 Placa ESP32 com microfone e cartão microSD (código em `firmware/gravador`,
 placa própria em projeto em `firmware/placa`).
 
-- Segura o botão, fala, solta: grava até 2 min em WAV 16 kHz/16 bits (o
-  limite vem dos 4,5 MB por requisição da Vercel).
+- Segura o botão, fala, solta: grava até 2 min em WAV 16 kHz (o limite vem
+  dos 4,5 MB por requisição da Vercel). Desde 18/11 o áudio sai em μ-law
+  (G.711, 1 byte por amostra): metade do tamanho do PCM de 16 bits, com a
+  mesma faixa útil para a fala, o que faz a gravação subir mesmo com Wi-Fi
+  fraco. A api converte para PCM de 16 bits antes da transcrição
+  (`regras/wav.ts`); o que chega do firmware antigo passa como veio.
 - A gravação entra numa fila no cartão; com Wi-Fi, sobe da mais antiga para a
-  mais nova. O arquivo só é apagado depois que o servidor confirma.
+  mais nova. O arquivo só é apagado depois que o servidor confirma. Gravação
+  que falha 3 vezes seguidas sai da frente por 15 min, para não segurar as
+  outras.
+- O Wi-Fi pode ser desligado pela serial (`wifi off`): as gravações ficam no
+  cartão até ele voltar. O super usuário também pode **pausar os envios** de
+  uma placa em Configurações › Gravadores; ela continua avisando o estado.
 - O Wi-Fi é escolhido pelo usuário num portal de configuração que a placa abre
   (rede "Noteless-XXXX"), não fica no código.
 - **A placa não tem conta nem senha.** Na primeira vez que liga, sorteia um
@@ -233,6 +242,14 @@ placa própria em projeto em `firmware/placa`).
   escolhendo a empresa. A placa só consegue mandar áudio para essa empresa.
 - A cada 15 min ela avisa o estado (Wi-Fi, cartão, fila, erros), que aparece
   em Configurações › Gravadores.
+- **Atualização pelo ar (OTA).** O super usuário publica o `.bin` em
+  Configurações › Gravadores › Firmware e escolhe quais placas atualizam. A
+  api assina cada versão com ECDSA P-256 (`FIRMWARE_CHAVE_PRIVADA`); a placa,
+  parada, baixa em pedaços de 32 KB (se o Wi-Fi cair, continua de onde
+  parou), confere o SHA-256 e a assinatura com a chave pública embutida e
+  instala na outra metade da flash. A versão nova só fica depois do primeiro
+  aviso aceito: se travar, ou passar 10 min com Wi-Fi sem avisar, a placa
+  volta sozinha para a anterior.
 
 ## 7. Tela ao vivo
 
