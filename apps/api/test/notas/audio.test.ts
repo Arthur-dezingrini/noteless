@@ -29,11 +29,31 @@ beforeAll(async () => {
   vizinha = await criarFazenda("Boa Vista");
 });
 
-async function enviar(quem: Pessoa, arquivo: File) {
+async function enviar(quem: Pessoa, arquivo: File, campos: Record<string, string> = {}) {
   const form = new FormData();
+  for (const [k, v] of Object.entries(campos)) form.set(k, v);
   form.set("audio", arquivo);
   const res = await app.request(`/api/org/${f.orgId}/ocorrencias`, { method: "POST", headers: { Cookie: quem.cookie }, body: form });
-  return { status: res.status, json: (await res.json()) as { id: string; error?: string } };
+  return { status: res.status, json: (await res.json()) as { id: string; duracaoSeg?: number | null; error?: string } };
+}
+
+/** WAV PCM mono de 16 bits e 16 kHz, como o firmware anterior gravava. */
+function wavPcm(segundos: number) {
+  const dados = segundos * 32000;
+  const b = new Uint8Array(44 + dados);
+  const v = new DataView(b.buffer);
+  b.set([...Buffer.from("RIFFxxxxWAVEfmt ")], 0);
+  v.setUint32(4, 36 + dados, true);
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true);
+  v.setUint32(24, 16000, true);
+  v.setUint32(28, 32000, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true);
+  b.set([...Buffer.from("data")], 36);
+  v.setUint32(40, dados, true);
+  return b;
 }
 
 const ouvir = (quem: Pessoa, id: string) => app.request(`/api/org/${f.orgId}/ocorrencias/${id}/audio`, { headers: { Cookie: quem.cookie } });
@@ -72,6 +92,21 @@ describe("arquivo da nota", () => {
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res.headers.get("content-security-policy")).toBe("sandbox");
     expect((await res.arrayBuffer()).byteLength).toBe(800);
+  });
+
+  it("a duração de um WAV sai do arquivo, não do número que a placa mandou", async () => {
+    // Gravação PCM que ficou na fila: o firmware μ-law conta 1 byte por amostra e manda o dobro.
+    const r = await enviar(f.membro, new File([wavPcm(2)], "t1795017401335.wav", { type: "audio/wav" }), { duracaoSeg: "4" });
+    expect(r.status).toBe(201);
+    expect(r.json.duracaoSeg).toBe(2);
+    const [o] = await db.select({ duracaoSeg: ocorrencia.duracaoSeg }).from(ocorrencia).where(eq(ocorrencia.id, r.json.id));
+    expect(o?.duracaoSeg).toBe(2);
+  });
+
+  it("o que não é WAV (gravado no navegador) fica com a duração informada", async () => {
+    const r = await enviar(f.membro, new File([new Uint8Array(100)], "nota.webm", { type: "audio/webm" }), { duracaoSeg: "7" });
+    expect(r.status).toBe(201);
+    expect(r.json.duracaoSeg).toBe(7);
   });
 
   it("tipo antigo fora do padrão, já guardado, sai como binário genérico", async () => {

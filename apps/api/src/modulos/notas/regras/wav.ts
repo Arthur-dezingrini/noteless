@@ -14,17 +14,14 @@ export function muLawParaLinear(byte: number): number {
   return u & 0x80 ? 0x84 - t : t - 0x84;
 }
 
-/**
- * WAV μ-law → WAV PCM de 16 bits, mesma taxa e canais. Devolve `null` para o
- * que não for WAV μ-law (PCM, WebM do navegador...): esse passa como veio.
- */
-export function wavMuLawParaPcm16(arquivo: Uint8Array): Uint8Array | null {
+/** O que interessa do cabeçalho de um WAV; `null` se não for WAV com "fmt " e "data". */
+function lerWav(arquivo: Uint8Array) {
   if (arquivo.byteLength < 12) return null;
   const v = new DataView(arquivo.buffer, arquivo.byteOffset, arquivo.byteLength);
   const tag = (pos: number) => String.fromCharCode(...arquivo.subarray(pos, pos + 4));
   if (tag(0) !== "RIFF" || tag(8) !== "WAVE") return null;
 
-  let formato = 0, canais = 0, taxa = 0, bits = 0, inicio = -1, tamanho = 0;
+  let formato = 0, canais = 0, taxa = 0, bits = 0;
   for (let pos = 12; pos + 8 <= arquivo.byteLength; ) {
     const id = tag(pos);
     const declarado = v.getUint32(pos + 4, true);
@@ -34,15 +31,37 @@ export function wavMuLawParaPcm16(arquivo: Uint8Array): Uint8Array | null {
       taxa = v.getUint32(pos + 12, true);
       bits = v.getUint16(pos + 22, true);
     } else if (id === "data") {
-      inicio = pos + 8;
+      if (!canais || !taxa || !bits) return null;
+      const inicio = pos + 8;
       const resta = arquivo.byteLength - inicio;
       // Gravação interrompida pode ter o tamanho zerado ou maior que o arquivo.
-      tamanho = declarado > 0 && declarado <= resta ? declarado : resta;
-      break;
+      const tamanho = declarado > 0 && declarado <= resta ? declarado : resta;
+      return { formato, canais, taxa, bits, inicio, tamanho };
     }
     pos += 8 + declarado + (declarado % 2);
   }
-  if (formato !== FORMATO_MU_LAW || bits !== 8 || inicio < 0 || !canais || !taxa) return null;
+  return null;
+}
+
+/**
+ * Duração de um WAV em segundos, tirada do próprio arquivo; `null` para o que
+ * não for WAV (o WebM do navegador). A placa manda a dela, mas calcula
+ * supondo o formato de agora (μ-law, 1 byte por amostra): gravação que ficou
+ * na fila desde o firmware anterior (PCM, 2 bytes) sairia com o dobro.
+ */
+export function duracaoDoWav(arquivo: Uint8Array): number | null {
+  const w = lerWav(arquivo);
+  return w && w.tamanho / (w.taxa * w.canais * Math.ceil(w.bits / 8));
+}
+
+/**
+ * WAV μ-law → WAV PCM de 16 bits, mesma taxa e canais. Devolve `null` para o
+ * que não for WAV μ-law (PCM, WebM do navegador...): esse passa como veio.
+ */
+export function wavMuLawParaPcm16(arquivo: Uint8Array): Uint8Array | null {
+  const w = lerWav(arquivo);
+  if (!w || w.formato !== FORMATO_MU_LAW || w.bits !== 8) return null;
+  const { canais, taxa, inicio, tamanho } = w;
 
   const saida = new Uint8Array(44 + tamanho * 2);
   const s = new DataView(saida.buffer);

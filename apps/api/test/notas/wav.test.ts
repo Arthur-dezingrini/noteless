@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { muLawParaLinear, wavMuLawParaPcm16 } from "../../src/modulos/notas/regras/wav";
+import { duracaoDoWav, muLawParaLinear, wavMuLawParaPcm16 } from "../../src/modulos/notas/regras/wav";
 
 /** WAV mono como o gravador grava: `formato` 7 = μ-law (8 bits), 1 = PCM. */
 function wav(formato: number, bits: number, taxa: number, dados: number[], tamanhoDeclarado = dados.length) {
@@ -56,5 +56,23 @@ describe("wavMuLawParaPcm16", () => {
     expect(wavMuLawParaPcm16(wav(1, 16, 16000, [0, 0, 1, 0]))).toBeNull();
     expect(wavMuLawParaPcm16(new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0, 0]))).toBeNull();
     expect(wavMuLawParaPcm16(new Uint8Array(10))).toBeNull();
+  });
+});
+
+describe("duracaoDoWav", () => {
+  const segundos = (n: number, bytesPorSeg: number) => new Array<number>(n * bytesPorSeg).fill(0);
+
+  it("PCM de 16 bits e μ-law: a conta usa os bytes por amostra do cabeçalho", () => {
+    expect(duracaoDoWav(wav(1, 16, 16000, segundos(3, 32000)))).toBe(3); // firmware anterior
+    expect(duracaoDoWav(wav(7, 8, 16000, segundos(3, 16000)))).toBe(3); // firmware de agora
+  });
+
+  it("gravação interrompida (tamanho zerado no cabeçalho): conta o que veio no arquivo", () => {
+    expect(duracaoDoWav(wav(1, 16, 16000, segundos(2, 32000), 0))).toBe(2);
+  });
+
+  it("o que não é WAV não tem duração aqui (null)", () => {
+    expect(duracaoDoWav(new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0, 0]))).toBeNull();
+    expect(duracaoDoWav(new Uint8Array(800))).toBeNull();
   });
 });
