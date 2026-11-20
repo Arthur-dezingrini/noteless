@@ -100,6 +100,11 @@ struct Conexao {
   bool abrir(const String &caminho) {
     String url = String(SERVIDOR_URL) + caminho;
     http.setTimeout(60000);  // transcrição + IA levam alguns segundos
+    // Não é só a espera da conexão: no core 3.3 o connect() do HTTPClient passa
+    // este valor ao TLS, que o usa como limite SEM PROGRESSO em cada escrita
+    // (ssl_client socket_timeout). Com os 5 s do padrão, um pacote perdido cuja
+    // retransmissão demorasse mais que isso derrubava o envio (HTTP -3) no meio.
+    http.setConnectTimeout(30000);
     bool aberta;
     if (url.startsWith("https")) {
       seguro.setInsecure();            // protótipo: não confere o certificado do servidor

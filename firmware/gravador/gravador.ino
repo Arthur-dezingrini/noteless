@@ -48,7 +48,7 @@
 // Versão do firmware: aumente a cada versão publicada no Noteless (a mesma
 // versão não publica duas vezes). Fica marcada no binário: o Noteless a lê de
 // dentro do .bin ao publicar (apps/api, regras/firmware.ts).
-#define FIRMWARE_VERSAO "1.0.0"
+#define FIRMWARE_VERSAO "1.0.1"
 const char MARCA_VERSAO[] = "NOTELESS_FW_VERSAO=" FIRMWARE_VERSAO;
 
 // Onde ficam as gravações: 1 = cartão microSD; 0 = a memória interna da placa,
