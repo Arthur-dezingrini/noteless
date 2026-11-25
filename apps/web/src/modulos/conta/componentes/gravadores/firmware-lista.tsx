@@ -24,17 +24,19 @@ export function FirmwareLista({ firmwares }: { firmwares: Firmware[] }) {
   function publicar(ev: FormEvent<HTMLFormElement>) {
     ev.preventDefault();
     const form = ev.currentTarget;
-    const dados = new FormData(form);
-    const arquivo = dados.get("firmware");
+    const arquivo = new FormData(form).get("firmware");
     if (!(arquivo instanceof File) || arquivo.size === 0) return setErro("Escolha o arquivo .bin do firmware.");
     start(async () => {
       setErro(null);
       setAviso(null);
-      // Sem Content-Type: o navegador põe o do multipart.
-      const res = await fetch("/api/admin/gravadores/firmware", { method: "POST", body: dados });
-      const corpo = (await res.json().catch(() => null)) as { versao?: string; error?: string } | null;
-      if (!res.ok) return setErro(corpo?.error ?? "Não foi possível publicar. Tente de novo.");
-      setAviso(`Versão ${corpo?.versao} publicada. Escolha as placas que vão recebê-la.`);
+      // O arquivo é o corpo, sem multipart: a Vercel pode responder 503 a multipart desse tamanho.
+      const r = await chamarApiJson<{ versao: string }>("/api/admin/gravadores/firmware", {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: arquivo,
+      });
+      if (!r.ok) return setErro(r.error);
+      setAviso(`Versão ${r.data.versao} publicada. Escolha as placas que vão recebê-la.`);
       form.reset();
       router.refresh();
     });

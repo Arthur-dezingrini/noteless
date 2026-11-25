@@ -1,5 +1,6 @@
 import { createHash, generateKeyPairSync, verify } from "node:crypto";
 
+import { FIRMWARE_TAMANHO_MAXIMO } from "@vocare/shared";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { app } from "../../src/app";
@@ -52,12 +53,20 @@ async function avisar(p: Placa, extra: Record<string, unknown> = {}) {
   });
   return { status: res.status, json: (await res.json()) as any };
 }
-async function publicar(quem: Pessoa | null, bin: Uint8Array) {
-  const form = new FormData();
-  form.set("firmware", new File([bin], "gravador.ino.bin", { type: "application/octet-stream" }));
-  const res = await pedir("/api/admin/gravadores/firmware", { method: "POST", headers: quem ? { Cookie: quem.cookie } : {}, body: form });
+async function enviarFirmware(quem: Pessoa | null, body: RequestInit["body"], tipo?: string) {
+  const headers = { ...(quem ? { Cookie: quem.cookie } : {}), ...(tipo ? { "Content-Type": tipo } : {}) };
+  const res = await pedir("/api/admin/gravadores/firmware", { method: "POST", headers, body });
   return { status: res.status, json: (await res.json()) as any };
 }
+/** Como a tela manda: o .bin é o corpo. */
+const publicar = (quem: Pessoa | null, bin: Uint8Array<ArrayBuffer>) => enviarFirmware(quem, bin, "application/octet-stream");
+/** Como a tela mandava antes. */
+function publicarMultipart(quem: Pessoa | null, bin: Uint8Array<ArrayBuffer>) {
+  const form = new FormData();
+  form.set("firmware", new File([bin], "gravador.ino.bin", { type: "application/octet-stream" }));
+  return enviarFirmware(quem, form);
+}
+const versoes = async () => ((await chamar(sup, "GET", "/api/admin/gravadores/firmware")).json as { versao: string }[]).map((f) => f.versao);
 const baixar = (p: Placa | null, versao: string, range?: string, authorization = p ? credencial(p) : undefined) =>
   pedir(`/api/gravadores/firmware/${versao}`, {
     headers: { ...(authorization ? { Authorization: authorization } : {}), ...(range ? { Range: range } : {}) },
@@ -104,6 +113,31 @@ describe("publicar firmware", () => {
     expect((await publicar(sup, V110)).status).toBe(409);
     const lista = (await chamar(sup, "GET", "/api/admin/gravadores/firmware")).json;
     expect(lista).toEqual([expect.objectContaining({ versao: "1.1.0", tamanho: 4096 })]);
+  });
+
+  it("sem arquivo, ou com um corpo de outro tipo: 400, e nada é publicado", async () => {
+    const antes = await versoes();
+    expect((await publicar(sup, new Uint8Array(0))).status).toBe(400);
+    expect((await enviarFirmware(sup, binario("1.2.0"), "audio/wav")).status).toBe(400);
+    expect((await enviarFirmware(sup, JSON.stringify({ firmware: "x" }), "application/json")).status).toBe(400);
+    expect((await enviarFirmware(sup, new FormData())).status).toBe(400);
+    expect(await versoes()).toEqual(antes);
+  });
+
+  it("vai até o tamanho da partição; um byte a mais é 413", async () => {
+    expect((await publicar(sup, binario("1.3.0", FIRMWARE_TAMANHO_MAXIMO + 1))).status).toBe(413);
+    const r = await publicar(sup, binario("1.3.0", FIRMWARE_TAMANHO_MAXIMO));
+    expect(r.status).toBe(201);
+    expect(r.json).toMatchObject({ versao: "1.3.0", tamanho: FIRMWARE_TAMANHO_MAXIMO });
+  });
+
+  it("o multipart da tela antiga continua valendo, com as mesmas barreiras", async () => {
+    const bin = binario("1.4.0");
+    expect((await publicarMultipart(null, bin)).status).toBe(401);
+    expect((await publicarMultipart(a.dono, bin)).status).toBe(403);
+    const r = await publicarMultipart(sup, bin);
+    expect(r.status).toBe(201);
+    expect(r.json).toEqual({ versao: "1.4.0", tamanho: 4096, sha256: createHash("sha256").update(bin).digest("hex") });
   });
 });
 

@@ -14,6 +14,18 @@ const corpo = async (c: Context) => c.req.json().catch(() => null);
 const invalido = (e: { issues: { message: string }[] }) => ({ error: e.issues[0]?.message ?? "Dados inválidos." });
 
 /**
+ * O .bin da chamada. Cru (o arquivo é o corpo) é como a tela manda: a Vercel
+ * examina o multipart antes de repassar e corta em ~2 s, perto do que ela leva
+ * com um firmware (o mesmo 503 do áudio, em notas/rotas.ts). O multipart (campo
+ * `firmware`) segue aceito para a tela que já estava aberta.
+ */
+async function binDaChamada(c: Context): Promise<Uint8Array | null> {
+  if (/^\s*application\/octet-stream\b/i.test(c.req.header("content-type") ?? "")) return new Uint8Array(await c.req.arrayBuffer());
+  const arquivo = (await c.req.parseBody().catch(() => null))?.firmware;
+  return arquivo instanceof File ? new Uint8Array(await arquivo.arrayBuffer()) : null;
+}
+
+/**
  * A placa avisando o estado, com a série e o segredo dela (sem conta). Placa
  * nova ou ainda não aprovada: 202, aguardando. Montado em /api/gravadores.
  */
@@ -76,15 +88,14 @@ gravadoresAdminRoutes.get("/", async (c) => c.json(await listarGravadores()));
 
 gravadoresAdminRoutes.get("/firmware", async (c) => c.json(await listarFirmwares()));
 
-/** Publica um firmware (.bin, campo `firmware`): a versão vem de dentro dele. */
+/** Publica um firmware (.bin, ver binDaChamada): a versão vem de dentro dele. */
 gravadoresAdminRoutes.post("/firmware", async (c) => {
   const chave = chavePrivadaFirmware();
   if (!chave) return c.json({ error: "Publicar firmware precisa da chave FIRMWARE_CHAVE_PRIVADA no servidor." }, 503);
-  const body = await c.req.parseBody().catch(() => null);
-  const arquivo = body?.firmware;
-  if (!(arquivo instanceof File) || arquivo.size === 0) return c.json({ error: "Envie o arquivo .bin no campo 'firmware'." }, 400);
+  const bin = await binDaChamada(c);
+  if (!bin?.byteLength) return c.json({ error: "Envie o arquivo .bin do firmware." }, 400);
   const q = await quemNaPlataforma(c.req.raw.headers);
-  const r = await publicarFirmware(new Uint8Array(await arquivo.arrayBuffer()), chave, q!.userId);
+  const r = await publicarFirmware(bin, chave, q!.userId);
   return r.ok ? c.json(r.valor, 201) : c.json({ error: r.erro }, r.status);
 });
 

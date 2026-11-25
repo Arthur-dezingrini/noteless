@@ -252,13 +252,14 @@ placa própria em projeto em `firmware/placa`).
 - A cada 15 min ela avisa o estado (Wi-Fi, cartão, fila, erros), que aparece
   em Configurações › Gravadores.
 - **Atualização pelo ar (OTA).** O super usuário publica o `.bin` em
-  Configurações › Gravadores › Firmware e escolhe quais placas atualizam. A
-  api assina cada versão com ECDSA P-256 (`FIRMWARE_CHAVE_PRIVADA`); a placa,
-  parada, baixa em pedaços de 32 KB (se o Wi-Fi cair, continua de onde
-  parou), confere o SHA-256 e a assinatura com a chave pública embutida e
-  instala na outra metade da flash. A versão nova só fica depois do primeiro
-  aviso aceito: se travar, ou passar 10 min com Wi-Fi sem avisar, a placa
-  volta sozinha para a anterior.
+  Configurações › Gravadores › Firmware (o arquivo também vai cru, pelo mesmo
+  motivo do áudio) e escolhe quais placas atualizam. A api assina cada versão
+  com ECDSA P-256 (`FIRMWARE_CHAVE_PRIVADA`); a placa, parada, baixa em
+  pedaços de 32 KB (se o Wi-Fi cair, continua de onde parou), confere o
+  SHA-256 e a assinatura com a chave pública embutida e instala na outra
+  metade da flash. A versão nova só fica depois do primeiro aviso aceito: se
+  travar, ou passar 10 min com Wi-Fi sem avisar, a placa volta sozinha para a
+  anterior.
 
 ## 7. Tela ao vivo
 
