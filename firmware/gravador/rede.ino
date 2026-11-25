@@ -3,8 +3,6 @@
 // cartão, da mais antiga para a mais nova. Roda separada do botão: enviar (e esperar a transcrição) nunca impede
 // de começar outra gravação.
 
-const char *FRONTEIRA = "----noteless-esp32";
-
 String orgId;  // empresa que recebe as notas, dita pelo Noteless; vazio até a placa ser aprovada
 
 String hostServidor() {
@@ -125,63 +123,51 @@ struct Conexao {
     bool dns = WiFi.hostByName(host.c_str(), ip) == 1;
     registrar("  %s | DNS de %s (servidor %s): %s | memória livre %u (maior bloco %u)\n",
                   HTTPClient::errorToString(st).c_str(), host.c_str(), WiFi.dnsIP(0).toString().c_str(),
-                  dns ? ip.toString().c_str() : "FALHOU", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+                  dns ? ip.toString().c_str() : "FALHOU", (unsigned)memoriaLivre(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     char erro[120];
     if (seguro.lastError(erro, sizeof(erro)) != 0) registrar("  TLS: %s\n", erro);
   }
 };
 
-// Corpo multipart lido aos pedaços: campos + arquivo do cartão + fim. O
-// arquivo não cabe inteiro na memória (2 min de áudio são 3,8 MB).
-class CorpoMultipart : public Stream {
+// O arquivo do cartão como corpo do envio, lido aos pedaços: não cabe inteiro
+// na memória (2 min de áudio são 1,9 MB). Vai cru, sem multipart: a Vercel
+// examina o multipart antes de repassar e, com ~1,4 MB ou mais, pode responder 503
+// "The deployment is currently unavailable" (2026-11-24).
+class CorpoArquivo : public Stream {
  public:
   // O arquivo só abre no 1º pedaço do corpo, com a conexão segura já feita: a
-  // conta do RSA na abertura dela precisa de ~85 KB livres, e o arquivo aberto
+  // conta do RSA na abertura dela precisa de ~52 KB livres, e o arquivo aberto
   // (com o buffer dele) já tirava o bastante para ela falhar.
-  CorpoMultipart(const String &ini, const String &caminho, size_t tamArq, const String &fim)
-      : ini(ini), caminho(caminho), fim(fim), tamArq(tamArq) {}
-  ~CorpoMultipart() { fechar(); }
+  CorpoArquivo(const String &caminho, size_t tamArq) : caminho(caminho), tamArq(tamArq) {}
+  ~CorpoArquivo() { fechar(); }
   void fechar() {
     if (arq) arq.close();
   }
 
-  size_t total() const { return ini.length() + tamArq + fim.length(); }
+  size_t total() const { return tamArq; }
   size_t lido() const { return pos; }             // para o registro: até onde o envio chegou
   uint32_t primeiroMs = 0;                         // millis() do 1º pedaço = conexão e cabeçalhos prontos
   bool falhouCartao = false;                       // o arquivo não abriu ou parou de ler no meio
+  uint32_t menorMemoria = UINT32_MAX;              // a menor memória livre vista durante o envio
   // Em pedaços de 512 bytes: o HTTPClient lê o que available() diz, e cada
   // pedaço vira um pacote próprio (TCP_NODELAY). Com pacotes cheios (~1500
   // bytes), há redes que os perdem sem avisar e o envio trava no 1º pedaço.
   int available() override { return min(total() - pos, (size_t)512); }
 
   // O HTTPClient conta como enviado o que pediu, não o que veio: tem que vir
-  // tudo de uma vez, atravessando as três partes. Cartão que falha no meio
-  // deixa o envio curto, e ele é refeito depois.
+  // tudo de uma vez. Cartão que falha no meio deixa o envio curto, e ele é
+  // refeito depois.
   size_t readBytes(char *destino, size_t quer) override {
     size_t feito = 0;
+    if (falhouCartao) return 0;  // já falhou: não insiste num cartão travado a cada pedaço
     if (!primeiroMs) primeiroMs = millis();
-    while (feito < quer && pos < total()) {
-      size_t k;
-      if (pos < ini.length()) {
-        k = min(quer - feito, ini.length() - pos);
-        memcpy(destino + feito, ini.c_str() + pos, k);
-      } else if (pos < ini.length() + tamArq) {
-        if (!arq) {
-          arq = memoria.open(caminho, FILE_READ);
-          if (!arq || !arq.seek(pos - ini.length())) {
-            falhouCartao = true;
-            break;
-          }
-        }
-        k = arq.read((uint8_t *)destino + feito, min(quer - feito, ini.length() + tamArq - pos));
-        if (k == 0) {
-          falhouCartao = true;
-          break;
-        }
-      } else {
-        size_t noFim = pos - ini.length() - tamArq;
-        k = min(quer - feito, fim.length() - noFim);
-        memcpy(destino + feito, fim.c_str() + noFim, k);
+    menorMemoria = min(menorMemoria, memoriaLivre());
+    if (!arq) arq = memoria.open(caminho, FILE_READ);
+    while (feito < quer && pos < tamArq) {
+      size_t k = arq ? arq.read((uint8_t *)destino + feito, min(quer - feito, tamArq - pos)) : 0;
+      if (k == 0) {
+        falhouCartao = true;
+        break;
       }
       pos += k;
       feito += k;
@@ -196,10 +182,8 @@ class CorpoMultipart : public Stream {
   size_t write(uint8_t) override { return 0; }
 
  private:
-  const String &ini;
   const String &caminho;
   File arq;
-  const String &fim;
   size_t tamArq, pos = 0;
 };
 
@@ -210,29 +194,24 @@ Resultado enviarArquivo(const String &caminho) {
     return TENTAR_DEPOIS;
   }
   size_t tamArq = arq.size();
-  arq.close();  // reabre só depois da conexão segura (ver CorpoMultipart)
+  arq.close();  // reabre só depois da conexão segura (ver CorpoArquivo)
   if (tamArq <= CABECALHO_WAV) return RECUSADO;  // só o cabeçalho: nada para ouvir
   String base = caminho.substring(caminho.lastIndexOf('/') + 1);
   String quando = gravadoEmDe(caminho);
   float seg = (tamArq - CABECALHO_WAV) / (float)(TAXA * BYTES_POR_AMOSTRA);
-  String ini = String("--") + FRONTEIRA + "\r\nContent-Disposition: form-data; name=\"duracaoSeg\"\r\n\r\n" +
-               String((int)(seg + 0.5f)) + "\r\n";
-  if (quando.length())
-    ini += String("--") + FRONTEIRA + "\r\nContent-Disposition: form-data; name=\"gravadoEm\"\r\n\r\n" + quando + "\r\n";
-  ini += String("--") + FRONTEIRA + "\r\nContent-Disposition: form-data; name=\"audio\"; filename=\"" + base +
-         "\"\r\nContent-Type: audio/wav\r\n\r\n";
-  String fim = String("\r\n--") + FRONTEIRA + "--\r\n";
+  // A duração o Noteless tira do próprio WAV; a hora da gravação vai no endereço.
+  String hora = quando.length() ? "?gravadoEm=" + quando : "";
 
   String recusouEm;  // empresa que recusou o envio
   for (int tentativa = 0; tentativa < 2; tentativa++) {
     if (tentativa) avisarEstado();  // a resposta diz para onde as notas vão agora
     if (orgId.isEmpty() || orgId == recusouEm) break;
-    CorpoMultipart corpo(ini, caminho, tamArq, fim);
+    CorpoArquivo corpo(caminho, tamArq);
     Conexao c;
-    if (!c.abrir("/api/org/" + orgId + "/ocorrencias")) break;
-    c.http.addHeader("Content-Type", String("multipart/form-data; boundary=") + FRONTEIRA);
+    if (!c.abrir("/api/org/" + orgId + "/ocorrencias" + hora)) break;
+    c.http.addHeader("Content-Type", "audio/wav");
     registrar("Enviando %s (%.1f s%s%s) | memória livre %u (maior bloco %u) | pilha livre %u...", base.c_str(), seg,
-              quando.length() ? ", gravada em " : ", sem hora", quando.c_str(), ESP.getFreeHeap(),
+              quando.length() ? ", gravada em " : ", sem hora", quando.c_str(), (unsigned)memoriaLivre(),
               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT), (unsigned)uxTaskGetStackHighWaterMark(NULL));
     uint32_t inicio = millis();
     int st = c.http.sendRequest("POST", &corpo, corpo.total());
@@ -248,7 +227,8 @@ Resultado enviarArquivo(const String &caminho) {
       return TENTAR_DEPOIS;
     }
     if (st == 201) {
-      registrar("Nota criada no Noteless em %.1f s: %s", (millis() - inicio) / 1000.0f, base.c_str());
+      registrar("Nota criada no Noteless em %.1f s: %s | menor memória livre no envio %u", (millis() - inicio) / 1000.0f, base.c_str(),
+                (unsigned)corpo.menorMemoria);
       if (!memoria.remove(caminho)) {
         registrar("AVISO: a nota foi criada, mas %s não saiu da fila: se o cartão voltar com ele, pode subir de novo.", base.c_str());
         cartaoFalhou("tirar da fila um áudio enviado");
@@ -267,8 +247,9 @@ Resultado enviarArquivo(const String &caminho) {
     registrar("ERRO: envio de %s falhou depois de %.1f s (HTTP %d): %s", base.c_str(), (millis() - inicio) / 1000.0f, st,
               resp.substring(0, 200).c_str());
     if (corpo.primeiroMs)
-      registrar("  conexão + cabeçalhos: %.1f s | corpo: %u de %u bytes lidos em %.1f s", (corpo.primeiroMs - inicio) / 1000.0f,
-                (unsigned)corpo.lido(), (unsigned)corpo.total(), (millis() - corpo.primeiroMs) / 1000.0f);
+      registrar("  conexão + cabeçalhos: %.1f s | corpo: %u de %u bytes lidos em %.1f s | menor memória livre no envio %u",
+                (corpo.primeiroMs - inicio) / 1000.0f, (unsigned)corpo.lido(), (unsigned)corpo.total(),
+                (millis() - corpo.primeiroMs) / 1000.0f, (unsigned)corpo.menorMemoria);
     else
       registrar("  o corpo nem começou a ir: caiu na conexão ou nos cabeçalhos");
     if (st < 0) c.explicar(st);

@@ -34,7 +34,7 @@ flowchart LR
 
     N -- "HTTPS (páginas e /api/*)" --> W
     W -- "rewrite /api/* + Server Components" --> A
-    G -- "HTTPS: áudio (multipart) e estado" --> W
+    G -- "HTTPS: áudio (WAV cru) e estado" --> W
     A -- "WebSocket 443 (driver Neon)" --> DB
     A -- "áudio" --> T
     A -- "transcrição + cadastro" --> I
@@ -225,6 +225,15 @@ placa própria em projeto em `firmware/placa`).
   mesma faixa útil para a fala, o que faz a gravação subir mesmo com Wi-Fi
   fraco. A api converte para PCM de 16 bits antes da transcrição
   (`regras/wav.ts`); o que chega do firmware antigo passa como veio.
+- O áudio vai **cru** no corpo da requisição (`Content-Type: audio/wav`), com
+  a hora da gravação no endereço (`?gravadoEm=`); a duração a api tira do
+  próprio WAV. Não vai em `multipart/form-data` porque a Vercel examina esse
+  corpo antes de repassar e, com áudio a partir de ~1,4 MB, pode responder 503
+  sem que a requisição chegue à api (medido em 24/11). O multipart continua
+  aceito: é o que as placas com firmware até 1.0.2 enviam.
+- O microfone grava num buffer na IRAM (`buffer_audio.h`), memória que o Wi-Fi
+  e o TLS não conseguem usar. Com ele na memória comum, sobrava tão pouco
+  durante o envio que a placa parava de receber da rede e o envio não andava.
 - A gravação entra numa fila no cartão; com Wi-Fi, sobe da mais antiga para a
   mais nova. O arquivo só é apagado depois que o servidor confirma. Gravação
   que falha 3 vezes seguidas sai da frente por 15 min, para não segurar as

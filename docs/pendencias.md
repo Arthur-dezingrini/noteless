@@ -35,6 +35,8 @@ algum teste quebrar.
 | P13 | 16/11/2026 | **V4: limite de tentativas de login em memória**, burlável entre instâncias da Vercel | dez senhas erradas em 15 min travam o e-mail; o contador fica no banco | `e0fb021`; `apps/api/test/conta/tentativas-login.test.ts` |
 | P14 | 18/11/2026 | **Fila do gravador travada em Wi-Fi fraco.** A gravação de 2 min (~3,8 MB) não terminava de subir, era tentada sem parar e segurava as seguintes | áudio em μ-law (metade do tamanho), convertido na api; gravação que falha 3 vezes seguidas sai da frente por 15 min | `86c063e`; `apps/api/test/notas/wav.test.ts` |
 | P15 | 18/11/2026 | **Corrigir o firmware exigia ir até cada placa com um cabo USB** | atualização pelo ar, assinada (ECDSA P-256), com volta automática para a versão anterior se a nova falhar | `4484dd7`; `apps/api/test/conta/firmware.test.ts` |
+| P16 | 24/11/2026 | **Placa surda durante o envio.** Com a conexão segura aberta sobrava tão pouca memória que a placa não recebia mais nada da rede (100% de *ping* perdido), e o áudio não subia | o buffer do microfone foi para a IRAM, que o Wi-Fi e o TLS não usam; devolve 32 KB a eles | `firmware/gravador/buffer_audio.h`; na placa, em 24/11: 2,2 MB em 27 s e nenhum *ping* perdido |
+| P17 | 24/11/2026 | **Gravação longa recusada com 503.** A Vercel examina o corpo `multipart` e, com áudio a partir de ~1,4 MB, pode responder 503 antes de a requisição chegar à api; a gravação ficava na fila para sempre | o gravador manda o áudio cru (`audio/wav`), que não passa por esse exame; a api aceita os dois formatos | `apps/api/test/notas/audio-cru.test.ts`, `apps/api/test/conta/gravadores.test.ts` |
 
 Os achados V1 a V4 vêm da verificação de vulnerabilidades em
 [seguranca.md](seguranca.md), seção 5.

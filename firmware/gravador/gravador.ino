@@ -38,17 +38,17 @@
 #include <mbedtls/base64.h>
 #include <mbedtls/pk.h>
 #include <mbedtls/sha256.h>
-#include <freertos/stream_buffer.h>
 #include <sys/time.h>
 
 #include <vector>
 
+#include "buffer_audio.h"
 #include "segredos.h"
 
 // Versão do firmware: aumente a cada versão publicada no Noteless (a mesma
 // versão não publica duas vezes). Fica marcada no binário: o Noteless a lê de
 // dentro do .bin ao publicar (apps/api, regras/firmware.ts).
-#define FIRMWARE_VERSAO "1.0.1"
+#define FIRMWARE_VERSAO "1.0.3"
 const char MARCA_VERSAO[] = "NOTELESS_FW_VERSAO=" FIRMWARE_VERSAO;
 
 // Onde ficam as gravações: 1 = cartão microSD; 0 = a memória interna da placa,
@@ -107,7 +107,7 @@ int canal = 0;  // o canal em que o microfone fala (L/R no GND = esquerdo)
 SPIClass spiCartao(HSPI);
 #endif
 
-StreamBufferHandle_t sbAudio;    // captura -> loop: amostras de 16 bits
+BufferAudio bufferAudio;         // captura -> loop: amostras de 16 bits
 volatile bool gravando = false;
 volatile uint32_t perdidas = 0;  // amostras que não couberam (cartão lento demais)
 
@@ -168,6 +168,10 @@ bool fecharWav(File &f, size_t amostras) {
   return f.seek(0) && f.write(cab, sizeof(cab)) == sizeof(cab);
 }
 
+// Memória que serve para tudo. O ESP.getFreeHeap() soma os ~33 KB de IRAM, que
+// nem o Wi-Fi nem a conexão segura conseguem usar.
+uint32_t memoriaLivre() { return heap_caps_get_free_size(MALLOC_CAP_8BIT); }
+
 // O relógio é acertado pela internet (rede.ino). Antes disso, conta de 1970.
 bool relogioValido() { return time(nullptr) > 1700000000; }
 
@@ -192,7 +196,7 @@ uint8_t respirando(uint32_t ms) {
 void avisarFalha() { led(0); }
 
 // Lê o microfone sem parar; gravando, passa as amostras para o loop por um
-// buffer de 2 s — o cartão às vezes leva centenas de ms para gravar, e o
+// buffer de ~1 s (buffer_audio.h) — o cartão às vezes leva centenas de ms para gravar, e o
 // microfone não espera. O INMP441 manda 24 bits no alto de cada palavra de
 // 32; >> 14 dá 16 bits com 4x de ganho (fala a um palmo fica com folga; só
 // estoura soprando no microfone).
@@ -203,9 +207,8 @@ void tarefaCaptura(void *) {
     size_t n = i2s.readBytes((char *)quadros, sizeof(quadros)) / 8;
     if (!gravando || n == 0) continue;
     for (size_t i = 0; i < n; i++) amostras[i] = constrain(quadros[2 * i + canal] >> 14, -32768, 32767);
-    size_t bytes = n * sizeof(int16_t);
-    size_t foi = xStreamBufferSend(sbAudio, amostras, bytes, 0);
-    if (foi < bytes) perdidas = perdidas + (bytes - foi) / sizeof(int16_t);
+    size_t foi = bufferAudio.por(amostras, n);
+    if (foi < n) perdidas = perdidas + (n - foi);
   }
 }
 
@@ -214,7 +217,7 @@ void tarefaCaptura(void *) {
 void comecarCaptura(Gravacao &g) {
   g.inicioMs = millis();
   g.inicioEpochMs = agoraEpochMs();
-  xStreamBufferReset(sbAudio);
+  bufferAudio.zerar();
   perdidas = 0;
   gravando = true;
 }
@@ -263,7 +266,7 @@ bool gravar(Gravacao &g) {
 
   registrar("Gravando... (solte o botão para parar)");
   while (true) {
-    size_t m = xStreamBufferReceive(sbAudio, bloco, sizeof(bloco), pdMS_TO_TICKS(300)) / sizeof(int16_t);
+    size_t m = bufferAudio.tirar(bloco, sizeof(bloco) / sizeof(int16_t), 300);
     for (size_t i = 0; i < m; i++, n++) {
       float x = bloco[i];
       if (n == 0) ant = x;
@@ -370,7 +373,7 @@ void setup() {
 
   // A marca vem daqui (e não de FIRMWARE_VERSAO): usada, ela fica no binário.
   registrar("=== Noteless - gravador de campo %s === boot %lu: %s | memória livre %u", MARCA_VERSAO + 19, (unsigned long)bootId,
-            motivoDoBoot(), ESP.getFreeHeap());
+            motivoDoBoot(), (unsigned)memoriaLivre());
   conferirVersaoNova();  // veio de uma atualização? (versao.ino)
   carregarIdentidade();  // antes do Wi-Fi e do microfone (ver pareamento.ino); o portal mostra o código
 
@@ -404,11 +407,13 @@ void setup() {
 
   montarCartao();
 
-  // 1 s de áudio de folga para o cartão; o loop acorda a cada 32 ms para ver o botão.
-  sbAudio = xStreamBufferCreate(32 * 1024, 1024);
+  // ~1 s de áudio de folga para o cartão.
+  if (!bufferAudio.criar()) registrar("ERRO: sem memória para o buffer do microfone.");
+  else if (!bufferAudio.naIram()) registrar("AVISO: o buffer do microfone não coube na IRAM: sobra menos memória para o envio.");
   xTaskCreatePinnedToCore(tarefaCaptura, "captura", 4096, nullptr, 5, nullptr, 1);
   // Pilha da rede: medida, a conexão segura usa ~4 KB dela (o resto vem do
-  // heap); 10 KB dá folga e deixa mais heap para o envio, que precisa de ~85 KB.
+  // heap); 10 KB dá folga e deixa mais heap para o envio, que precisa de ~52 KB
+  // só para abrir a conexão e de folga para o Wi-Fi depois (ver buffer_audio.h).
   xTaskCreatePinnedToCore(tarefaRede, "rede", 10240, nullptr, 1, nullptr, 1);
   registrar("Pronto: segure o botão para gravar e solte para parar (até %d min, microfone no canal %s).\n",
                 LIMITE_SEG / 60, canal ? "direito" : "esquerdo");

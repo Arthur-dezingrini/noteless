@@ -104,6 +104,7 @@ Resumo do histórico do repositório (`git log --reverse`).
 | 16/11 | **cópia diária do banco** no Cloudflare R2 com teste de restauração; **alerta por e-mail**; aceite dos termos e áudio apagado 90 dias depois da revisão (LGPD); esta documentação técnica; correção dos achados de segurança V1 a V4 (dependências, cabeçalhos HTTP, tipo do áudio, trava de login no banco); mãe, pai e filhos na ficha do animal; o gravador volta a gravar no cartão, com Wi-Fi desligável e envio pausável |
 | 18/11 | gravador: áudio em μ-law (metade do tamanho) e fila que não trava numa gravação; **atualização do firmware pelo ar (OTA)**, assinada e com volta automática |
 | 19/11 | documentação revisada contra o código |
+| 24/11 | gravador: envio que travava por falta de memória e gravação longa recusada com 503 (áudio enviado cru) |
 
 Comandos úteis para a banca conferir:
 

@@ -22,13 +22,17 @@ sair/entrar da sessão).
   2,4 GHz: rede só em 5 GHz não aparece.
 - `gravador/` — segure o botão (D18) para gravar no microfone I2S (INMP441,
   mesmas ligações do `microfone/`) e solte para parar (até 2 min). Clique
-  (menos de 0,5 s) não grava. O áudio é WAV de 16 kHz e 16 bits (a taxa do
-  Whisper; a 8 kHz a transcrição trocava s, z, f e x).
+  (menos de 0,5 s) não grava. O áudio é WAV de 16 kHz (a taxa do Whisper; a
+  8 kHz a transcrição trocava s, z, f e x) em μ-law, 1 byte por amostra: 2 min
+  dão 1,9 MB.
   A gravação vai para o cartão microSD (mesmas ligações do `cartao/`) e entra
   na fila em `/fila`; com Wi-Fi, sobe sozinha para o Noteless como nota,
   da mais antiga para a mais nova. Sem Wi-Fi, espera no cartão; o
   arquivo só é apagado depois que o Noteless confirma, e o que ele recusa vai
-  para `/erro`. O relógio é acertado pela internet e a hora da gravação vai
+  para `/erro`. O arquivo vai cru (`Content-Type: audio/wav`), sem multipart:
+  com multipart a Vercel pode responder 503 às gravações longas. A api publicada
+  tem que aceitar esse formato antes de a placa receber este firmware (1.0.3).
+  O relógio é acertado pela internet e a hora da gravação vai
   junto (`gravadoEm`); gravação feita antes do primeiro acerto só leva a hora
   se a placa não reiniciou até enviar — senão vale a hora da chegada.
   O Wi-Fi é escolhido pelo usuário, não fica no código: sem rede salva (ou com
