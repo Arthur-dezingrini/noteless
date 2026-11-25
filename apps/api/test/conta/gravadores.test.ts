@@ -64,7 +64,15 @@ const avisar = (p: Placa | null, corpo: unknown = estado(p?.serie ?? "x"), autho
     body: JSON.stringify(corpo),
   });
 
-/** Áudio como a placa manda: multipart, com a credencial dela. */
+/** Áudio como a placa manda: o arquivo é o corpo, com a credencial dela. */
+const enviarNotaCrua = (p: Placa, orgId: string, authorization = credencial(p)) =>
+  pedir(`/api/org/${orgId}/ocorrencias`, {
+    method: "POST",
+    headers: { Authorization: authorization, "Content-Type": "audio/wav" },
+    body: new Uint8Array(800),
+  });
+
+/** Como as placas com firmware até o 1.0.2 mandam: multipart. */
 function enviarNota(p: Placa, orgId: string, authorization = credencial(p)) {
   const form = new FormData();
   form.set("audio", new File([new Uint8Array(800)], "t1794608625306.wav", { type: "audio/wav" }));
@@ -126,6 +134,7 @@ describe("POST /api/gravadores/estado — a placa se apresenta", () => {
 
   it("aguardando aprovação, não manda nota (403)", async () => {
     expect((await enviarNota(P1, a.orgId)).status).toBe(403);
+    expect((await enviarNotaCrua(P1, a.orgId)).status).toBe(403);
   });
 
   it("guarda o histórico de erros, do mais novo para o mais antigo, sem duplicar o reenvio", async () => {
@@ -183,9 +192,17 @@ describe("aprovação", () => {
     expect(r.json).toMatchObject({ criadoPorNome: "Galpão 1", transcricao: "Vaca 23 com febre." });
   });
 
+  it("manda do mesmo jeito com o áudio cru no corpo", async () => {
+    const r = await enviarNotaCrua(P1, a.orgId);
+    expect(r.status).toBe(201);
+    expect(r.json).toMatchObject({ criadoPorNome: "Galpão 1", transcricao: "Vaca 23 com febre." });
+  });
+
   it("não manda para outra empresa nem com o segredo errado (403)", async () => {
-    expect((await enviarNota(P1, b.orgId)).status).toBe(403);
-    expect((await enviarNota(placa(P1.serie, "ee"), a.orgId)).status).toBe(403);
+    for (const enviar of [enviarNota, enviarNotaCrua]) {
+      expect((await enviar(P1, b.orgId)).status).toBe(403);
+      expect((await enviar(placa(P1.serie, "ee"), a.orgId)).status).toBe(403);
+    }
   });
 
   it("só manda nota: não lê as notas da empresa (403)", async () => {

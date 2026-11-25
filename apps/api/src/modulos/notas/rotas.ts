@@ -1,6 +1,6 @@
 import { confirmarOcorrenciaSchema, textoOcorrenciaSchema, type Papel } from "@vocare/shared";
 import { and, eq, inArray } from "drizzle-orm";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 
 import { alertar, mensagemDe } from "../../base/alerta";
 import { hojeISO } from "../../base/datas";
@@ -15,7 +15,7 @@ import { galpoesDaOrg } from "../aviario";
 import { administradores, notificar } from "../avisos";
 import { buscar, animaisDaOrg, donoSeOutro, gruposDaOrg } from "./consultas";
 import { confirmarNota } from "./regras/aplicar";
-import { quandoFoiGravado, tipoDeAudio } from "./regras/gravacao";
+import { nomeDoAudio, quandoFoiGravado, tipoDeAudio } from "./regras/gravacao";
 import { duracaoDoWav, wavMuLawParaPcm16 } from "./regras/wav";
 
 /**
@@ -39,7 +39,23 @@ notasRotas.get("/:orgId/ocorrencias", async (c) => {
 });
 
 /**
- * Recebe o áudio (multipart, campo `audio`), transcreve, interpreta e guarda
+ * O áudio da chamada, nas duas formas em que chega. Cru: o arquivo é o corpo
+ * (Content-Type de áudio) e os dados dele vão no endereço — é como o gravador
+ * manda desde o 1.0.3, porque a Vercel responde 503 a multipart grande antes de
+ * ele chegar aqui (~1,4 MB, 11/2026). Multipart (campo `audio`): firmware anterior.
+ */
+async function audioDaChamada(c: Context) {
+  const tipo = c.req.header("content-type") ?? "";
+  if (/^\s*audio\//i.test(tipo)) {
+    const audio = new File([new Uint8Array(await c.req.arrayBuffer())], nomeDoAudio(tipo), { type: tipo });
+    return { audio, duracaoSeg: c.req.query("duracaoSeg"), gravadoEm: c.req.query("gravadoEm") };
+  }
+  const body = await c.req.parseBody().catch(() => null);
+  return { audio: body?.audio, duracaoSeg: body?.duracaoSeg, gravadoEm: body?.gravadoEm };
+}
+
+/**
+ * Recebe o áudio (ver audioDaChamada), transcreve, interpreta e guarda
  * como pendente. Devolve a ocorrência pronta para a tela mostrar. Além de
  * quem está logado, o gravador de campo aprovado para a empresa manda aqui,
  * com a série e o segredo dele (base/gravador-atual.ts).
@@ -49,9 +65,9 @@ notasRotas.post("/:orgId/ocorrencias", async (c) => {
   const eu = (await gravadorNaEmpresa(c.req.raw.headers, orgId)) ?? (await membroAtual(c.req.raw.headers, orgId));
   if (!eu) return c.json({ error: "Sem acesso a esta organização." }, 403);
 
-  const body = await c.req.parseBody().catch(() => null);
-  const recebido = body?.audio;
-  if (!(recebido instanceof File) || recebido.size === 0) return c.json({ error: "Envie um áudio no campo 'audio'." }, 400);
+  const chamada = await audioDaChamada(c);
+  const recebido = chamada.audio;
+  if (!(recebido instanceof File) || recebido.size === 0) return c.json({ error: "Envie um áudio." }, 400);
   if (recebido.size > TAMANHO_MAXIMO) return c.json({ error: "Áudio grande demais (máximo 25 MB)." }, 413);
   const mime = tipoDeAudio(recebido.type);
   if (!mime) return c.json({ error: "Envie um arquivo de áudio (WAV, WebM, MP3…)." }, 415);
@@ -62,10 +78,10 @@ notasRotas.post("/:orgId/ocorrencias", async (c) => {
   const audio = pcm ? new File([pcm], recebido.name, { type: "audio/wav" }) : recebido;
   // WAV traz a duração no cabeçalho, e ela vale mais que a que veio no
   // formulário (ver duracaoDoWav); o que não é WAV fica com a informada.
-  const duracaoSeg = Math.round(duracaoDoWav(bytes) ?? Number(body?.duracaoSeg)) || null;
+  const duracaoSeg = Math.round(duracaoDoWav(bytes) ?? Number(chamada.duracaoSeg)) || null;
   // Vira a data da ocorrência e o "hoje" da IA: "nasceu hoje", gravado sem
   // sinal e enviado no dia seguinte, é do dia da gravação.
-  const gravadoEm = quandoFoiGravado(body?.gravadoEm);
+  const gravadoEm = quandoFoiGravado(chamada.gravadoEm);
 
   try {
     const dia = hojeISO(gravadoEm ?? undefined);

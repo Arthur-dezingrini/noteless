@@ -32,3 +32,12 @@ export function tipoDeAudio(tipo: string | null | undefined): string | null {
   if (!t) return "audio/webm";
   return TIPO_AUDIO.test(t) ? t.toLowerCase() : null;
 }
+
+/**
+ * Nome para o áudio que chegou cru, sem nome de arquivo: a transcrição
+ * reconhece o formato pela extensão.
+ */
+export function nomeDoAudio(mime: string): string {
+  const formato = /^audio\/(?:x-)?([a-z0-9]+)/i.exec(mime.trim())?.[1] ?? "webm";
+  return `gravacao.${formato.toLowerCase()}`;
+}
