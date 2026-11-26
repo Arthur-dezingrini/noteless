@@ -116,12 +116,12 @@ Lista completa e explicada em [docs/infraestrutura.md](docs/infraestrutura.md#4-
 
 | Comando | Faz |
 | --- | --- |
-| `npm run dev` | web + api contra o banco principal |
+| `npm run dev` | web + api contra o banco do `apps/api/.env` (o de homologação) |
 | `npm run dev:hom` | idem, contra o branch de homologação (`apps/api/.env.hom`) |
 | `npm test` | testes (Vitest): shared, web e rotas da api |
 | `npm run lint` / `npm run typecheck` | lint e tipos em todos os pacotes |
 | `npm run build` | build dos dois apps |
-| `npm run db:migrate` | aplica migrações no principal (`db:migrate:hom` na homologação) |
+| `npm run db:migrate` | aplica migrações no banco do `.env`; `db:migrate:hom` força a homologação, e na produção é `npx cross-env APP_ENV=prod npm run db:migrate` |
 | `npm run db:generate` | gera migração a partir das tabelas |
 | `npm run auth:generate` | regenera `apps/api/src/db/schema.ts` a partir da config do Better Auth |
 | `npm run seed -- …` | cria empresa + primeiro usuário (`seed:hom`) |
@@ -132,23 +132,30 @@ Lista completa e explicada em [docs/infraestrutura.md](docs/infraestrutura.md#4-
 
 | Comando | Arquivo | Banco |
 | --- | --- | --- |
-| `npm run dev` | `apps/api/.env` | branch principal do Neon |
-| `npm run dev:hom` | `apps/api/.env.hom` | branch de homologação |
+| `npm run dev` | `apps/api/.env` | branch `homologacao` do Neon (dados de teste) |
+| `npm run dev:hom` | `apps/api/.env.hom` | branch `homologacao`, com o aviso "Homologação" na tela |
+| `npx cross-env APP_ENV=prod npm run db:migrate` | `apps/api/.env.prod` | branch `production` (dados reais) |
 
-`.env.hom` é uma cópia do `.env` com a `DATABASE_URL` do branch de
-homologação. Se ele não existir, `dev:hom` se recusa a subir. Os dois são
-ignorados pelo git.
+Ninguém desenvolve contra o banco real: o `.env` local usa a `DATABASE_URL`
+do branch `homologacao` (Neon → branch homologacao → Connect). A connection
+string de produção fica só no `.env.prod` de quem aplica migração em
+produção. `.env.hom` é uma cópia do `.env`; se ele não existir, `dev:hom` se
+recusa a subir. Todos são ignorados pelo git.
 
-**Homologação publicada:** um par de projetos à parte na Vercel, publicado a
-partir do branch `homologacao`, com o banco de homologação e o aviso
-"Homologação: dados de teste" na tela. Serve para o time e os gravadores
-testarem antes de ir para a `main`. Passo a passo em
+**Homologação publicada:** https://homologacao.noteless.com.br, um par de
+projetos à parte na Vercel publicado a partir do branch `homologacao`, com o
+banco de homologação e o aviso "Homologação: dados de teste" na tela.
+
+**Fluxo de branches:** funcionalidade nova entra no `homologacao` (push ou
+PR) e a Vercel publica a homologação, onde o time e os gravadores testam.
+Aprovado, o `homologacao` vai para a `main` (PR), que publica a produção em
+https://app.noteless.com.br. Detalhes em
 [docs/infraestrutura.md](docs/infraestrutura.md#homologação-publicada).
 
 **Mudou o esquema?** `npm run db:generate`, teste com `npm run db:migrate:hom`,
-commite `apps/api/drizzle/` junto com o código e avise o time. Migração
-destrutiva só vai para o principal depois que o código novo estiver
-publicado.
+commite `apps/api/drizzle/` junto com o código e avise o time. Na produção,
+aplique com `npx cross-env APP_ENV=prod npm run db:migrate` antes do merge na `main`;
+migração destrutiva, só depois que o código novo estiver publicado.
 
 **Por que o driver do Neon e não `pg`?** Ele fala com o banco por WebSocket
 na porta 443; a 5432 é bloqueada em muita rede de universidade e empresa.
@@ -156,6 +163,8 @@ na porta 443; a 5432 é bloqueada em muita rede de universidade e empresa.
 ## Deploy
 
 Dois projetos na Vercel, do mesmo repositório; push na `main` publica os dois.
+A homologação é outro par igual (`noteless-front-homologacao` e
+`noteless-back-homologacao`), publicado por push na `homologacao`.
 
 | | api | web |
 | --- | --- | --- |

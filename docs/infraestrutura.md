@@ -14,8 +14,8 @@ flowchart TB
         API["Projeto api<br/>Root: apps/api · Hono"]
     end
     subgraph Neon["Neon — AWS sa-east-1"]
-        P[("branch principal")]
-        H[("branch homologação")]
+        P[("branch production<br/>(dados reais)")]
+        H[("branch homologacao<br/>(teste)")]
     end
     GROQ["Groq<br/>Whisper + LLM"]
     ANT["Anthropic<br/>(opcional)"]
@@ -42,7 +42,7 @@ flowchart TB
 | --- | --- | --- | --- |
 | Front (web) | Vercel, projeto com Root Directory `apps/web` | grátis | páginas e repasse de `/api/*` |
 | Back (api) | Vercel, projeto com Root Directory `apps/api` | grátis | regra de negócio, autenticação, IA |
-| Banco | Neon (Postgres serverless), `sa-east-1` | Free | dados; branches principal e homologação |
+| Banco | Neon (Postgres serverless), `sa-east-1` | Free | dados; branches `production` (real) e `homologacao` (teste) |
 | Transcrição e interpretação | Groq | Free (≈ 65 notas/dia) | Whisper e `openai/gpt-oss-120b` |
 | Interpretação alternativa | Anthropic | pago, opcional | Claude, se `ANTHROPIC_API_KEY` existir |
 | Código e CI | GitHub (privado) + GitHub Actions | Free | versionamento, verificação a cada push |
@@ -56,10 +56,11 @@ planos grátis (conferir no painel de cada um se algum plano mudou).
 
 ## 2. Deploy
 
-- **Automático**: push na `main` publica os dois projetos na Vercel.
+- **Automático**: push na `main` publica os dois projetos de produção na
+  Vercel; push na `homologacao`, os dois de homologação.
   **Atenção:** migração de banco não roda no deploy. Se o commit traz
-  migração nova, aplique antes (`npm run db:migrate`), senão a api quebra ao
-  ler a coluna que ainda não existe.
+  migração nova, aplique antes (na produção, `npx cross-env APP_ENV=prod npm run db:migrate`),
+  senão a api quebra ao ler a coluna que ainda não existe.
 - **api**: o build roda `tsup` e gera um único `dist/index.js` (com o
   `@vocare/shared` dentro). A entrada da Vercel é `apps/api/server.js`, que
   reexporta esse arquivo.
@@ -72,9 +73,14 @@ planos grátis (conferir no painel de cada um se algum plano mudou).
 
 ### Homologação publicada
 
-Um par de projetos à parte na Vercel, com o branch `homologacao` como branch
-de produção e o branch de homologação do Neon como banco. Os projetos de
-produção não mudam.
+**https://homologacao.noteless.com.br**, no ar desde 26/11/2026. É um par de
+projetos à parte na Vercel (`noteless-front-homologacao` e
+`noteless-back-homologacao`, a api em
+https://noteless-back-homologacao.vercel.app), com o branch `homologacao` como
+branch de produção e o branch `homologacao` do Neon como banco. O banco começou
+só com o esquema e uma empresa de teste, sem dado de cliente. Os projetos de
+produção não mudam; são projetos separados porque o plano Hobby da Vercel não
+tem ambientes personalizados. Para recriar:
 
 1. Crie o branch: `git push origin main:homologacao`.
 2. Na Vercel, crie a api de homologação com o mesmo repositório (Root Directory
@@ -85,8 +91,9 @@ produção não mudam.
    e, para o "esqueci a senha", `RESEND_API_KEY` e `EMAIL_REMETENTE`.
 3. Crie o web de homologação (Root Directory `apps/web`, preset Next.js),
    também com `homologacao` como Production Branch. Variáveis: `API_URL` com a
-   URL da api de homologação e `APP_ENV=hom`. Domínio sugerido:
-   `hom.noteless.com.br`.
+   URL da api de homologação e `APP_ENV=hom`. Domínio:
+   `homologacao.noteless.com.br`, com um CNAME no registro.br para o valor
+   que a Vercel mostra em Settings → Domains.
 4. Nos dois, Settings → Functions → região São Paulo (gru1).
 5. Com `apps/api/.env.hom` apontando para o branch de homologação, aplique as
    migrações (`npm run db:migrate:hom`) e crie uma empresa de teste
@@ -94,23 +101,24 @@ produção não mudam.
 
 Fluxo: o que vai ser testado entra no `homologacao` e a Vercel publica a
 homologação; aprovado, vai para a `main`. Migração nova roda primeiro na
-homologação e só depois no principal. Um gravador de teste aponta para a
+homologação e só depois na produção. Um gravador de teste aponta para a
 homologação trocando o `SERVIDOR_URL` do `segredos.h`.
 
 ## 3. Ambientes
 
 | Ambiente | Como sobe | Banco | Uso |
 | --- | --- | --- | --- |
-| Local | `npm run dev` (web :3000, api :4000) | Neon, branch principal | desenvolvimento do time |
+| Local | `npm run dev` (web :3000, api :4000) | Neon, branch `homologacao` (`.env`) | desenvolvimento do time |
 | Local contra homologação | `npm run dev:hom` | Neon, branch homologação (`.env.hom`) | testar migração e dados de teste |
 | Homologação publicada | Vercel, projetos de homologação (branch `homologacao`) | Neon, branch homologação | testes do time e dos gravadores antes da produção; aviso "Homologação" na tela |
 | Testes | `npm test` | PGlite (Postgres em memória) | sem rede, sem chave, sem `.env` |
-| CI | GitHub Actions a cada push e PR | nenhum | lint, tipos, testes e build |
-| **Produção / demonstração** | Vercel | Neon, branch principal | **https://app.noteless.com.br** (também em https://vocare-iota.vercel.app) |
+| CI | GitHub Actions a cada push na `main` ou na `homologacao` e a cada PR | nenhum | lint, tipos, testes e build |
+| **Produção / demonstração** | Vercel | Neon, branch `production` | **https://app.noteless.com.br** (também em https://vocare-iota.vercel.app) |
 
 A api imprime na subida qual arquivo de ambiente carregou e o host do banco.
-Se `.env.hom` não existir, `dev:hom` se recusa a subir: nunca cai no banco
-principal por engano.
+Se `.env.hom` não existir, `dev:hom` se recusa a subir: nunca cai em outro banco
+por engano. A connection string de produção fica só no `.env.prod` de quem
+aplica migração, usado com `APP_ENV=prod`.
 
 ## 4. Variáveis de ambiente
 
@@ -149,7 +157,7 @@ lista exata.
 
 | Segredo ou variável | O que é |
 | --- | --- |
-| `BACKUP_DATABASE_URL` | conexão **direta** do Neon (a URL sem `-pooler`) |
+| `BACKUP_DATABASE_URL` | conexão **direta** do branch `production` do Neon (a URL sem `-pooler`) |
 | `BACKUP_SENHA` | senha da criptografia das cópias; guardar também num cofre de senhas, porque sem ela nenhuma cópia abre |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | acesso ao bucket do R2 |
 | `RESEND_API_KEY`, `ALERTA_EMAILS` | aviso de falha por e-mail |
@@ -235,8 +243,8 @@ a explicação está lá.
   Vercel, https://vocare-iota.vercel.app, também responde). Conferido em
   19/11/2026: `/health` responde `{"ok":true}` nos dois e a tela de login abre.
 - **Acesso**: não há cadastro público. Para a banca:
-  1. Criar uma empresa de demonstração no banco principal:
-     `npm run seed -- "Fazenda Demonstração" banca@<domínio> "<senha forte>"`.
+  1. Criar uma empresa de demonstração no banco de produção:
+     `npx cross-env APP_ENV=prod npm run seed -- "Fazenda Demonstração" banca@<domínio> "<senha forte>"`.
   2. Cadastrar alguns animais, um grupo e um galpão com lote. Aprovar um
      gravador para a empresa de demonstração (Configurações › Gravadores) e
      gravar duas ou três notas com ele, para a banca já encontrar notas
@@ -253,9 +261,13 @@ a explicação está lá.
 
 ## 7. Operação
 
+Os comandos abaixo usam o banco do `apps/api/.env`, que é o de homologação.
+Para agir na produção, ponha `npx cross-env APP_ENV=prod` na frente: aí eles
+leem o `apps/api/.env.prod`.
+
 | Tarefa | Como |
 | --- | --- |
-| Aplicar migrações | `npm run db:migrate` (principal) / `npm run db:migrate:hom` |
+| Aplicar migrações | `npm run db:migrate:hom` (homologação) / `npx cross-env APP_ENV=prod npm run db:migrate` (produção) |
 | Criar empresa + primeiro usuário | `npm run seed -- "<empresa>" <email> <senha>` |
 | Promover super usuário | `npm run super -w @vocare/api -- <email>` |
 | Ver o banco | `npm run db:studio` (Drizzle Studio) |

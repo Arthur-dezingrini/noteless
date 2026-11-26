@@ -4,7 +4,8 @@ import { parseEnv } from "node:util";
 /**
  * Escolhe qual arquivo de ambiente carregar.
  *
- *   npm run dev       → .env       (banco principal do time)
+ *   npm run dev       → .env       (branch de homologação; ninguém desenvolve no real)
+ *   APP_ENV=prod      → .env.prod  (produção; só para aplicar migração)
  *   npm run dev:hom   → .env.hom   (branch de homologação no Neon)
  *
  * A variável APP_ENV vem do script npm (via cross-env) e atravessa o Turborepo

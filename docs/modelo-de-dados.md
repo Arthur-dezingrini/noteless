@@ -38,8 +38,9 @@ garantir isso, não o código:
 
 - Postgres gerenciado e **serverless**: escala a zero, plano grátis suficiente
   para o MVP.
-- **Branches**: o banco principal e o de homologação são branches do mesmo
-  projeto. Migração arriscada é testada no de homologação antes
+- **Branches**: o banco de produção (`production`) e o de homologação
+  (`homologacao`) são branches do mesmo projeto. Migração arriscada é
+  testada no de homologação antes
   (`npm run db:migrate:hom`).
 - **Driver por WebSocket na porta 443**: a rede da faculdade bloqueia a 5432.
   Com `@neondatabase/serverless`, a api e as migrações funcionam em qualquer
@@ -557,9 +558,9 @@ Migrações que entraram na `main` depois da primeira versão deste documento
    gerado; mudou a configuração do Better Auth, rode `npm run auth:generate`).
 2. `npm run db:generate` cria a migração SQL em `apps/api/drizzle/`.
 3. Teste em homologação: `npm run db:migrate:hom`.
-4. Commite a migração junto com o código. Depois do merge na `main`,
-   `npm run db:migrate` no banco principal.
+4. Commite a migração junto com o código. Antes do merge na `main`, que
+   publica a produção, `npx cross-env APP_ENV=prod npm run db:migrate`.
 
 Migração destrutiva (remover coluna, renomear tabela) derruba quem ainda roda o
-código antigo: aplique no principal só depois que o código novo estiver
+código antigo: aplique na produção só depois que o código novo estiver
 publicado.

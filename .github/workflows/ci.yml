@@ -1,10 +1,11 @@
-# Confere cada push na main e cada pull request: lint, tipos, testes e build.
+# Confere cada push na main ou na homologacao e cada pull request: lint, tipos,
+# testes e build.
 # Não usa segredo nenhum — nada aqui fala com banco ou IA.
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, homologacao]
   pull_request:
 
 # Push novo na mesma branch cancela a rodada anterior, que já ficou velha.
