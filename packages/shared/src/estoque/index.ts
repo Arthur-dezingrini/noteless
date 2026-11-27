@@ -3,3 +3,4 @@ export * from "./constantes";
 export * from "./calculos";
 export * from "./schemas";
 export * from "./inventario";
+export * from "./nfe";

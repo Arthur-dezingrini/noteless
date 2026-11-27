@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NF-e FICTÍCIA para teste: CNPJ, nomes e chave inventados. -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe Id="NFe35261199888777000166550010000012341000012345" versao="4.00">
+      <ide><cUF>35</cUF><natOp>VENDA</natOp><mod>55</mod><serie>1</serie><nNF>1234</nNF><dhEmi>2026-11-20T10:30:00-03:00</dhEmi></ide>
+      <emit><CNPJ>99888777000166</CNPJ><xNome>AGRO RACOES FICTICIA LTDA</xNome><enderEmit><xMun>CIDADE TESTE</xMun><fone>1633334444</fone></enderEmit></emit>
+      <dest><CPF>00011122233</CPF><xNome>GRANJA EXEMPLO</xNome></dest>
+      <det nItem="1">
+        <prod><cProd>RP25</cProd><xProd>RACAO POSTURA SC 25KG</xProd><uCom>SC</uCom><qCom>300.0000</qCom><vUnCom>80.0000000000</vUnCom><vProd>24000.00</vProd><vFrete>300.00</vFrete><vDesc>100.00</vDesc></prod>
+        <imposto><IPI><cEnq>999</cEnq><IPITrib><CST>50</CST><vIPI>50.00</vIPI></IPITrib></IPI></imposto>
+      </det>
+      <det nItem="2">
+        <prod>
+          <cProd>VNC1000</cProd><xProd>VACINA NEWCASTLE FR 1000 DS</xProd><uCom>FR</uCom><qCom>5.0000</qCom><vProd>750.00</vProd><vSeg>10.00</vSeg><vOutro>5.00</vOutro>
+          <rastro><nLote>LT-77</nLote><qLote>5.000</qLote><dFab>2026-09-01</dFab><dVal>2027-08-31</dVal></rastro>
+        </prod>
+        <imposto><ICMS><ICMS10><orig>0</orig><CST>10</CST><vICMSST>20.00</vICMSST></ICMS10></ICMS></imposto>
+      </det>
+      <total><ICMSTot><vProd>24750.00</vProd><vNF>25035.00</vNF></ICMSTot></total>
+    </infNFe>
+  </NFe>
+  <protNFe versao="4.00"><infProt><chNFe>35261199888777000166550010000012341000012345</chNFe><cStat>100</cStat></infProt></protNFe>
+</nfeProc>

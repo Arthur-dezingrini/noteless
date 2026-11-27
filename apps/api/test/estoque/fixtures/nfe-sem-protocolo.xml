@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NFC-e FICTÍCIA para teste: só o <NFe>, sem o protocolo. -->
+<NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+  <infNFe Id="NFe35261199888777000166650010000077771000077778" versao="4.00">
+    <ide><mod>65</mod><serie>1</serie><nNF>7777</nNF><dhEmi>2026-11-22T15:00:00-03:00</dhEmi></ide>
+    <emit><CPF>44455566677</CPF><xNome>CASA DO PRODUTOR FICTICIA</xNome></emit>
+    <det nItem="1"><prod><cProd>DESINF5</cProd><xProd>DESINFETANTE 5L</xProd><uCom>UN</uCom><qCom>2</qCom><vProd>90.00</vProd></prod></det>
+    <total><ICMSTot><vNF>90.00</vNF></ICMSTot></total>
+  </infNFe>
+</NFe>

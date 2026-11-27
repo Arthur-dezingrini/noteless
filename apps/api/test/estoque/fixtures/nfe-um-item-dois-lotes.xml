@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NF-e FICTÍCIA para teste: um item só, com dois lotes de fabricação. -->
+<nfeProc xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00">
+  <NFe xmlns="http://www.portalfiscal.inf.br/nfe">
+    <infNFe Id="NFe35261199888777000166550010000055551000055556" versao="4.00">
+      <ide><mod>55</mod><serie>2</serie><nNF>5555</nNF><dhEmi>2026-11-21T08:00:00-03:00</dhEmi></ide>
+      <emit><CNPJ>99888777000166</CNPJ><xNome>AGRO RACOES FICTICIA LTDA</xNome></emit>
+      <dest><CNPJ>11222333000144</CNPJ><xNome>GRANJA EXEMPLO</xNome></dest>
+      <det nItem="1">
+        <prod>
+          <cProd>VNC1000</cProd><xProd>VACINA NEWCASTLE FR 1000 DS</xProd><uCom>FR</uCom><qCom>5</qCom><vProd>750.00</vProd>
+          <rastro><nLote>A1</nLote><qLote>3</qLote><dVal>2027-05-31</dVal></rastro>
+          <rastro><nLote>B2</nLote><qLote>2</qLote><dVal>2027-09-30</dVal></rastro>
+        </prod>
+      </det>
+      <total><ICMSTot><vNF>750.00</vNF></ICMSTot></total>
+    </infNFe>
+  </NFe>
+</nfeProc>

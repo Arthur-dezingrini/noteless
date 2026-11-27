@@ -3,4 +3,5 @@ export { FornecedoresLista, LocaisLista, ProdutosLista } from "./componentes/cad
 export { EntradasLista } from "./componentes/entradas";
 export { InventarioPainel } from "./componentes/inventario";
 export { MovimentosLista } from "./componentes/movimentos";
+export { NfeImportar } from "./componentes/nfe";
 export { SaldoPainel } from "./componentes/saldo";

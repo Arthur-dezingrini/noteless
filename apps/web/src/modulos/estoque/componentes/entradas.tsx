@@ -1,6 +1,7 @@
 "use client";
 
 import type { Entrada, Fornecedor, Local, Produto } from "@vocare/shared";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
 
@@ -25,7 +26,10 @@ export function EntradasLista({ orgId, entradas, produtos, locais, fornecedores 
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Link href="/estoque/entradas/nfe" className={buttonClass("secundario")}>
+          Importar NF-e
+        </Link>
         <Button variant="primario" onClick={() => setNova(true)}>
           Nova entrada
         </Button>
