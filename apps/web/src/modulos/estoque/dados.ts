@@ -3,12 +3,16 @@ import "server-only";
 import {
   entradaSchema,
   fornecedorSchema,
+  inventarioResumoSchema,
+  inventarioSchema,
   localSchema,
   paginaMovimentosSchema,
   produtoSchema,
   saldoProdutoSchema,
   type Entrada,
   type Fornecedor,
+  type Inventario,
+  type InventarioResumo,
   type Local,
   type PaginaMovimentos,
   type Produto,
@@ -54,3 +58,12 @@ export const getMovimentos = cache(
 );
 
 export const getEntradas = cache((orgId: string): Promise<Entrada[]> => buscar(`${raiz(orgId)}/entradas`, z.array(entradaSchema), []));
+
+export const getInventarios = cache(
+  (orgId: string): Promise<InventarioResumo[]> => buscar(`${raiz(orgId)}/inventarios`, z.array(inventarioResumoSchema), []),
+);
+
+export const getInventario = cache(
+  (orgId: string, id: string): Promise<Inventario | null> =>
+    buscar(`${raiz(orgId)}/inventarios/${encodeURIComponent(id)}`, inventarioSchema.nullable(), null),
+);
