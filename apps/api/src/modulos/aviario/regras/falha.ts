@@ -3,7 +3,7 @@ import { falha, ok, type Resultado } from "../../../base/resultado";
 /** Falha de regra dentro de uma transação: desfaz tudo e vira resposta HTTP. */
 export class FalhaLote extends Error {
   constructor(
-    readonly status: 404 | 409 | 422,
+    readonly status: 400 | 404 | 409 | 422,
     message: string,
   ) {
     super(message);

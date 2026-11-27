@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { br } from "../../../base/datas";
 import { lote, pesagemLote, vacinacaoLote } from "../../../db/tabelas/aviario";
 import { nomeDaInstalacao, type Tx } from "./alojamento";
+import { sincronizarRacao } from "../../estoque";
 import { somarApontamento, validarApontamento, type ValoresApontamento } from "./apontamento";
 
 type Origem = { organizationId: string; ocorrenciaId: string; criadoPorId: string };
@@ -40,7 +41,10 @@ export async function aplicarAviario(
     const v = valores as ValoresApontamento;
     const r = await validarApontamento(tx, orgId, op.instalacaoId, data, v, "somar");
     if (typeof r === "string") return r;
-    await somarApontamento(tx, origem, op.instalacaoId, r.loteId, data, v);
+    const ap = await somarApontamento(tx, origem, op.instalacaoId, r.loteId, data, v);
+    // A ração do dia inteiro (o que já havia + o da nota) acerta a baixa no silo.
+    // Avisos de saldo negativo e de galpão sem silo vêm pela rotina diária.
+    await sincronizarRacao(tx, { orgId, userId: origem.criadoPorId, instalacaoId: op.instalacaoId, apontamentoId: ap.id, data, racaoKg: ap.racaoKg });
     return null;
   }
 

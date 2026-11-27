@@ -123,6 +123,9 @@ function linhaNova(origem: Origem, instalacaoId: string, loteId: string, data: s
   return linha as typeof apontamentoAviario.$inferInsert;
 }
 
+/** O que ficou gravado no dia: o id e a ração do dia inteiro (para a baixa no estoque). */
+export type ApontamentoGravado = { id: string; racaoKg: number | null };
+
 /** Soma ao que já existe no dia; campo ausente em `valores` não mexe no que está gravado. */
 export async function somarApontamento(
   tx: Tx | typeof db,
@@ -131,7 +134,7 @@ export async function somarApontamento(
   loteId: string,
   data: string,
   valores: ValoresApontamento,
-): Promise<void> {
+): Promise<ApontamentoGravado> {
   const set: Record<string, unknown> = {};
   for (const c of CAMPOS_APONTAMENTO) {
     const atual = sql.raw(`"apontamento_aviario"."${colunas[c].name}"`);
@@ -139,10 +142,12 @@ export async function somarApontamento(
     set[c] = sql`CASE WHEN ${novo} IS NULL THEN ${atual} ELSE coalesce(${atual}, 0) + ${novo} END`;
   }
   set.observacoes = sql`CASE WHEN excluded."observacoes" IS NULL THEN "apontamento_aviario"."observacoes" WHEN "apontamento_aviario"."observacoes" IS NULL THEN excluded."observacoes" ELSE "apontamento_aviario"."observacoes" || E'\n' || excluded."observacoes" END`;
-  await tx
+  const [ap] = await tx
     .insert(apontamentoAviario)
     .values(linhaNova(origem, instalacaoId, loteId, data, valores))
-    .onConflictDoUpdate({ target: [apontamentoAviario.instalacaoId, apontamentoAviario.data], set });
+    .onConflictDoUpdate({ target: [apontamentoAviario.instalacaoId, apontamentoAviario.data], set })
+    .returning({ id: apontamentoAviario.id, racaoKg: apontamentoAviario.racaoKg });
+  return { id: ap!.id, racaoKg: ap!.racaoKg == null ? null : Number(ap!.racaoKg) };
 }
 
 /** Grava o dia exatamente como veio: campo `null` ou ausente limpa o que existia. */
@@ -153,10 +158,12 @@ export async function substituirApontamento(
   loteId: string,
   data: string,
   valores: ValoresApontamento,
-): Promise<void> {
+): Promise<ApontamentoGravado> {
   const { organizationId, criadoPorId, ocorrenciaId, instalacaoId: _i, data: _d, ...set } = linhaNova(origem, instalacaoId, loteId, data, valores);
-  await tx
+  const [ap] = await tx
     .insert(apontamentoAviario)
     .values(linhaNova(origem, instalacaoId, loteId, data, valores))
-    .onConflictDoUpdate({ target: [apontamentoAviario.instalacaoId, apontamentoAviario.data], set });
+    .onConflictDoUpdate({ target: [apontamentoAviario.instalacaoId, apontamentoAviario.data], set })
+    .returning({ id: apontamentoAviario.id, racaoKg: apontamentoAviario.racaoKg });
+  return { id: ap!.id, racaoKg: ap!.racaoKg == null ? null : Number(ap!.racaoKg) };
 }

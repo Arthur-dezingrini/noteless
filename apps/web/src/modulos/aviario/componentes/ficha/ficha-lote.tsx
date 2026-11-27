@@ -8,7 +8,7 @@ import { useState, type ReactNode } from "react";
 
 import { Button, Card, PageHeader, StatusText, Tabs, tabId } from "@/components/ui";
 
-import { DesfazerModal, EncerrarModal, FaseModal, PesagemModal, TransferirModal, VacinaModal } from "../acoes";
+import { DesfazerModal, EncerrarModal, FaseModal, PesagemModal, TransferirModal, VacinaModal, type InsumosVacina } from "../acoes";
 import { ApontamentoModal } from "../apontamento-modal";
 import { ABAS, PAINEL, dm, num, pct, type Aba } from "./comum";
 import { Diario } from "./diario";
@@ -24,12 +24,15 @@ export function FichaLote({
   instalacoes,
   hoje,
   possoGerenciar,
+  insumos = { vacinas: [], locais: [] },
 }: {
   orgId: string;
   ficha: FichaLote;
   instalacoes: Instalacao[];
   hoje: string;
   possoGerenciar: boolean;
+  /** Vacinas e locais do estoque, para a vacinação dar baixa. */
+  insumos?: InsumosVacina;
 }) {
   const router = useRouter();
   const { lote, indicadores: ind } = ficha;
@@ -134,7 +137,7 @@ export function FichaLote({
       {acao === "fase" && <FaseModal {...base} ficha={ficha} onClose={() => setAcao(null)} onDone={concluir} />}
       {acao === "encerrar" && <EncerrarModal {...base} onClose={() => setAcao(null)} onDone={concluir} />}
       {acao === "pesagem" && <PesagemModal {...base} ficha={ficha} onClose={() => setAcao(null)} onDone={concluir} />}
-      {acao === "vacina" && <VacinaModal {...base} onClose={() => setAcao(null)} onDone={concluir} />}
+      {acao === "vacina" && <VacinaModal {...base} insumos={insumos} onClose={() => setAcao(null)} onDone={concluir} />}
       {(acao === "desfazer-transferencia" || acao === "reabrir") && (
         <DesfazerModal {...base} rota={acao} onClose={() => setAcao(null)} onDone={concluir} />
       )}

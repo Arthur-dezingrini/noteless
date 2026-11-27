@@ -148,6 +148,13 @@
       "when": 1795784774617,
       "tag": "0020_estoque",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795786087882,
+      "tag": "0021_estoque_baixas",
+      "breakpoints": true
     }
   ]
 }

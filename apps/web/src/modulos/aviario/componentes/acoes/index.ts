@@ -4,4 +4,4 @@ export { EncerrarModal } from "./encerrar";
 export { FaseModal } from "./fase";
 export { PesagemModal } from "./pesagem";
 export { TransferirModal } from "./transferir";
-export { VacinaModal } from "./vacina";
+export { VacinaModal, type InsumosVacina } from "./vacina";

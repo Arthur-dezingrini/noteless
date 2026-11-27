@@ -30,3 +30,12 @@ export async function avisarSaldoNegativo(orgId: string, itens: { produtoId: str
     await notificar(orgId, admins, { texto, detalhe: "Falta lançar uma entrada?", link: "/estoque" });
   }
 }
+
+/** Ração lançada no registro diário que não saiu do estoque: o galpão não tem silo ligado, ou o silo nunca recebeu ração. */
+export async function avisarGalpaoSemSilo(orgId: string, nomeGalpao: string): Promise<void> {
+  await notificar(orgId, await administradores(orgId), {
+    texto: `Ração do ${nomeGalpao} não saiu do estoque`,
+    detalhe: "Ligue um silo ao galpão e lance a entrada da ração.",
+    link: "/estoque/locais",
+  });
+}

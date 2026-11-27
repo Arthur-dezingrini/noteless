@@ -4,3 +4,5 @@
  * que está aqui; o estoque não importa de nenhum deles.
  */
 export { estoqueRotas } from "./rotas";
+export { baixarInsumo, sincronizarRacao } from "./regras/baixas";
+export { avisarGalpaoSemSilo, avisarSaldoNegativo } from "./regras/negativo";

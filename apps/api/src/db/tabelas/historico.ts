@@ -1,6 +1,7 @@
 import { date, index, integer, numeric, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 
 import { animal } from "./animais";
+import { produto } from "./estoque";
 import { ocorrencia } from "./notas";
 import { organization, user } from "../schema";
 
@@ -45,6 +46,9 @@ export const vacina = pgTable(
     data: date("data").notNull(),
     // Quando vence / próxima dose. Os relatórios de "a vencer" usam isto.
     proximaData: date("proxima_data"),
+    /** Produto do estoque que deu baixa (opcional; o nome continua no campo de texto). */
+    produtoId: text("produto_id").references(() => produto.id, { onDelete: "set null" }),
+    quantidade: numeric("quantidade", { precision: 14, scale: 3 }),
   },
   (t) => [
     index("vacina_animal_id_idx").on(t.animalId, t.data),
@@ -64,6 +68,9 @@ export const tratamento = pgTable(
     fim: date("fim"),
     // Dias sem abate/ordenha depois do fim.
     carenciaDias: integer("carencia_dias"),
+    /** Produto do estoque que deu baixa (opcional; o nome continua no campo de texto). */
+    produtoId: text("produto_id").references(() => produto.id, { onDelete: "set null" }),
+    quantidade: numeric("quantidade", { precision: 14, scale: 3 }),
   },
   (t) => [index("tratamento_org_fim_idx").on(t.organizationId, t.fim)],
 );

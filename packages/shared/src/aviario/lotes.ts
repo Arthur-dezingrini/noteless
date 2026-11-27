@@ -176,6 +176,11 @@ export const vacinacaoLoteInputSchema = z.object({
   vacina: z.string().trim().min(1, "Informe a vacina.").max(80, "No máximo 80 caracteres."),
   via: z.string().trim().max(40, "No máximo 40 caracteres.").nullish(),
   proximaData: dataIso.nullish(),
+  /** Produto do estoque: com ele, a vacinação dá baixa (doses = aves vivas, se não vier `quantidade`). */
+  produtoId: z.string().trim().min(1).nullish(),
+  localId: z.string().trim().min(1).nullish(),
+  quantidade: z.number().positive("A quantidade deve ser maior que zero.").nullish(),
+  loteFabricacao: z.string().trim().max(40, "No máximo 40 caracteres.").nullish(),
 });
 export type VacinacaoLoteInput = z.infer<typeof vacinacaoLoteInputSchema>;
 

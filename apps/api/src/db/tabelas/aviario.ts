@@ -1,5 +1,6 @@
-import { boolean, date, index, integer, numeric, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, date, index, integer, numeric, pgTable, text, timestamp, uniqueIndex, type AnyPgColumn } from "drizzle-orm/pg-core";
 
+import { produto } from "./estoque";
 import { ocorrencia } from "./notas";
 import { organization, user } from "../schema";
 
@@ -140,6 +141,9 @@ export const vacinacaoLote = pgTable(
     via: text("via"),
     data: date("data").notNull(),
     proximaData: date("proxima_data"),
+    /** Produto do estoque que deu baixa (opcional; o nome em `vacina` continua). */
+    produtoId: text("produto_id").references((): AnyPgColumn => produto.id, { onDelete: "set null" }),
+    quantidade: numeric("quantidade", { precision: 14, scale: 3 }),
   },
   (t) => [index("vacinacao_lote_org_proxima_idx").on(t.organizationId, t.proximaData)],
 );
