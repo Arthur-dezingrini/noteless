@@ -43,14 +43,26 @@ export function NfeImportar({ orgId, produtos, locais }: { orgId: string; produt
       if (form.get(`usar-${i}`) !== "on") continue;
       const fator = lerNumero(form.get(`fator-${i}`));
       if (fator == null || Number.isNaN(fator) || fator <= 0) return setErro(`Confira o fator de ${item.descricao}.`);
-      const lote = String(form.get(`lote-${i}`) ?? "").trim();
-      const validade = String(form.get(`validade-${i}`) ?? "") || null;
+      // Lotes da nota (corrigíveis na tela) ou, se a nota não traz, o lote digitado para o item inteiro.
+      let lotes: { lote: string; quantidade: number; validade: string | null }[] | undefined;
+      if (item.lotes.length > 0) {
+        lotes = [];
+        for (const j of item.lotes.keys()) {
+          const lote = String(form.get(`lote-${i}-${j}`) ?? "").trim();
+          const quantidade = lerNumero(form.get(`qlote-${i}-${j}`));
+          if (!lote || quantidade == null || Number.isNaN(quantidade) || quantidade <= 0) return setErro(`Confira os lotes de ${item.descricao}.`);
+          lotes.push({ lote, quantidade, validade: String(form.get(`val-${i}-${j}`) ?? "") || null });
+        }
+      } else {
+        const lote = String(form.get(`lote-${i}`) ?? "").trim();
+        if (lote) lotes = [{ lote, quantidade: item.quantidade, validade: String(form.get(`validade-${i}`) ?? "") || null }];
+      }
       itens.push({
         indice: i,
         produtoId: String(form.get(`produto-${i}`) ?? ""),
         localId: String(form.get(`local-${i}`) ?? ""),
         fator,
-        ...(item.lotes.length === 0 && lote ? { lotes: [{ lote, quantidade: item.quantidade, validade }] } : {}),
+        ...(lotes ? { lotes } : {}),
       });
     }
     if (itens.length === 0) return setErro("Escolha pelo menos um item para entrar no estoque.");
@@ -148,12 +160,15 @@ export function NfeImportar({ orgId, produtos, locais }: { orgId: string; produt
                       </td>
                       <td className={cx(tabela.td, "text-sm")}>
                         {item.lotes.length > 0 ? (
-                          item.lotes.map((l) => (
-                            <span key={l.lote} className="block">
-                              {l.lote}: {l.quantidade}
-                              {l.validade && ` · vence ${dataBr(l.validade)}`}
-                            </span>
-                          ))
+                          <div className="flex flex-col gap-2">
+                            {item.lotes.map((l, j) => (
+                              <div key={j} className="flex flex-wrap gap-1">
+                                <Input name={`lote-${i}-${j}`} defaultValue={l.lote} aria-label="Lote" className="w-24" />
+                                <Input name={`qlote-${i}-${j}`} inputMode="decimal" defaultValue={String(l.quantidade).replace(".", ",")} aria-label="Quantidade do lote" className="w-20" />
+                                <Input name={`val-${i}-${j}`} type="date" defaultValue={l.validade ?? ""} aria-label="Validade" className="w-36" />
+                              </div>
+                            ))}
+                          </div>
                         ) : (
                           <div className="flex flex-col gap-1">
                             <Input name={`lote-${i}`} placeholder="Lote (se exigir)" className="w-32" />

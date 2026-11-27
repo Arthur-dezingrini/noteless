@@ -1,4 +1,4 @@
-import type { Operacao } from "@vocare/shared";
+import { converterUnidadeDita, type Operacao } from "@vocare/shared";
 import { and, eq, sql } from "drizzle-orm";
 
 import { entrada, fornecedor } from "../../../db/tabelas/estoque";
@@ -24,6 +24,12 @@ export async function aplicarEstoque(tx: Tx, op: Operacao, ctx: ContextoNota): P
   const l = await conferirLocal(tx, ctx.orgId, op.localId);
   if (!l.ok) return l.erro;
   const origemId = `${ctx.ocorrenciaId}:${ctx.indice}`;
+  // Produto escolhido na conferência: a quantidade ainda está como foi dita ("300 sacos").
+  const quantidade = converterUnidadeDita(op.quantidade, op.unidade, {
+    unidade: p.valor.unidade,
+    embalagemNome: p.valor.embalagemNome,
+    embalagemFator: p.valor.embalagemFator == null ? null : Number(p.valor.embalagemFator),
+  });
 
   if (op.tipo === "saida_estoque") {
     await sairPorFefo(tx, {
@@ -31,7 +37,7 @@ export async function aplicarEstoque(tx: Tx, op: Operacao, ctx: ContextoNota): P
       userId: ctx.userId,
       produtoId: op.produtoId,
       localId: op.localId,
-      quantidade: op.quantidade,
+      quantidade,
       data,
       origemTipo: "ocorrencia",
       origemId,
@@ -69,8 +75,8 @@ export async function aplicarEstoque(tx: Tx, op: Operacao, ctx: ContextoNota): P
     produtoId: op.produtoId,
     localId: op.localId,
     tipo: "entrada",
-    quantidade: op.quantidade,
-    custoUnitario: op.valorTotal ? op.valorTotal / op.quantidade : undefined,
+    quantidade,
+    custoUnitario: op.valorTotal ? op.valorTotal / quantidade : undefined,
     loteFabricacao: op.loteFabricacao ?? "",
     validade: op.validade,
     data,

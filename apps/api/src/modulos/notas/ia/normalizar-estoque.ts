@@ -1,6 +1,6 @@
-import { operacaoSchema, type CategoriaProduto, type Operacao } from "@vocare/shared";
+import { converterUnidadeDita, operacaoSchema, type CategoriaProduto, type Operacao } from "@vocare/shared";
 
-import type { EstoqueParaIa, ProdutoParaIa } from "../../estoque";
+import type { EstoqueParaIa } from "../../estoque";
 
 const nulo = (v: unknown) => (v === undefined || v === "" ? null : v);
 const chave = (s: unknown) =>
@@ -10,7 +10,6 @@ const chave = (s: unknown) =>
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
-const singular = (s: string) => s.replace(/s$/, "");
 
 /** Item da lista pelo id que a IA mandou, ou pelo nome dito (igual, ou um único que contém o outro). */
 function achar<T extends { id: string; nome: string }>(lista: T[], id: unknown, dito: unknown): T | null {
@@ -22,23 +21,6 @@ function achar<T extends { id: string; nome: string }>(lista: T[], id: unknown, 
   if (igual.length === 1) return igual[0]!;
   const parecidos = lista.filter((x) => chave(x.nome).includes(d) || d.includes(chave(x.nome)));
   return parecidos.length === 1 ? parecidos[0]! : null;
-}
-
-const SINONIMOS: Record<string, string[]> = {
-  kg: ["kg", "quilo", "kilo", "quilograma"],
-  l: ["l", "litro"],
-  ml: ["ml", "mililitro"],
-  dose: ["dose"],
-  un: ["un", "unidade"],
-};
-
-/** Quantidade dita (300 sacos, 2 toneladas, 1 frasco) na unidade de estoque do produto. */
-function naUnidade(qtd: number, unidade: unknown, p: ProdutoParaIa): number {
-  const u = singular(chave(unidade));
-  if (!u || SINONIMOS[p.unidade]?.includes(u)) return qtd;
-  if (p.embalagemNome && p.embalagemFator && u === singular(chave(p.embalagemNome))) return qtd * p.embalagemFator;
-  if (p.unidade === "kg" && ["tonelada", "t", "ton"].includes(u)) return qtd * 1000;
-  return qtd;
 }
 
 const quantidadeDita = (v: unknown) => {
@@ -65,7 +47,7 @@ export function insumoDito(nome: unknown, bruta: Record<string, unknown>, estoqu
   return {
     produtoId: p?.id ?? null,
     localId: local?.id ?? null,
-    quantidade: p && qtd !== null ? naUnidade(qtd, bruta.unidade, p) : qtd,
+    quantidade: p && qtd !== null ? converterUnidadeDita(qtd, typeof bruta.unidade === "string" ? bruta.unidade : null, p) : qtd,
     loteFabricacao: (nulo(bruta.loteFabricacao) as string | null) ?? null,
   };
 }
@@ -77,7 +59,7 @@ export function normalizarEstoque(tipo: string, bruta: Record<string, unknown>, 
   const p = achar(estoque.produtos, bruta.produtoId, dito);
   const local = achar(estoque.locais, bruta.localId, bruta.local);
   const qtd = quantidadeDita(bruta.quantidade);
-  const quantidade = p && qtd !== null ? naUnidade(qtd, bruta.unidade, p) : qtd;
+  const quantidade = p && qtd !== null ? converterUnidadeDita(qtd, typeof bruta.unidade === "string" ? bruta.unidade : null, p) : qtd;
   const confianca = Math.max(0, Math.min(100, Math.round(Number(bruta.confianca) || 0)));
   const completa = p && local && quantidade !== null;
 

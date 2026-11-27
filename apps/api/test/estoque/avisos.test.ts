@@ -109,6 +109,57 @@ describe("avisos diários do estoque", () => {
     expect((await g.textos()).length).toBe(6);
   });
 
+  it("organização com aviário e sem silo não vê aviso de ração sem baixa", async () => {
+    const f = await criarFazenda(`Avisos sem silo ${n}`);
+    const org = `/api/org/${f.orgId}`;
+    const post = async (caminho: string, corpo: unknown) => (await chamar(f.dono, "POST", `${org}/${caminho}`, corpo)).json;
+    const g1 = await post("instalacoes", { nome: "Galpão 1", tipo: "galpao" });
+    const lote = await post("lotes", { codigo: "L-1", dataAlojamento: noDia(HOJE, -30), galpoes: [{ instalacaoId: g1.id, femeas: 100, machos: 10 }] });
+    await post("estoque/produtos", { nome: "Desinfetante", categoria: "material", unidade: "l" });
+    const r = await chamar(f.dono, "PUT", `${org}/lotes/${lote.id ?? lote.lote?.id}/apontamentos/${g1.id}/${HOJE}`, { racaoKg: 80 });
+    expect(r.status).toBe(200);
+    await conferirAvisosEstoque(new Date());
+    const avisos = await db.select().from(notificacao).where(eq(notificacao.organizationId, f.orgId));
+    expect(avisos).toHaveLength(0);
+    expect((await resumoAvisosEstoque(f.orgId)).semBaixa).toBe(0);
+  });
+
+  it("o aviso imediato de saldo negativo não se repete no mesmo dia", async () => {
+    const f = await criarFazenda(`Avisos repetidos ${n}`);
+    const base = `/api/org/${f.orgId}/estoque`;
+    const post = async (caminho: string, corpo: unknown) => (await chamar(f.dono, "POST", `${base}/${caminho}`, corpo)).json;
+    const p = await post("produtos", { nome: "Iodo", categoria: "material", unidade: "l" });
+    const l = await post("locais", { nome: "Farmácia", tipo: "farmacia" });
+    for (let i = 0; i < 3; i++) await post("movimentos/saida", { produtoId: p.id, localId: l.id, quantidade: 1, data: HOJE, confirmarNegativo: true });
+    const doDono = await db.select().from(notificacao).where(and(eq(notificacao.organizationId, f.orgId), eq(notificacao.userId, f.dono.id)));
+    expect(doDono.map((x) => x.texto)).toEqual(["Saldo negativo: Iodo em Farmácia"]);
+  });
+
+  it("trocar a ração no mesmo silo não dá aviso de ração acabando: conta o silo inteiro", async () => {
+    const f = await criarFazenda(`Avisos troca de ração ${n}`);
+    const org = `/api/org/${f.orgId}`;
+    const post = async (caminho: string, corpo: unknown) => (await chamar(f.dono, "POST", `${org}/${caminho}`, corpo)).json;
+    const g1 = await post("instalacoes", { nome: "Galpão 1", tipo: "galpao" });
+    const silo = await post("estoque/locais", { nome: "Silo 1", tipo: "silo", instalacaoId: g1.id });
+    const inicial = await post("estoque/produtos", { nome: "Ração inicial", categoria: "racao", unidade: "kg" });
+    const crescimento = await post("estoque/produtos", { nome: "Ração crescimento", categoria: "racao", unidade: "kg" });
+    const mov = { orgId: f.orgId, userId: null, localId: silo.id };
+    await db.transaction(async (tx) => {
+      await lancarMovimento(tx, { ...mov, produtoId: inicial.id, tipo: "entrada", quantidade: 700, data: noDia(HOJE, -8), origemTipo: "manual" });
+      for (let d = 0; d < 7; d++) {
+        await lancarMovimento(tx, { ...mov, produtoId: inicial.id, tipo: "saida", quantidade: -100, data: noDia(HOJE, -d), origemTipo: "apontamento_aviario", origemId: `t${d}` });
+      }
+      await lancarMovimento(tx, { ...mov, produtoId: crescimento.id, tipo: "entrada", quantidade: 2000, data: HOJE, origemTipo: "manual" });
+    });
+    expect((await resumoAvisosEstoque(f.orgId)).acabando).toBe(0);
+
+    // Silo inteiro: 2000 kg para 100 kg/dia. Acabando de verdade (a 300 kg) volta a avisar.
+    await db.transaction((tx) =>
+      lancarMovimento(tx, { ...mov, produtoId: crescimento.id, tipo: "saida", quantidade: -1700, data: HOJE, origemTipo: "manual" }),
+    );
+    expect((await resumoAvisosEstoque(f.orgId)).acabando).toBe(1);
+  });
+
   it("a rota da rotina exige o segredo", async () => {
     const chamarRotina = (autorizacao?: string) =>
       app.request("/api/rotinas/estoque-avisos", { method: "POST", headers: autorizacao ? { Authorization: autorizacao } : {} });

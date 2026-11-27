@@ -1,5 +1,5 @@
 import { arredondar, converterParaUnidade, type ConfirmarNfe, type NfeLida, type PreEntradaNfe } from "@vocare/shared";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { falha, ok, type Resultado } from "../../../base/resultado";
 import { db } from "../../../db";
@@ -21,7 +21,7 @@ async function jaImportada(orgId: string, chave: string) {
   const [e] = await db
     .select({ id: entrada.id })
     .from(entrada)
-    .where(and(eq(entrada.organizationId, orgId), eq(entrada.chaveNfe, chave)));
+    .where(and(eq(entrada.organizationId, orgId), eq(entrada.chaveNfe, chave), isNull(entrada.estornadaEm)));
   return Boolean(e);
 }
 

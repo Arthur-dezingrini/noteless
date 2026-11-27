@@ -111,7 +111,8 @@ export const entrada = pgTable(
     estornadaEm: timestamp("estornada_em"),
     ocorrenciaId: text("ocorrencia_id").references(() => ocorrencia.id, { onDelete: "set null" }),
   },
-  (t) => [uniqueIndex("entrada_org_chave_nfe_uq").on(t.organizationId, t.chaveNfe)],
+  // A mesma NF-e não entra duas vezes — a não ser que a primeira tenha sido estornada (importada errada).
+  (t) => [uniqueIndex("entrada_org_chave_nfe_uq").on(t.organizationId, t.chaveNfe).where(sql`"estornada_em" IS NULL`)],
 );
 
 /** O livro: uma linha por mudança de saldo, com sinal (+ entra, − sai). */

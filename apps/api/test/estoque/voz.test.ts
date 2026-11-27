@@ -62,6 +62,17 @@ describe("estoque pela nota de voz", () => {
     expect(e).toMatchObject({ ocorrenciaId: r.id, numeroNota: "99", valorTotal: "15000.00" });
   });
 
+  it("produto escolhido na conferência converte os sacos ditos para kg", async () => {
+    const g = await granja();
+    await chamar(g.f.dono, "PATCH", `/api/org/${g.f.orgId}/estoque/produtos/${g.racao.id}`, { embalagemNome: "saco", embalagemFator: 25 });
+    // A IA não achou o produto: ficou "300 sacos"; quem conferiu escolheu a ração.
+    const r = await g.confirmar([
+      estoqueOp("entrada_estoque", { produtoId: g.racao.id, localId: g.deposito.id, quantidade: 300, unidade: "sacos", fornecedor: null, numeroNota: null, valorTotal: null, loteFabricacao: null, validade: null }),
+    ]);
+    expect(r.status).toBe(200);
+    expect(await g.saldo(g.racao.id)).toBe(1000 + 7500);
+  });
+
   it("aprovar saida_estoque baixa por FEFO com a nota como origem", async () => {
     const g = await granja();
     const r = await g.confirmar([estoqueOp("saida_estoque", { produtoId: g.vac.id, localId: g.geladeira.id, quantidade: 100, motivo: "perda" })]);

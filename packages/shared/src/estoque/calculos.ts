@@ -58,3 +58,36 @@ export function diasRestantes(saldo: number, consumo7Dias: number): number | nul
   if (saldo <= 0) return 0;
   return Math.floor(saldo / (consumo7Dias / 7));
 }
+
+const chaveUnidade = (s: string | null | undefined) =>
+  String(s ?? "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .trim()
+    .replace(/s$/, "");
+
+const SINONIMOS: Record<string, string[]> = {
+  kg: ["kg", "quilo", "kilo", "quilograma"],
+  l: ["l", "litro"],
+  ml: ["ml", "mililitro"],
+  dose: ["dose"],
+  un: ["un", "unidade"],
+};
+
+/**
+ * Quantidade dita ("300 sacos", "2 toneladas", "1 frasco") na unidade de
+ * estoque do produto. Unidade vazia, igual à do produto ou desconhecida: fica
+ * como foi dita.
+ */
+export function converterUnidadeDita(
+  qtd: number,
+  unidade: string | null | undefined,
+  p: { unidade: string; embalagemNome: string | null; embalagemFator: number | null },
+): number {
+  const u = chaveUnidade(unidade);
+  if (!u || SINONIMOS[p.unidade]?.includes(u)) return qtd;
+  if (p.embalagemNome && p.embalagemFator && u === chaveUnidade(p.embalagemNome)) return arredondar(qtd * p.embalagemFator, 3);
+  if (p.unidade === "kg" && ["tonelada", "t", "ton"].includes(u)) return arredondar(qtd * 1000, 3);
+  return qtd;
+}

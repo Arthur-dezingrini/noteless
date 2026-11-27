@@ -1,12 +1,13 @@
+import { diasRestantes } from "@vocare/shared";
 import { and, eq, gte, lte, sql } from "drizzle-orm";
 
 import { hojeISO, noDia } from "../../../base/datas";
 import { db } from "../../../db";
 import { apontamentoAviario, instalacao } from "../../../db/tabelas/aviario";
 import { notificacao } from "../../../db/tabelas/avisos";
-import { produto } from "../../../db/tabelas/estoque";
+import { localEstoque, produto } from "../../../db/tabelas/estoque";
 import { administradores, notificar } from "../../avisos";
-import { saldoDaOrg } from "../consultas/saldo";
+import { consumoRacao7Dias, saldoDaOrg } from "../consultas/saldo";
 
 export const DIAS_RACAO_ACABANDO = 5;
 export const DIAS_VALIDADE = 30;
@@ -22,7 +23,26 @@ export async function alertasDaOrg(orgId: string, hoje = hojeISO()): Promise<Ale
   const alertas = new Map<string, Alerta>();
   const add = (a: Alerta) => alertas.set(a.texto, a);
 
-  for (const s of await saldoDaOrg(orgId, false, {}, hoje)) {
+  const saldos = await saldoDaOrg(orgId, false, {}, hoje);
+
+  // Ração acabando: o silo inteiro (todas as rações dele), para a troca de ração não parecer "acabou".
+  const { porLocal: consumoDoLocal } = await consumoRacao7Dias(orgId, hoje);
+  const racaoNoLocal = new Map<string, { nome: string; quantidade: number }>();
+  for (const s of saldos.filter((x) => x.produto.categoria === "racao")) {
+    for (const l of s.porLocal) {
+      const atual = racaoNoLocal.get(l.localId) ?? { nome: l.localNome, quantidade: 0 };
+      atual.quantidade += l.quantidade;
+      racaoNoLocal.set(l.localId, atual);
+    }
+  }
+  for (const [localId, l] of racaoNoLocal) {
+    const d = diasRestantes(l.quantidade, consumoDoLocal.get(localId) ?? 0);
+    if (d == null || d > DIAS_RACAO_ACABANDO) continue;
+    const texto = d <= 0 ? `Ração do ${l.nome} acabou` : `Ração do ${l.nome} acaba em ${dias(d)}`;
+    add({ tipo: "acabando", texto, detalhe: `Pelo consumo dos últimos 7 dias. Saldo: ${Math.round(l.quantidade)} kg.`, link: "/estoque" });
+  }
+
+  for (const s of saldos) {
     const p = s.produto;
     if (p.estoqueMinimo != null && s.total < p.estoqueMinimo) {
       add({ tipo: "abaixoMinimo", texto: `${p.nome} abaixo do mínimo`, detalhe: `Saldo ${s.total} ${p.unidade}; mínimo ${p.estoqueMinimo} ${p.unidade}.`, link: "/estoque" });
@@ -30,10 +50,6 @@ export async function alertasDaOrg(orgId: string, hoje = hojeISO()): Promise<Ale
     for (const l of s.porLocal) {
       if (l.quantidade < 0) {
         add({ tipo: "negativos", texto: `Saldo negativo: ${p.nome} em ${l.localNome}`, detalhe: "Falta lançar uma entrada?", link: "/estoque" });
-      }
-      if (l.diasRestantes != null && l.diasRestantes <= DIAS_RACAO_ACABANDO) {
-        const texto = l.diasRestantes <= 0 ? `Ração do ${l.localNome} acabou` : `Ração do ${l.localNome} acaba em ${dias(l.diasRestantes)}`;
-        add({ tipo: "acabando", texto, detalhe: `Pelo consumo dos últimos 7 dias. Saldo: ${l.quantidade} ${p.unidade}.`, link: "/estoque" });
       }
       for (const lote of l.lotes) {
         if (lote.quantidade <= 0 || !lote.validade) continue;
@@ -47,7 +63,15 @@ export async function alertasDaOrg(orgId: string, hoje = hojeISO()): Promise<Ale
   }
 
   // Ração lançada no registro diário (hoje ou ontem) que não saiu do estoque: galpão sem silo, ou veio pela nota.
-  const semBaixa = await db
+  // Só para quem já controla a ração pelo estoque (tem algum silo).
+  const [algumSilo] = await db
+    .select({ id: localEstoque.id })
+    .from(localEstoque)
+    .where(and(eq(localEstoque.organizationId, orgId), eq(localEstoque.tipo, "silo"), eq(localEstoque.ativo, true)))
+    .limit(1);
+  const semBaixa = !algumSilo
+    ? []
+    : await db
     .selectDistinct({ nome: instalacao.nome })
     .from(apontamentoAviario)
     .innerJoin(instalacao, eq(instalacao.id, apontamentoAviario.instalacaoId))

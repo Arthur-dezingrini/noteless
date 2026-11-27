@@ -72,8 +72,16 @@ describe("baixa da ração pelo registro diário", () => {
     expect(await g.saldo()).toBe(1000);
   });
 
-  it("galpão sem silo ligado não baixa e avisa pelo retorno", async () => {
+  it("organização sem nenhum silo não usa o estoque para a ração: não baixa nem avisa", async () => {
     const g = await granja({ comSilo: false });
+    expect(await g.sincronizar(200)).toEqual({ semSilo: false, mexeu: [] });
+    expect(await g.doApontamento()).toHaveLength(0);
+  });
+
+  it("galpão sem silo, numa organização que tem silo em outro galpão, não baixa e avisa pelo retorno", async () => {
+    const g = await granja({ comSilo: false });
+    const [outro] = await db.insert(instalacao).values({ organizationId: g.f.orgId, nome: "Galpão 9", tipo: "galpao" }).returning();
+    await db.insert(localEstoque).values({ organizationId: g.f.orgId, nome: "Silo 9", tipo: "silo", instalacaoId: outro!.id });
     expect(await g.sincronizar(200)).toEqual({ semSilo: true, mexeu: [] });
     expect(await g.doApontamento()).toHaveLength(0);
   });

@@ -60,7 +60,15 @@ export async function sincronizarRacao(
         eq(localEstoque.ativo, true),
       ),
     );
-  if (!silo) return { semSilo: true, mexeu: unicos(mexeu) };
+  if (!silo) {
+    // Sem nenhum silo na organização, a ração ainda não é controlada pelo estoque: não há o que avisar.
+    const [algum] = await tx
+      .select({ id: localEstoque.id })
+      .from(localEstoque)
+      .where(and(eq(localEstoque.organizationId, a.orgId), eq(localEstoque.tipo, "silo"), eq(localEstoque.ativo, true)))
+      .limit(1);
+    return { semSilo: Boolean(algum), mexeu: unicos(mexeu) };
+  }
 
   const saldos = await tx
     .select({ produtoId: saldoEstoque.produtoId, lote: saldoEstoque.loteFabricacao, quantidade: saldoEstoque.quantidade, validade: saldoEstoque.validade, desde: saldoEstoque.createdAt })

@@ -95,6 +95,26 @@ describe("importar NF-e", () => {
     expect(await g.confirmarVarios()).toMatchObject(erro);
   });
 
+  it("nota estornada pode ser importada de novo, e o vínculo fica com o fator corrigido", async () => {
+    const g = await granja();
+    const errada = await chamar(g.f.dono, "POST", `${g.base}/nfe/confirmar`, {
+      xml: VARIOS,
+      itens: [{ indice: 0, produtoId: g.racao.id, fator: 1, localId: g.silo.id }],
+    });
+    expect(errada.status).toBe(201);
+    expect((await chamar(g.f.dono, "POST", `${g.base}/entradas/${errada.json.id}/estorno`, { motivo: "fator errado" })).status).toBe(200);
+
+    const lida = await chamar(g.f.dono, "POST", `${g.base}/nfe/ler`, { xml: VARIOS });
+    expect(lida.status).toBe(200);
+    expect(lida.json.sugestoes[0]).toMatchObject({ produtoId: g.racao.id, fator: 1 });
+    const certa = await g.confirmarVarios();
+    expect(certa.status).toBe(201);
+    const vinculo = await db.select().from(produtoFornecedor).where(eq(produtoFornecedor.organizationId, g.f.orgId));
+    expect(vinculo.find((v) => v.codigo === "RP25")?.fator).toBe("25.0000");
+    // A reimportada (não estornada) volta a bloquear.
+    expect((await chamar(g.f.dono, "POST", `${g.base}/nfe/ler`, { xml: VARIOS })).status).toBe(409);
+  });
+
   it("produto que exige lote sem lote na nota nem na tela dá 400", async () => {
     const g = await granja();
     const r = await chamar(g.f.dono, "POST", `${g.base}/nfe/confirmar`, {

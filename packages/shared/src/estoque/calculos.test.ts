@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { arredondar, converterParaUnidade, diasRestantes, novoCustoMedio, repartirFefo } from "./calculos";
+import { arredondar, converterParaUnidade, converterUnidadeDita, diasRestantes, novoCustoMedio, repartirFefo } from "./calculos";
 
 describe("novoCustoMedio", () => {
   it("pondera o saldo atual com a compra", () => {
@@ -95,5 +95,19 @@ describe("conversões", () => {
 
   it("arredondar tira o resíduo de ponto flutuante", () => {
     expect(arredondar(480.5 + 0.1 + 0.2, 3)).toBe(480.8);
+  });
+});
+
+describe("converterUnidadeDita", () => {
+  const racao = { unidade: "kg" as const, embalagemNome: "Saco", embalagemFator: 25 };
+  it("embalagem, tonelada e sinônimos da unidade", () => {
+    expect(converterUnidadeDita(300, "sacos", racao)).toBe(7500);
+    expect(converterUnidadeDita(2, "toneladas", racao)).toBe(2000);
+    expect(converterUnidadeDita(40, "quilos", racao)).toBe(40);
+    expect(converterUnidadeDita(40, null, racao)).toBe(40);
+    expect(converterUnidadeDita(1, "frasco", { unidade: "dose", embalagemNome: "frasco", embalagemFator: 1000 })).toBe(1000);
+  });
+  it("unidade desconhecida fica como foi dita", () => {
+    expect(converterUnidadeDita(3, "baldes", racao)).toBe(3);
   });
 });

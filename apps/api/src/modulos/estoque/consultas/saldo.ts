@@ -8,11 +8,15 @@ import { paraProduto } from "./cadastros";
 
 /**
  * Ração que saiu pelo registro diário nos últimos 7 dias (hoje incluído),
- * por local, sem as saídas estornadas. É a base do "dura X dias".
+ * sem as saídas estornadas: por local (o silo inteiro, para o aviso de ração
+ * acabando) e por produto no local (para a linha de cada ração no saldo).
  */
-export async function consumoRacao7Dias(orgId: string, hoje = hojeISO()): Promise<Map<string, number>> {
+export async function consumoRacao7Dias(
+  orgId: string,
+  hoje = hojeISO(),
+): Promise<{ porLocal: Map<string, number>; porProdutoNoLocal: Map<string, number> }> {
   const rows = await db
-    .select({ localId: movimentoEstoque.localId, total: sql<string>`sum(-${movimentoEstoque.quantidade})` })
+    .select({ localId: movimentoEstoque.localId, produtoId: movimentoEstoque.produtoId, total: sql<string>`sum(-${movimentoEstoque.quantidade})` })
     .from(movimentoEstoque)
     .where(
       and(
@@ -24,8 +28,14 @@ export async function consumoRacao7Dias(orgId: string, hoje = hojeISO()): Promis
         sql`not exists (select 1 from "movimento_estoque" as e where e."estorna_id" = "movimento_estoque"."id")`,
       ),
     )
-    .groupBy(movimentoEstoque.localId);
-  return new Map(rows.map((r) => [r.localId, Number(r.total)]));
+    .groupBy(movimentoEstoque.localId, movimentoEstoque.produtoId);
+  const porLocal = new Map<string, number>();
+  const porProdutoNoLocal = new Map<string, number>();
+  for (const r of rows) {
+    porLocal.set(r.localId, (porLocal.get(r.localId) ?? 0) + Number(r.total));
+    porProdutoNoLocal.set(`${r.localId}|${r.produtoId}`, Number(r.total));
+  }
+  return { porLocal, porProdutoNoLocal };
 }
 
 /** Saldo de cada produto ativo: total, por local e lote, dias restantes (ração) e validade mais próxima. */
@@ -47,7 +57,8 @@ export async function saldoDaOrg(
     .innerJoin(localEstoque, eq(localEstoque.id, saldoEstoque.localId))
     .where(and(...ws))
     .orderBy(asc(localEstoque.nome), asc(saldoEstoque.validade));
-  const consumo = await consumoRacao7Dias(orgId, hoje);
+  const { porProdutoNoLocal } = await consumoRacao7Dias(orgId, hoje);
+  const consumoDe = (localId: string, produtoId: string) => porProdutoNoLocal.get(`${localId}|${produtoId}`) ?? 0;
 
   return produtos.map((p) => {
     const ehRacao = p.categoria === "racao";
@@ -61,7 +72,7 @@ export async function saldoDaOrg(
       if (!l) {
         l = { localId: s.localId, localNome, quantidade: 0, diasRestantes: null, lotes: [] };
         porLocal.set(s.localId, l);
-        consumoTotal += consumo.get(s.localId) ?? 0;
+        consumoTotal += consumoDe(s.localId, p.id);
       }
       l.quantidade = arredondar(l.quantidade + q, 3);
       if (q !== 0) l.lotes.push({ loteFabricacao: s.loteFabricacao, validade: s.validade, quantidade: q });
@@ -70,7 +81,7 @@ export async function saldoDaOrg(
 
     const locais = [...porLocal.values()].map((l) => ({
       ...l,
-      diasRestantes: ehRacao ? diasRestantes(l.quantidade, consumo.get(l.localId) ?? 0) : null,
+      diasRestantes: ehRacao ? diasRestantes(l.quantidade, consumoDe(l.localId, p.id)) : null,
     }));
     const total = arredondar(
       locais.reduce((t, l) => t + l.quantidade, 0),
