@@ -13,6 +13,9 @@ export const TIPOS_OPERACAO = [
 /** Só entram na ferramenta e nas instruções quando a organização tem galpão com lote. */
 export const TIPOS_AVIARIO_IA = ["apontar_galpao", "pesar_lote", "vacinar_lote"] as const;
 
+/** Só entram quando a organização tem produto no estoque. */
+export const TIPOS_ESTOQUE_IA = ["entrada_estoque", "saida_estoque"] as const;
+
 // Todo campo que só vale para alguns tipos aceita null: o Groq confere a
 // resposta contra o schema e recusa a chamada inteira (400) quando o modelo
 // manda null num campo que pede texto ou número.
@@ -28,9 +31,28 @@ const numeroOuNulo = (description: string) => ({ type: ["number", "null"], descr
  */
 export type Ferramenta = { name: string; description: string; input_schema: unknown };
 
-export function ferramenta(comAviario: boolean) {
+const CAMPOS_ESTOQUE = {
+  produto: textoOuNulo("entrada_estoque/saida_estoque: o produto como foi dito ('ração postura', 'desinfetante')."),
+  produtoId: textoOuNulo(
+    "entrada_estoque/saida_estoque/aplicar_vacina/registrar_remedio/vacinar_lote: id do produto da lista de produtos; null se nenhum bate.",
+  ),
+  local: textoOuNulo("entrada_estoque/saida_estoque: o local como foi dito ('silo 2', 'depósito')."),
+  localId: textoOuNulo("id do local do estoque da lista; null se não foi dito ou nenhum bate."),
+  quantidade: numeroOuNulo(
+    "Quantidade dita, como foi dita (300 se foram '300 sacos'). Em aplicar_vacina/registrar_remedio: por animal; em vacinar_lote: total de doses.",
+  ),
+  unidade: textoOuNulo("A unidade dita junto da quantidade ('sacos', 'kg', 'toneladas', 'frascos', 'litros')."),
+  fornecedor: textoOuNulo("entrada_estoque: de quem veio, se dito."),
+  numeroNota: textoOuNulo("entrada_estoque: número da nota fiscal, se dito."),
+  valorTotal: numeroOuNulo("entrada_estoque: valor total em reais, se dito."),
+  loteFabricacao: textoOuNulo("Lote de fabricação do produto, se dito."),
+  validade: textoOuNulo("entrada_estoque: AAAA-MM-DD da validade, se dita."),
+  motivo: textoOuNulo("saida_estoque: para que foi usado ou por que saiu."),
+};
+
+export function ferramenta(comAviario: boolean, comEstoque = false) {
   const base = FERRAMENTA_BASE;
-  if (!comAviario) return base;
+  if (!comAviario && !comEstoque) return base;
   const item = base.input_schema.properties.operacoes.items;
   const contagens = Object.fromEntries(
     CAMPOS_APONTAMENTO.map((c) => [
@@ -52,14 +74,22 @@ export function ferramenta(comAviario: boolean) {
             ...item,
             properties: {
               ...item.properties,
-              tipo: { type: "string", enum: [...TIPOS_OPERACAO, ...TIPOS_AVIARIO_IA] },
-              instalacaoId: textoOuNulo("apontar_galpao: id do galpão da lista; null se nenhum bate."),
-              loteId: textoOuNulo("pesar_lote/vacinar_lote: id do lote da lista; null se nenhum bate."),
-              ...contagens,
-              pesoMedioG: numeroOuNulo("pesar_lote: peso médio das aves em gramas."),
-              uniformidadePct: numeroOuNulo("pesar_lote: uniformidade em %, se dita."),
-              amostra: inteiroOuNulo("pesar_lote: quantas aves foram pesadas, se dito."),
-              via: textoOuNulo("vacinar_lote: via de aplicação (ocular, spray, água, injetável), se dita."),
+              tipo: {
+                type: "string",
+                enum: [...TIPOS_OPERACAO, ...(comAviario ? TIPOS_AVIARIO_IA : []), ...(comEstoque ? TIPOS_ESTOQUE_IA : [])],
+              },
+              ...(comAviario
+                ? {
+                    instalacaoId: textoOuNulo("apontar_galpao: id do galpão da lista; null se nenhum bate."),
+                    loteId: textoOuNulo("pesar_lote/vacinar_lote: id do lote da lista; null se nenhum bate."),
+                    ...contagens,
+                    pesoMedioG: numeroOuNulo("pesar_lote: peso médio das aves em gramas."),
+                    uniformidadePct: numeroOuNulo("pesar_lote: uniformidade em %, se dita."),
+                    amostra: inteiroOuNulo("pesar_lote: quantas aves foram pesadas, se dito."),
+                    via: textoOuNulo("vacinar_lote: via de aplicação (ocular, spray, água, injetável), se dita."),
+                  }
+                : {}),
+              ...(comEstoque ? CAMPOS_ESTOQUE : {}),
             },
           },
         },

@@ -1,7 +1,11 @@
 import { CAMPOS_APONTAMENTO, ESPECIES, SEXOS, TIPOS_COM_GRUPO, operacaoSchema, type Operacao } from "@vocare/shared";
 
 import type { GalpaoParaIa } from "../../aviario";
-import { TIPOS_AVIARIO_IA } from "./ferramenta";
+import type { EstoqueParaIa } from "../../estoque";
+import { TIPOS_AVIARIO_IA, TIPOS_ESTOQUE_IA } from "./ferramenta";
+import { insumoDito, normalizarEstoque } from "./normalizar-estoque";
+
+const SEM_ESTOQUE: EstoqueParaIa = { produtos: [], locais: [] };
 
 const nulo = (v: unknown) => (v === undefined || v === "" ? null : v);
 const inteiro = (v: unknown) => (v === null || v === undefined || v === "" ? null : Math.round(Number(v)));
@@ -50,9 +54,11 @@ export function normalizar(
   idsAnimais: Set<string>,
   idsGrupos: Set<string>,
   galpoes: GalpaoParaIa[] = [],
+  estoque: EstoqueParaIa = SEM_ESTOQUE,
 ): Operacao | null {
   const tipo = String(bruta.tipo);
-  if ((TIPOS_AVIARIO_IA as readonly string[]).includes(tipo)) return normalizarAviario(tipo, bruta, galpoes);
+  if ((TIPOS_AVIARIO_IA as readonly string[]).includes(tipo)) return normalizarAviario(tipo, bruta, galpoes, estoque);
+  if ((TIPOS_ESTOQUE_IA as readonly string[]).includes(tipo)) return normalizarEstoque(tipo, bruta, estoque);
   const animalId = typeof bruta.animalId === "string" && idsAnimais.has(bruta.animalId) ? bruta.animalId : null;
   const aceitaGrupo = (TIPOS_COM_GRUPO as readonly string[]).includes(tipo);
   const grupoId =
@@ -90,10 +96,26 @@ export function normalizar(
       candidata = { ...base, tipo, pesoKg: Number(bruta.pesoKg) };
       break;
     case "aplicar_vacina":
-      candidata = { ...base, tipo, vacina: bruta.vacina, dose: nulo(bruta.dose), data: nulo(bruta.data), proximaData: nulo(bruta.proximaData) };
+      candidata = {
+        ...base,
+        tipo,
+        vacina: bruta.vacina,
+        dose: nulo(bruta.dose),
+        data: nulo(bruta.data),
+        proximaData: nulo(bruta.proximaData),
+        ...insumoDito(bruta.vacina, bruta, estoque),
+      };
       break;
     case "registrar_remedio":
-      candidata = { ...base, tipo, remedio: bruta.remedio, dose: nulo(bruta.dose), dias: inteiro(bruta.dias), carenciaDias: inteiro(bruta.carenciaDias) };
+      candidata = {
+        ...base,
+        tipo,
+        remedio: bruta.remedio,
+        dose: nulo(bruta.dose),
+        dias: inteiro(bruta.dias),
+        carenciaDias: inteiro(bruta.carenciaDias),
+        ...insumoDito(bruta.remedio, bruta, estoque),
+      };
       break;
     case "registrar_parto":
       candidata = {
@@ -136,7 +158,7 @@ export function normalizar(
 }
 
 /** Operações do aviário miram galpão ou lote da lista, nunca animal; id fora da lista = sem alvo. */
-function normalizarAviario(tipo: string, bruta: Record<string, unknown>, galpoes: GalpaoParaIa[]): Operacao | null {
+function normalizarAviario(tipo: string, bruta: Record<string, unknown>, galpoes: GalpaoParaIa[], estoque: EstoqueParaIa): Operacao | null {
   if (galpoes.length === 0) return null;
   const instalacaoId =
     typeof bruta.instalacaoId === "string" && galpoes.some((g) => g.instalacaoId === bruta.instalacaoId) ? bruta.instalacaoId : null;
@@ -197,6 +219,7 @@ function normalizarAviario(tipo: string, bruta: Record<string, unknown>, galpoes
         via: nulo(bruta.via),
         data: nulo(bruta.data),
         proximaData: nulo(bruta.proximaData),
+        ...insumoDito(vacina, bruta, estoque),
       };
   }
   const parsed = operacaoSchema.safeParse(candidata);

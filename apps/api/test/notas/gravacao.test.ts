@@ -63,7 +63,14 @@ describe("áudio gravado sem sinal e enviado depois", () => {
     const r = await enviarAudio(f.membro, { gravadoEm: gravadoEm.toISOString(), duracaoSeg: "4" });
     expect(r.status).toBe(201);
     expect(new Date(r.json.createdAt).getTime()).toBe(gravadoEm.getTime());
-    expect(ia.analisar).toHaveBeenCalledWith(expect.any(String), diaEmSaoPaulo(gravadoEm), expect.anything(), expect.anything(), expect.anything());
+    expect(ia.analisar).toHaveBeenCalledWith(
+      expect.any(String),
+      diaEmSaoPaulo(gravadoEm),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      { produtos: [], locais: [] },
+    );
   });
 
   it("sem a hora, ou com hora impossível, vale a hora da chegada — e a gravação não se perde", async () => {

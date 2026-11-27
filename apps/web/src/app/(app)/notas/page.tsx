@@ -2,6 +2,7 @@ import { Card } from "@/components/ui";
 import { getMemberRole, getOrgAtiva, requireSession } from "@/lib/auth/dal";
 import { getAnimais, getGrupos } from "@/modulos/animais/dados";
 import { getInstalacoes, getLotes } from "@/modulos/aviario/dados";
+import { getLocais, getProdutos } from "@/modulos/estoque/dados";
 import { NotasView } from "@/modulos/notas";
 import { getOcorrencias } from "@/modulos/notas/dados";
 
@@ -19,7 +20,7 @@ export default async function NotasPage({ searchParams }: PageProps<"/notas">) {
     );
   }
 
-  const [ocorrencias, animais, grupos, instalacoes, lotesAtivos, lotesEncerrados, membro] = await Promise.all([
+  const [ocorrencias, animais, grupos, instalacoes, lotesAtivos, lotesEncerrados, membro, produtos, locais] = await Promise.all([
     getOcorrencias(org.id),
     getAnimais(org.id),
     getGrupos(org.id),
@@ -27,6 +28,8 @@ export default async function NotasPage({ searchParams }: PageProps<"/notas">) {
     getLotes(org.id, "ativo"),
     getLotes(org.id, "encerrado"),
     getMemberRole(org.id),
+    getProdutos(org.id),
+    getLocais(org.id),
   ]);
 
   return (
@@ -40,6 +43,8 @@ export default async function NotasPage({ searchParams }: PageProps<"/notas">) {
         ...lotesAtivos.map((l) => ({ id: l.id, codigo: l.codigo, ativo: true })),
         ...lotesEncerrados.map((l) => ({ id: l.id, codigo: l.codigo, ativo: false })),
       ]}
+      produtos={produtos.filter((p) => p.ativo).map((p) => ({ id: p.id, nome: p.nome, unidade: p.unidade }))}
+      locais={locais.filter((l) => l.ativo).map((l) => ({ id: l.id, nome: l.nome }))}
       podeSalvar={membro?.role === "owner" || membro?.role === "admin"}
       selecionarId={typeof busca.id === "string" ? busca.id : undefined}
     />

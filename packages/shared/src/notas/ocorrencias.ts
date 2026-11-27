@@ -48,6 +48,28 @@ const baseOperacao = z.object({
 
 const textoOpcional = z.string().nullable();
 const inteiroOpcional = z.number().int().min(0).nullable();
+const quantidadeOpcional = z.number().positive("A quantidade deve ser maior que zero.").nullable();
+
+/** Produto do estoque que a vacina/remédio usa: com ele, salvar dá baixa. Opcional (notas antigas não têm). */
+const insumo = {
+  produtoId: z.string().nullable().optional(),
+  localId: z.string().nullable().optional(),
+  /** Vacina/remédio de animal: por animal; vacina de lote: total de doses (vazio = aves vivas). */
+  quantidade: quantidadeOpcional.optional(),
+  loteFabricacao: textoOpcional.optional(),
+};
+
+/** Entrada e saída de estoque: o produto e o local como foram ditos, e o que a IA achou no cadastro. */
+const estoque = {
+  produto: z.string(),
+  produtoId: z.string().nullable(),
+  local: textoOpcional,
+  localId: z.string().nullable(),
+  /** Já na unidade de estoque do produto (sacos viram kg). null = não ouviu. */
+  quantidade: quantidadeOpcional,
+  unidade: textoOpcional,
+  data: dataIso.nullable(),
+};
 
 export const operacaoSchema = z.discriminatedUnion("tipo", [
   baseOperacao.extend({
@@ -73,6 +95,7 @@ export const operacaoSchema = z.discriminatedUnion("tipo", [
     data: dataIso.nullable(),
     /** Próxima dose / vencimento, se foi dito. */
     proximaData: dataIso.nullable(),
+    ...insumo,
   }),
   baseOperacao.extend({
     tipo: z.literal("registrar_remedio"),
@@ -81,6 +104,7 @@ export const operacaoSchema = z.discriminatedUnion("tipo", [
     /** Duração do tratamento em dias, começando hoje. */
     dias: z.number().int().min(1, "Mínimo de 1 dia.").max(365, "No máximo 365 dias.").nullable(),
     carenciaDias: inteiroOpcional,
+    ...insumo,
   }),
   baseOperacao.extend({
     tipo: z.literal("registrar_parto"),
@@ -130,6 +154,21 @@ export const operacaoSchema = z.discriminatedUnion("tipo", [
     via: textoOpcional,
     data: dataIso.nullable(),
     proximaData: dataIso.nullable(),
+    ...insumo,
+  }),
+  baseOperacao.extend({
+    ...estoque,
+    tipo: z.literal("entrada_estoque"),
+    fornecedor: textoOpcional,
+    numeroNota: textoOpcional,
+    valorTotal: z.number().nonnegative().nullable(),
+    loteFabricacao: textoOpcional,
+    validade: dataIso.nullable(),
+  }),
+  baseOperacao.extend({
+    ...estoque,
+    tipo: z.literal("saida_estoque"),
+    motivo: textoOpcional,
   }),
 ]);
 export type Operacao = z.infer<typeof operacaoSchema>;
@@ -150,10 +189,15 @@ export const DESTINO_OPERACAO: Record<TipoOperacao, { acao: string; feito: strin
   apontar_galpao: { acao: "Registrar apontamento do galpão", feito: "Apontamento registrado", onde: "Lotes › Diário" },
   pesar_lote: { acao: "Registrar pesagem do lote", feito: "Pesagem do lote registrada", onde: "Lotes › Pesagens" },
   vacinar_lote: { acao: "Registrar vacina do lote", feito: "Vacina do lote registrada", onde: "Lotes › Vacinas" },
+  entrada_estoque: { acao: "Registrar entrada no estoque", feito: "Entrada registrada", onde: "Estoque › Entradas" },
+  saida_estoque: { acao: "Registrar saída do estoque", feito: "Saída registrada", onde: "Estoque › Movimentos" },
 };
 
 /** Operações do aviário: miram galpão ou lote, nunca animal. */
 export const TIPOS_AVIARIO: readonly TipoOperacao[] = ["apontar_galpao", "pesar_lote", "vacinar_lote"];
+
+/** Operações do estoque: miram produto e local, nunca animal. */
+export const TIPOS_ESTOQUE: readonly TipoOperacao[] = ["entrada_estoque", "saida_estoque"];
 
 /** Tipos que podem mirar um grupo inteiro em vez de um animal. */
 export const TIPOS_COM_GRUPO: readonly TipoOperacao[] = [
@@ -165,7 +209,7 @@ export const TIPOS_COM_GRUPO: readonly TipoOperacao[] = [
 
 /** A operação precisa de um alvo do cadastro (animal ou grupo) para ser salva? */
 export function precisaAlvo(op: Operacao): boolean {
-  return op.tipo !== "cadastrar_animal";
+  return op.tipo !== "cadastrar_animal" && !TIPOS_ESTOQUE.includes(op.tipo);
 }
 
 /** Tem alvo resolvido e o que falta para salvar — pode ser marcada para salvar. */
@@ -174,6 +218,7 @@ export function temAlvo(op: Operacao): boolean {
   if (op.tipo === "apontar_galpao") return !!op.instalacaoId;
   if (op.tipo === "pesar_lote") return !!op.loteId && op.pesoMedioG != null;
   if (op.tipo === "vacinar_lote") return !!op.loteId && op.vacina.trim() !== "";
+  if (op.tipo === "entrada_estoque" || op.tipo === "saida_estoque") return !!op.produtoId && !!op.localId && op.quantidade != null;
   return !precisaAlvo(op) || op.animalId !== null || !!op.grupoId;
 }
 
@@ -209,13 +254,15 @@ export const CAMPOS_CORRIGIVEIS = {
   registrar_peso: ["animalId", "pesoKg"],
   registrar_anotacao: ["animalId", "grupoId", "texto"],
   agendar_consulta: ["animalId", "grupoId", "tipoConsulta", "data", "hora", "observacoes"],
-  aplicar_vacina: ["animalId", "grupoId", "vacina", "dose", "data", "proximaData"],
-  registrar_remedio: ["animalId", "grupoId", "remedio", "dose", "dias", "carenciaDias"],
+  aplicar_vacina: ["animalId", "grupoId", "vacina", "dose", "data", "proximaData", "produtoId", "localId", "quantidade", "loteFabricacao"],
+  registrar_remedio: ["animalId", "grupoId", "remedio", "dose", "dias", "carenciaDias", "produtoId", "localId", "quantidade", "loteFabricacao"],
   registrar_parto: ["animalId", "data", "crias", "paiId", "paiExterno", "cadastrarCrias", "nomesCrias", "observacoes"],
   cadastrar_animal: ["nome", "especie", "raca", "sexo", "nascimento"],
   apontar_galpao: ["instalacaoId", "data", ...CAMPOS_APONTAMENTO, "observacoes"],
   pesar_lote: ["loteId", "data", "sexo", "pesoMedioG", "uniformidadePct", "amostra"],
-  vacinar_lote: ["loteId", "vacina", "via", "data", "proximaData"],
+  vacinar_lote: ["loteId", "vacina", "via", "data", "proximaData", "produtoId", "localId", "quantidade", "loteFabricacao"],
+  entrada_estoque: ["produtoId", "localId", "quantidade", "data", "loteFabricacao", "validade", "valorTotal", "numeroNota"],
+  saida_estoque: ["produtoId", "localId", "quantidade", "data", "motivo"],
 } as const satisfies Record<TipoOperacao, readonly string[]>;
 export type CampoCorrigivel = (typeof CAMPOS_CORRIGIVEIS)[TipoOperacao][number];
 

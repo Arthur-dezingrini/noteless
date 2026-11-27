@@ -11,8 +11,8 @@ export async function acharLote(orgId: string, id: string) {
 }
 
 /** Aves vivas do lote no começo do dia `data` (alojadas menos as baixas apontadas antes). */
-export async function avesVivasNoDia(alvo: typeof lote.$inferSelect, data: string): Promise<number> {
-  const rows = await db
+export async function avesVivasNoDia(alvo: typeof lote.$inferSelect, data: string, leitor: Pick<typeof db, "select"> = db): Promise<number> {
+  const rows = await leitor
     .select({
       data: apontamentoAviario.data,
       instalacaoId: apontamentoAviario.instalacaoId,

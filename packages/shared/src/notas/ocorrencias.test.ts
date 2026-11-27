@@ -192,3 +192,52 @@ describe("ocorrenciaSchema", () => {
     expect(ocorrenciaSchema.parse(nota).audioApagadoEm).toBeUndefined();
   });
 });
+
+describe("operações de estoque na nota", () => {
+  const entrada = {
+    ...base,
+    alvo: "ração postura",
+    animalId: null,
+    tipo: "entrada_estoque",
+    produto: "ração postura",
+    produtoId: "p1",
+    local: "silo 2",
+    localId: "l1",
+    quantidade: 7500,
+    unidade: null,
+    fornecedor: "Agro X",
+    numeroNota: "1234",
+    valorTotal: null,
+    loteFabricacao: null,
+    validade: null,
+    data: null,
+  };
+
+  it("entrada e saída de estoque são operações válidas", () => {
+    expect(operacaoSchema.safeParse(entrada).success).toBe(true);
+    const saida = { ...base, alvo: "desinfetante", animalId: null, tipo: "saida_estoque", produto: "desinfetante", produtoId: null, local: null, localId: null, quantidade: 2, unidade: "l", motivo: "limpeza", data: null };
+    expect(operacaoSchema.safeParse(saida).success).toBe(true);
+  });
+
+  it("só pode salvar com produto, local e quantidade", () => {
+    const op = operacaoSchema.parse(entrada);
+    expect(temAlvo(op)).toBe(true);
+    expect(precisaAlvo(op)).toBe(false);
+    expect(temAlvo(operacaoSchema.parse({ ...entrada, produtoId: null }))).toBe(false);
+    expect(temAlvo(operacaoSchema.parse({ ...entrada, localId: null }))).toBe(false);
+    expect(temAlvo(operacaoSchema.parse({ ...entrada, quantidade: null }))).toBe(false);
+  });
+
+  it("quem confere escolhe o produto e o local que a IA não achou", () => {
+    const op = operacaoSchema.parse({ ...entrada, produtoId: null, localId: null });
+    const r = corrigirOperacao(op, { produtoId: "p9", localId: "l9" });
+    expect(r.ok && r.op).toMatchObject({ produtoId: "p9", localId: "l9", original: { produtoId: null, localId: null } });
+    expect(CAMPOS_CORRIGIVEIS.aplicar_vacina).toContain("produtoId");
+  });
+
+  it("vacina gravada antes do estoque continua válida, e a nova pode trazer o produto", () => {
+    expect(operacaoSchema.safeParse(vacina).success).toBe(true);
+    const comProduto = operacaoSchema.parse({ ...vacina, produtoId: "p1", quantidade: 1 });
+    expect(comProduto).toMatchObject({ produtoId: "p1", quantidade: 1 });
+  });
+});

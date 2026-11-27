@@ -4,7 +4,8 @@ import { and, eq } from "drizzle-orm";
 import { br } from "../../../base/datas";
 import { lote, pesagemLote, vacinacaoLote } from "../../../db/tabelas/aviario";
 import { nomeDaInstalacao, type Tx } from "./alojamento";
-import { sincronizarRacao } from "../../estoque";
+import { baixarInsumo, sincronizarRacao } from "../../estoque";
+import { avesVivasNoDia } from "../consultas/lotes";
 import { somarApontamento, validarApontamento, type ValoresApontamento } from "./apontamento";
 
 type Origem = { organizationId: string; ocorrenciaId: string; criadoPorId: string };
@@ -75,16 +76,40 @@ export async function aplicarAviario(
     if (data > hoje) return "Data no futuro.";
     const erro = await loteAtivoNaData(tx, orgId, op.loteId, data);
     if (erro) return erro;
-    await tx.insert(vacinacaoLote).values({
-      organizationId: orgId,
-      criadoPorId: origem.criadoPorId,
-      ocorrenciaId: origem.ocorrenciaId,
-      loteId: op.loteId!,
-      vacina: op.vacina,
-      via: op.via ?? null,
-      data,
-      proximaData: op.proximaData ?? null,
-    });
+    // Com produto do estoque, as doses saem de lá (padrão: as aves vivas no dia).
+    const [l] = op.produtoId ? await tx.select().from(lote).where(and(eq(lote.id, op.loteId!), eq(lote.organizationId, orgId))) : [];
+    const doses = op.produtoId && l ? (op.quantidade ?? (await avesVivasNoDia(l, data, tx))) : null;
+    if (op.produtoId && !doses) return "O lote não tem aves vivas nessa data.";
+    const [v] = await tx
+      .insert(vacinacaoLote)
+      .values({
+        organizationId: orgId,
+        criadoPorId: origem.criadoPorId,
+        ocorrenciaId: origem.ocorrenciaId,
+        loteId: op.loteId!,
+        vacina: op.vacina,
+        via: op.via ?? null,
+        data,
+        proximaData: op.proximaData ?? null,
+        produtoId: op.produtoId ?? null,
+        quantidade: doses == null ? null : String(doses),
+      })
+      .returning({ id: vacinacaoLote.id });
+    if (op.produtoId && doses) {
+      const b = await baixarInsumo(tx, {
+        orgId,
+        userId: origem.criadoPorId,
+        origemTipo: "vacinacao_lote",
+        origemId: v!.id,
+        data,
+        produtoId: op.produtoId,
+        localId: op.localId,
+        quantidade: doses,
+        loteFabricacao: op.loteFabricacao,
+        categorias: ["vacina", "medicamento"],
+      });
+      if (!b.ok) return b.erro;
+    }
     return null;
   }
 

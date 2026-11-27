@@ -1,4 +1,4 @@
-import { confirmarOcorrenciaSchema, corrigirOperacao, TIPOS_AVIARIO, type Ocorrencia, type Operacao } from "@vocare/shared";
+import { confirmarOcorrenciaSchema, corrigirOperacao, TIPOS_AVIARIO, TIPOS_ESTOQUE, type Ocorrencia, type Operacao } from "@vocare/shared";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -9,6 +9,7 @@ import { consulta } from "../../../db/tabelas/saude";
 import { grupo, grupoAnimal, parto, pesagem, tratamento, vacina } from "../../../db/tabelas/historico";
 import { anotacaoAnimal, ocorrencia } from "../../../db/tabelas/notas";
 import { aplicarAviario } from "../../aviario";
+import { aplicarEstoque, baixarInsumo } from "../../estoque";
 import { falha, ok, type Resultado } from "../../../base/resultado";
 import { cadastrarCrias } from "./crias";
 
@@ -17,6 +18,36 @@ const HORA_PADRAO = "08:00";
 class AplicacaoFalhou extends Error {}
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Vacina ou remédio da nota com produto do estoque: baixa a quantidade por
+ * animal vezes os animais atingidos. Sem produto, nada muda.
+ */
+async function baixarDaNota(
+  tx: Tx,
+  op: Extract<Operacao, { tipo: "aplicar_vacina" | "registrar_remedio" }>,
+  animais: number,
+  orgId: string,
+  userId: string,
+  ocorrenciaId: string,
+  indice: number,
+  data: string,
+): Promise<string | null> {
+  if (!op.produtoId) return null;
+  const r = await baixarInsumo(tx, {
+    orgId,
+    userId,
+    origemTipo: "ocorrencia",
+    origemId: `${ocorrenciaId}:${indice}`,
+    data,
+    produtoId: op.produtoId,
+    localId: op.localId,
+    quantidade: (op.quantidade ?? 1) * animais,
+    loteFabricacao: op.loteFabricacao,
+    categorias: ["vacina", "medicamento"],
+  });
+  return r.ok ? null : r.erro;
+}
 
 /** "AAAA-MM-DD" + n dias. */
 function somarDias(iso: string, dias: number) {
@@ -60,7 +91,7 @@ async function alvos(tx: Tx, op: Operacao, orgId: string): Promise<string[] | st
  * O que foi feito e veio sem data (peso, vacina, remédio, parto) fica no
  * `dia` em que a ocorrência foi gravada, não no dia em que alguém salvou.
  */
-export async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocorrenciaId: string, dia: string) {
+export async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: string, ocorrenciaId: string, dia: string, indice = 0) {
   const origem = { organizationId: orgId, ocorrenciaId, criadoPorId: userId };
 
   if (op.tipo === "cadastrar_animal") {
@@ -77,6 +108,7 @@ export async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: strin
   }
 
   if (TIPOS_AVIARIO.includes(op.tipo)) return aplicarAviario(tx, op, origem, hojeISO(), dia);
+  if (TIPOS_ESTOQUE.includes(op.tipo)) return aplicarEstoque(tx, op, { orgId, userId, ocorrenciaId, indice, data: dia });
 
   const ids = await alvos(tx, op, orgId);
   if (typeof ids === "string") return ids;
@@ -114,9 +146,11 @@ export async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: strin
           grupoId: op.grupoId ?? null,
           data: op.data ?? dia,
           proximaData: op.proximaData,
+          produtoId: op.produtoId ?? null,
+          quantidade: op.produtoId ? String(op.quantidade ?? 1) : null,
         })),
       );
-      return null;
+      return baixarDaNota(tx, op, ids.length, orgId, userId, ocorrenciaId, indice, op.data ?? dia);
     case "registrar_remedio":
       await tx.insert(tratamento).values(
         ids.map((animalId) => ({
@@ -128,9 +162,11 @@ export async function aplicar(tx: Tx, op: Operacao, orgId: string, userId: strin
           inicio: dia,
           fim: op.dias ? somarDias(dia, op.dias - 1) : null,
           carenciaDias: op.carenciaDias,
+          produtoId: op.produtoId ?? null,
+          quantidade: op.produtoId ? String(op.quantidade ?? 1) : null,
         })),
       );
-      return null;
+      return baixarDaNota(tx, op, ids.length, orgId, userId, ocorrenciaId, indice, dia);
     case "registrar_parto": {
       const data = op.data ?? dia;
       // O pai escolhido por quem conferiu também tem de ser desta organização.
@@ -179,8 +215,8 @@ export async function confirmarNota(
   // Tudo ou nada: se uma operação falha, nenhuma é gravada e a ocorrência
   // continua pendente para o revisor ajustar.
   const erro = await db.transaction(async (tx) => {
-    for (const op of escolhidas) {
-      const e = await aplicar(tx, op, orgId, userId, id, hojeISO(alvo.createdAt));
+    for (const [indice, op] of escolhidas.entries()) {
+      const e = await aplicar(tx, op, orgId, userId, id, hojeISO(alvo.createdAt), indice);
       // Lançar desfaz a transação; a mensagem volta para o revisor.
       if (e) throw new AplicacaoFalhou(e);
     }

@@ -12,6 +12,7 @@ import { vocabulario } from "./ia/vocabulario";
 import { gravadorNaEmpresa } from "../../base/gravador-atual";
 import { membroAtual } from "../../base/membro-atual";
 import { galpoesDaOrg } from "../aviario";
+import { estoqueParaIa } from "../estoque";
 import { administradores, notificar } from "../avisos";
 import { buscar, animaisDaOrg, donoSeOutro, gruposDaOrg } from "./consultas";
 import { confirmarNota } from "./regras/aplicar";
@@ -87,11 +88,16 @@ notasRotas.post("/:orgId/ocorrencias", async (c) => {
     const dia = hojeISO(gravadoEm ?? undefined);
     // O cadastro serve às duas etapas: a transcrição aprende a escrever os
     // nomes dele, e a interpretação liga o que foi dito aos ids.
-    const [animais, grupos, galpoes] = await Promise.all([animaisDaOrg(orgId), gruposDaOrg(orgId), galpoesDaOrg(orgId, dia)]);
+    const [animais, grupos, galpoes, estoque] = await Promise.all([
+      animaisDaOrg(orgId),
+      gruposDaOrg(orgId),
+      galpoesDaOrg(orgId, dia),
+      estoqueParaIa(orgId),
+    ]);
     const transcricao = await transcrever(audio, vocabulario(animais, grupos, galpoes));
     // Áudio que não deu para entender vira ocorrência mesmo assim: quem
     // confere escreve o que foi dito (POST /:id/texto).
-    const analise = transcricao ? await analisar(transcricao, dia, animais, grupos, galpoes) : null;
+    const analise = transcricao ? await analisar(transcricao, dia, animais, grupos, galpoes, estoque) : null;
     // A IA corrige palavra mal ouvida ("parca" → "porca"); o que o Whisper
     // ouviu fica guardado ao lado.
     const texto = analise?.transcricao ?? transcricao;
@@ -155,7 +161,14 @@ notasRotas.post("/:orgId/ocorrencias/:id/texto", async (c) => {
 
   try {
     // Datas relativas do texto contam a partir do dia em que foi gravado.
-    const analise = await analisar(body.data.texto, hojeISO(alvo.createdAt), await animaisDaOrg(orgId), await gruposDaOrg(orgId), await galpoesDaOrg(orgId, hojeISO(alvo.createdAt)));
+    const analise = await analisar(
+      body.data.texto,
+      hojeISO(alvo.createdAt),
+      await animaisDaOrg(orgId),
+      await gruposDaOrg(orgId),
+      await galpoesDaOrg(orgId, hojeISO(alvo.createdAt)),
+      await estoqueParaIa(orgId),
+    );
     await db
       .update(ocorrencia)
       // Texto escrito por quem confere vale como está: a correção da IA é só para o áudio.

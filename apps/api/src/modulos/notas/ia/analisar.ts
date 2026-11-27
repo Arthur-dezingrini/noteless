@@ -2,6 +2,7 @@ import { type Operacao } from "@vocare/shared";
 import { z } from "zod";
 
 import type { GalpaoParaIa } from "../../aviario";
+import type { EstoqueParaIa } from "../../estoque";
 import { transcricaoCorrigida } from "./correcao";
 import { ferramenta, type Ferramenta } from "./ferramenta";
 import { instrucoes, type AnimalParaIa, type GrupoParaIa } from "./instrucoes";
@@ -108,12 +109,13 @@ export async function analisar(
   animais: AnimalParaIa[],
   grupos: GrupoParaIa[] = [],
   galpoes: GalpaoParaIa[] = [],
+  estoque: EstoqueParaIa = { produtos: [], locais: [] },
 ): Promise<Analise> {
   const cfg = interpretacao();
   if (!cfg) throw new IaNaoConfigurada("A interpretação por IA (GROQ_API_KEY)");
 
-  const sistema = instrucoes(hoje, animais, grupos, galpoes);
-  const ferr = ferramenta(galpoes.length > 0);
+  const sistema = instrucoes(hoje, animais, grupos, galpoes, estoque);
+  const ferr = ferramenta(galpoes.length > 0, estoque.produtos.length > 0);
   const idsAnimais = new Set(animais.map((a) => a.id));
   const idsGrupos = new Set(grupos.map((g) => g.id));
 
@@ -129,7 +131,7 @@ export async function analisar(
         transcricao: transcricaoCorrigida(transcricao, saida.data.transcricaoCorrigida),
         resumo: saida.data.resumo.trim(),
         operacoes: saida.data.operacoes
-          .map((op) => normalizar(op, idsAnimais, idsGrupos, galpoes))
+          .map((op) => normalizar(op, idsAnimais, idsGrupos, galpoes, estoque))
           .filter((op): op is Operacao => op !== null),
       };
     } catch (e) {

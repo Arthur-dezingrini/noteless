@@ -111,6 +111,18 @@ describe("o aviário dá baixa no estoque", () => {
     expect(m).toMatchObject({ origemId: v!.id, loteFabricacao: "V1", localId: g.geladeira.id });
   });
 
+  it("vacinar_lote pela nota com produto baixa as aves vivas e grava o produto", async () => {
+    const g = await granja();
+    const op = { tipo: "vacinar_lote", titulo: "", alvo: "L-1", animalId: null, grupoId: null, detalhe: "", confianca: 90, trecho: "", loteId: g.loteId, vacina: "Newcastle", via: null, data: HOJE, proximaData: null, produtoId: g.vacina.id } as unknown as Operacao;
+    const erro = await db.transaction((tx) =>
+      aplicarAviario(tx, op, { organizationId: g.f.orgId, criadoPorId: g.f.dono.id, ocorrenciaId: null as unknown as string }, HOJE),
+    );
+    expect(erro).toBeNull();
+    expect(await g.saldo(g.vacina.id)).toBe(5000 - 1650);
+    const [v] = await db.select().from(vacinacaoLote).where(eq(vacinacaoLote.organizationId, g.f.orgId));
+    expect(v).toMatchObject({ produtoId: g.vacina.id, quantidade: "1650.000" });
+  });
+
   it("vacinação com quantidade informada baixa essa quantidade", async () => {
     const g = await granja();
     await chamar(g.f.dono, "POST", `${g.org}/lotes/${g.loteId}/vacinacoes`, { data: HOJE, vacina: "Newcastle", produtoId: g.vacina.id, quantidade: 500 });

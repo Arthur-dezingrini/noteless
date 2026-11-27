@@ -1,6 +1,7 @@
-import { ROTULO_ESPECIE, ROTULO_TIPO_CONSULTA, TIPOS_COM_GRUPO, TIPOS_CONSULTA } from "@vocare/shared";
+import { ROTULO_CATEGORIA_PRODUTO, ROTULO_ESPECIE, ROTULO_TIPO_CONSULTA, TIPOS_COM_GRUPO, TIPOS_CONSULTA } from "@vocare/shared";
 
 import type { GalpaoParaIa } from "../../aviario";
+import type { EstoqueParaIa } from "../../estoque";
 
 export type AnimalParaIa = {
   id: string;
@@ -39,7 +40,13 @@ function linhaAnimal(a: AnimalParaIa) {
   return `- id=${a.id} · ${nome} (${numero}${especie}${a.raca ? `, ${a.raca}` : ""}${a.tutor ? `, tutor ${a.tutor}` : ""})`;
 }
 
-export function instrucoes(hoje: string, animais: AnimalParaIa[], grupos: GrupoParaIa[], galpoes: GalpaoParaIa[] = []) {
+export function instrucoes(
+  hoje: string,
+  animais: AnimalParaIa[],
+  grupos: GrupoParaIa[],
+  galpoes: GalpaoParaIa[] = [],
+  estoque: EstoqueParaIa = { produtos: [], locais: [] },
+) {
   const listaAnimais = animais.length ? animais.map(linhaAnimal).join("\n") : "(nenhum animal cadastrado)";
   const listaGrupos = grupos.length
     ? grupos.map((g) => `- id=${g.id} · ${g.nome} (${g.animais} animais)`).join("\n")
@@ -59,6 +66,8 @@ Operações do aviário (animalId = null e grupoId = null sempre):
 - pesar_lote: pesagem de aves do lote (loteId, sexo, pesoMedioG em gramas, uniformidadePct e amostra se ditos).
 - vacinar_lote: vacina aplicada no lote inteiro (loteId, vacina, via, data, proximaData). Use esta, e não aplicar_vacina, quando o alvo é um lote de aves.`
     : "";
+
+  const blocoEstoque = blocoDoEstoque(estoque);
 
   const tipos = TIPOS_CONSULTA.map((t) => `${t} = ${ROTULO_TIPO_CONSULTA[t]}`).join("; ");
 
@@ -82,7 +91,7 @@ Tipos de operação:
 - registrar_remedio: remédio/tratamento iniciado (nome, dose, por quantos dias, carência).
 - registrar_parto: um animal da lista pariu (mãe = animalId; data; crias = quantas nasceram vivas, natimortos vão em observacoes; o pai, se dito, em paiId quando está na lista, senão em paiExterno). O sistema cadastra as crias junto com o parto.
 - cadastrar_animal: um animal NOVO, que não está na lista (nome, espécie, sexo, raça, nascimento). animalId = null.
-- registrar_anotacao: qualquer outra observação clínica ou de manejo sobre um animal.${blocoAviario}
+- registrar_anotacao: qualquer outra observação clínica ou de manejo sobre um animal.${blocoAviario}${blocoEstoque}
 
 Regras:
 - Ligue cada operação a um animal da lista pelo id quando nome/apelido/número do brinco bater com razoável certeza. Se não bater, animalId = null e confiança baixa.
@@ -94,4 +103,25 @@ Regras:
 - Uma frase pode gerar mais de uma operação; uma operação por fato relatado. Não invente fatos que não foram ditos; campo não dito = null.
 - confianca: 90+ quando tudo está explícito e o alvo foi identificado; 70–89 quando há uma inferência pequena; abaixo de 70 quando há ambiguidade real.
 - Escreva em português do Brasil, curto e objetivo.`;
+}
+
+/** Produtos e locais do estoque, e quando usar entrada_estoque / saida_estoque. Vazio sem produto. */
+function blocoDoEstoque({ produtos, locais }: EstoqueParaIa): string {
+  if (produtos.length === 0) return "";
+  const linhaProduto = (p: EstoqueParaIa["produtos"][number]) => {
+    const embalagem = p.embalagemNome && p.embalagemFator ? `; embalagem ${p.embalagemNome} de ${p.embalagemFator} ${p.unidade}` : "";
+    return `- id=${p.id} · ${p.nome} (${ROTULO_CATEGORIA_PRODUTO[p.categoria].toLowerCase()}, em ${p.unidade}${embalagem})`;
+  };
+  return `
+
+Produtos do estoque (insumos):
+${produtos.map(linhaProduto).join("\n")}
+
+Locais do estoque:
+${locais.length ? locais.map((l) => `- id=${l.id} · ${l.nome}`).join("\n") : "(nenhum local)"}
+
+Operações do estoque (animalId = null e grupoId = null sempre):
+- entrada_estoque: chegou ou foi comprado um insumo ("chegaram 300 sacos de ração no silo 2"). produtoId e localId da lista; produto e local como foram ditos; quantidade e unidade como foram ditas (o sistema converte saco, frasco, tonelada); fornecedor, numeroNota, valorTotal, loteFabricacao e validade só se ditos.
+- saida_estoque: insumo usado, perdido ou vencido fora do registro diário e da vacinação ("usei 2 litros de desinfetante no galpão 3"). A ração do dia de um galpão vai em apontar_galpao (racaoKg), não aqui; vacina aplicada vai em aplicar_vacina ou vacinar_lote.
+- Em aplicar_vacina, registrar_remedio e vacinar_lote, preencha produtoId quando a vacina ou o remédio estiver na lista de produtos (e quantidade, se dita).`;
 }

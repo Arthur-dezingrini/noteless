@@ -7,7 +7,7 @@ import { useState } from "react";
 import { PageHeader, Tabs } from "@/components/ui";
 import { BRAND_NAME } from "@/lib/brand";
 
-import { type AnimalRef, type GrupoRef, type GalpaoRef, type LoteRef, type Cadastro } from "./tipos";
+import { type AnimalRef, type GrupoRef, type GalpaoRef, type LoteRef, type ProdutoRef, type LocalRef, type Cadastro } from "./tipos";
 import { Detalhe } from "./detalhe";
 import { ItemLista } from "./item-lista";
 
@@ -33,6 +33,8 @@ export function NotasView({
   grupos: listaGrupos,
   galpoes: listaGalpoes,
   lotes: listaLotes,
+  produtos: listaProdutos = [],
+  locais: listaLocais = [],
   podeSalvar,
   selecionarId,
 }: {
@@ -42,6 +44,8 @@ export function NotasView({
   grupos: GrupoRef[];
   galpoes: GalpaoRef[];
   lotes: LoteRef[];
+  produtos?: ProdutoRef[];
+  locais?: LocalRef[];
   podeSalvar: boolean;
   /** Vindo de uma notificação: abre esta ocorrência, na aba certa. */
   selecionarId?: string;
@@ -66,6 +70,8 @@ export function NotasView({
     grupos: new Map(listaGrupos.map((g) => [g.id, g])),
     galpoes: new Map(listaGalpoes.map((g) => [g.id, g])),
     lotes: new Map(listaLotes.map((l) => [l.id, l])),
+    produtos: new Map(listaProdutos.map((p) => [p.id, p])),
+    locais: new Map(listaLocais.map((l) => [l.id, l])),
   };
 
   function substituir(oc: Ocorrencia) {

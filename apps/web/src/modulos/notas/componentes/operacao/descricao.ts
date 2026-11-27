@@ -1,4 +1,4 @@
-import { CAMPOS_CORRIGIVEIS, CAMPOS_APONTAMENTO, ESPECIES, ROTULO_CAMPO_APONTAMENTO, ROTULO_ESPECIE, ROTULO_SEXO, ROTULO_TIPO_CONSULTA, SEXOS, TIPOS_AVIARIO, TIPOS_CONSULTA, temAlvo, type CampoCorrigivel, type Especie, type Ocorrencia, type Operacao, type Sexo, type TipoConsulta } from "@vocare/shared";
+import { CAMPOS_CORRIGIVEIS, CAMPOS_APONTAMENTO, ESPECIES, ROTULO_CAMPO_APONTAMENTO, ROTULO_ESPECIE, ROTULO_SEXO, ROTULO_TIPO_CONSULTA, SEXOS, TIPOS_AVIARIO, TIPOS_CONSULTA, TIPOS_ESTOQUE, temAlvo, type CampoCorrigivel, type Especie, type Ocorrencia, type Operacao, type Sexo, type TipoConsulta } from "@vocare/shared";
 
 import { formatar } from "@/lib/datas";
 
@@ -50,27 +50,38 @@ export const ROTULO_CAMPO: Record<CampoCorrigivel, string> = {
   uniformidadePct: "Uniformidade (%)",
   amostra: "Amostra",
   via: "Via",
+  produtoId: "Produto do estoque",
+  localId: "Local do estoque",
+  quantidade: "Quantidade",
+  loteFabricacao: "Lote de fabricação",
+  validade: "Validade",
+  valorTotal: "Valor (R$)",
+  numeroNota: "Nota fiscal",
+  motivo: "Motivo",
 };
 
-export const CAMPOS_DATA: CampoCorrigivel[] = ["data", "proximaData", "nascimento"];
+export const CAMPOS_DATA: CampoCorrigivel[] = ["data", "proximaData", "nascimento", "validade"];
 export const CAMPOS_INTEIROS: CampoCorrigivel[] = [
   "dias", "carenciaDias", "crias", "amostra",
   ...CAMPOS_APONTAMENTO.filter((c) => c !== "racaoKg" && c !== "aguaL"),
 ];
 /** Decimais das operações do aviário (aceitam vírgula). */
-export const CAMPOS_DECIMAIS: CampoCorrigivel[] = ["pesoMedioG", "uniformidadePct", "racaoKg", "aguaL"];
+export const CAMPOS_DECIMAIS: CampoCorrigivel[] = ["pesoMedioG", "uniformidadePct", "racaoKg", "aguaL", "quantidade", "valorTotal"];
 /** Podem ficar vazios (null). */
 export const CAMPOS_OPCIONAIS: CampoCorrigivel[] = [
   "data", "hora", "observacoes", "dose", "proximaData", "dias", "carenciaDias", "crias", "nomesCrias", "paiId", "paiExterno", "raca", "sexo", "nascimento",
   "uniformidadePct", "amostra", "via", ...CAMPOS_APONTAMENTO,
+  "produtoId", "localId", "quantidade", "loteFabricacao", "validade", "valorTotal", "numeroNota", "motivo",
 ];
-export const CAMPOS_ESCOLHA: CampoCorrigivel[] = ["animalId", "grupoId", "instalacaoId", "loteId", "tipoConsulta", "especie", "sexo", "cadastrarCrias", "paiId"];
+export const CAMPOS_ESCOLHA: CampoCorrigivel[] = ["animalId", "grupoId", "instalacaoId", "loteId", "tipoConsulta", "especie", "sexo", "cadastrarCrias", "paiId", "produtoId", "localId"];
 /** O alvo aparece na linha "nº 07 Thor → …"; na tabela, só quando falta, foi corrigido ou é grupo. */
 export const CAMPOS_ALVO: CampoCorrigivel[] = ["animalId", "grupoId", "instalacaoId", "loteId"];
 
 /** Pode ficar vazio nesta operação? (`sexo` é obrigatório na pesagem do lote.) */
 export function opcional(tipo: Operacao["tipo"], c: CampoCorrigivel) {
   if (c === "sexo" && tipo === "pesar_lote") return false;
+  // Na entrada e na saída de estoque, produto, local e quantidade são o que se grava.
+  if (TIPOS_ESTOQUE.includes(tipo) && (c === "produtoId" || c === "localId" || c === "quantidade")) return false;
   return CAMPOS_OPCIONAIS.includes(c);
 }
 
@@ -100,6 +111,9 @@ export function nomeAlvo(op: Operacao, cad: Cadastro): string {
   if (op.tipo === "pesar_lote" || op.tipo === "vacinar_lote") {
     return (op.loteId && cad.lotes.get(op.loteId)?.codigo) || `${op.alvo} (não encontrado)`;
   }
+  if (op.tipo === "entrada_estoque" || op.tipo === "saida_estoque") {
+    return (op.produtoId && cad.produtos.get(op.produtoId)?.nome) || `${op.produto || op.alvo} (não encontrado)`;
+  }
   if (op.grupoId) {
     const g = cad.grupos.get(op.grupoId);
     return g ? `${g.nome} (${g.animais} ${g.animais === 1 ? "animal" : "animais"})` : op.alvo;
@@ -110,7 +124,7 @@ export function nomeAlvo(op: Operacao, cad: Cadastro): string {
 }
 
 /** "da Mimosa", "do Thor", "de Rex" (sexo não cadastrado), "do Lote 4". */
-export function deAlvo(op: Exclude<Operacao, { tipo: "apontar_galpao" | "pesar_lote" | "vacinar_lote" }>, cad: Cadastro) {
+export function deAlvo(op: Exclude<Operacao, { tipo: "apontar_galpao" | "pesar_lote" | "vacinar_lote" | "entrada_estoque" | "saida_estoque" }>, cad: Cadastro) {
   if (op.grupoId) return `do ${cad.grupos.get(op.grupoId)?.nome ?? op.alvo}`;
   const a = op.animalId ? cad.animais.get(op.animalId) : undefined;
   const prep = a?.sexo === "femea" ? "da" : a?.sexo === "macho" ? "do" : "de";
@@ -138,6 +152,12 @@ export function efeito(op: Operacao, cad: Cadastro): string {
       return `a pesagem ${op.sexo === "femea" ? "das fêmeas" : "dos machos"} do ${nomeAlvo(op, cad)}`;
     case "vacinar_lote":
       return `a vacina ${op.vacina} no ${nomeAlvo(op, cad)}`;
+    case "entrada_estoque":
+    case "saida_estoque": {
+      const qtd = op.quantidade == null ? "" : `${op.quantidade.toLocaleString("pt-BR")} ${op.unidade ?? ""} de `;
+      const local = op.localId ? (cad.locais.get(op.localId)?.nome ?? "") : "";
+      return `a ${op.tipo === "entrada_estoque" ? "entrada" : "saída"} de ${qtd}${nomeAlvo(op, cad)}${local ? ` ${op.tipo === "entrada_estoque" ? "no" : "do"} ${local}` : ""} no estoque`;
+    }
     default:
       break;
   }
@@ -187,6 +207,13 @@ export function formatarCampo(c: CampoCorrigivel, valor: unknown, cad: Cadastro,
       return cad.galpoes.get(String(valor))?.nome ?? "Galpão removido";
     case "loteId":
       return cad.lotes.get(String(valor))?.codigo ?? "Lote removido";
+    case "produtoId":
+      return cad.produtos.get(String(valor))?.nome ?? "Produto removido";
+    case "localId":
+      return cad.locais.get(String(valor))?.nome ?? "Local removido";
+    case "quantidade":
+    case "valorTotal":
+      return Number(valor).toLocaleString("pt-BR");
     case "racaoKg":
     case "aguaL":
     case "pesoMedioG":
@@ -208,6 +235,7 @@ export function formatarCampo(c: CampoCorrigivel, valor: unknown, cad: Cadastro,
     case "data":
     case "proximaData":
     case "nascimento":
+    case "validade":
       return formatar(String(valor), { day: "2-digit", month: "2-digit", year: "numeric" });
     default:
       return String(valor);
@@ -226,6 +254,10 @@ export function opcoesDe(c: CampoCorrigivel, cad: Cadastro): { v: string; r: str
       return [...cad.galpoes.values()].map((g) => ({ v: g.id, r: g.nome }));
     case "loteId":
       return [...cad.lotes.values()].filter((l) => l.ativo).map((l) => ({ v: l.id, r: l.codigo }));
+    case "produtoId":
+      return [...cad.produtos.values()].map((p) => ({ v: p.id, r: `${p.nome} (${p.unidade})` }));
+    case "localId":
+      return [...cad.locais.values()].map((l) => ({ v: l.id, r: l.nome }));
     case "tipoConsulta":
       return TIPOS_CONSULTA.map((t) => ({ v: t, r: ROTULO_TIPO_CONSULTA[t] }));
     case "especie":
