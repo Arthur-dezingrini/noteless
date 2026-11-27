@@ -12,6 +12,7 @@ import { animal } from "../../../db/tabelas/animais";
 import { consulta } from "../../../db/tabelas/saude";
 import { vacina } from "../../../db/tabelas/historico";
 import { membroAtual } from "../../../base/membro-atual";
+import { resumoAvisosEstoque } from "../../estoque";
 
 /**
  * "Fique de olho" do Início: o que passou do prazo ou está para passar.
@@ -29,6 +30,19 @@ function somarDias(iso: string, n: number) {
 /** "do Thor", "da Mimosa". */
 const de = (sexo: string | null) => (sexo === "femea" ? "da" : sexo === "macho" ? "do" : "de");
 
+/** O resumo do estoque em linhas do "Fique de olho": uma por tipo, com a contagem. */
+function avisosDoEstoque(r: Awaited<ReturnType<typeof resumoAvisosEstoque>>): Aviso[] {
+  const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+  const linhas: [keyof typeof r, Aviso["tom"], (n: number) => string, string][] = [
+    ["negativos", "danger", (n) => `${plural(n, "produto com", "produtos com")} saldo negativo no estoque`, "/estoque"],
+    ["acabando", "danger", (n) => `Ração acabando em ${plural(n, "silo", "silos")}`, "/estoque"],
+    ["vencendo", "warn", (n) => `${plural(n, "lote vencendo ou vencido", "lotes vencendo ou vencidos")} no estoque`, "/estoque"],
+    ["abaixoMinimo", "warn", (n) => `${plural(n, "produto", "produtos")} abaixo do mínimo no estoque`, "/estoque"],
+    ["semBaixa", "warn", (n) => `Ração de ${plural(n, "galpão", "galpões")} não saiu do estoque`, "/estoque/locais"],
+  ];
+  return linhas.filter(([t]) => r[t] > 0).map(([t, tom, texto, link]) => ({ id: `estoque-${t}`, texto: texto(r[t]), tom, link }));
+}
+
 inicioRoutes.get("/:orgId/inicio/avisos", async (c) => {
   const orgId = c.req.param("orgId");
   if (!(await membroAtual(c.req.raw.headers, orgId))) return c.json({ error: "Sem acesso a esta organização." }, 403);
@@ -37,7 +51,7 @@ inicioRoutes.get("/:orgId/inicio/avisos", async (c) => {
   const emSete = somarDias(hoje, 7);
   const amanha = somarDias(hoje, 1);
 
-  const [vacinas, semConfirmar, semConcluir] = await Promise.all([
+  const [vacinas, semConfirmar, semConcluir, doEstoque] = await Promise.all([
     db
       .select({ id: vacina.id, animalId: vacina.animalId, vacina: vacina.vacina, proxima: vacina.proximaData, numero: animal.numero, nome: animal.nome, sexo: animal.sexo })
       .from(vacina)
@@ -58,7 +72,9 @@ inicioRoutes.get("/:orgId/inicio/avisos", async (c) => {
       .where(and(eq(consulta.organizationId, orgId), inArray(consulta.status, ["agendada", "confirmada", "urgente"]), lt(consulta.data, hoje)))
       .orderBy(desc(consulta.data))
       .limit(3),
+    resumoAvisosEstoque(orgId),
   ]);
+  const estoque = avisosDoEstoque(doEstoque);
 
   const vencidas: Aviso[] = [];
   const vencendo: Aviso[] = [];
@@ -77,6 +93,7 @@ inicioRoutes.get("/:orgId/inicio/avisos", async (c) => {
   const tipo = (t: string) => ROTULO_TIPO_CONSULTA[tipoConsultaSchema.catch("outro").parse(t)];
   const avisos: Aviso[] = [
     ...vencidas,
+    ...estoque.filter((a) => a.tom === "danger"),
     ...semConcluir.map((x) => ({
       id: `c-${x.id}`,
       texto: `${tipo(x.tipo)} ${de(x.sexo)} ${rotuloAnimal(x)} em ${dm(x.data)} não foi marcada como concluída`,
@@ -90,6 +107,7 @@ inicioRoutes.get("/:orgId/inicio/avisos", async (c) => {
       link: "/saude/agenda",
     })),
     ...vencendo,
+    ...estoque.filter((a) => a.tom === "warn"),
   ];
 
   return c.json(avisos.slice(0, 6));

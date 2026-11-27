@@ -3,6 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 
 import { env } from "../../env";
+import { conferirAvisosEstoque } from "../estoque";
 import { apagarAudiosVencidos } from "./regras/limpeza-audio";
 
 /**
@@ -22,4 +23,12 @@ rotinasRoutes.post("/limpeza-audio", async (c) => {
   if (!segredo) return c.json({ error: "Rotina não configurada." }, 503);
   if (!segredoConfere(c.req.header("Authorization"), segredo)) return c.json({ error: "Não autorizado." }, 401);
   return c.json({ apagados: await apagarAudiosVencidos(new Date()) });
+});
+
+/** Avisos do estoque (mínimo, ração acabando, validade, saldo negativo, ração sem baixa), uma vez por dia. */
+rotinasRoutes.post("/estoque-avisos", async (c) => {
+  const segredo = env.ROTINAS_SEGREDO;
+  if (!segredo) return c.json({ error: "Rotina não configurada." }, 503);
+  if (!segredoConfere(c.req.header("Authorization"), segredo)) return c.json({ error: "Não autorizado." }, 401);
+  return c.json(await conferirAvisosEstoque(new Date()));
 });

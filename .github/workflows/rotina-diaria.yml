@@ -171,9 +171,23 @@ jobs:
           curl -sS --fail-with-body -X POST "$APP_URL/api/rotinas/limpeza-audio" \
             -H "Authorization: Bearer $ROTINAS_SEGREDO"
 
+  avisos-estoque:
+    name: Avisos do estoque
+    # Não depende do backup: avisar que a ração está acabando não apaga nada.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      APP_URL: ${{ vars.APP_URL }}
+      ROTINAS_SEGREDO: ${{ secrets.ROTINAS_SEGREDO }}
+    steps:
+      - name: Avisa mínimo, ração acabando, validade, saldo negativo e ração sem baixa
+        run: |
+          curl -sS --fail-with-body -X POST "$APP_URL/api/rotinas/estoque-avisos" \
+            -H "Authorization: Bearer $ROTINAS_SEGREDO"
+
   aviso:
     name: Aviso de falha por e-mail
-    needs: [copia, restauracao, limpeza-audio]
+    needs: [copia, restauracao, limpeza-audio, avisos-estoque]
     if: ${{ failure() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5

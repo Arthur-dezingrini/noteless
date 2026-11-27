@@ -8,3 +8,4 @@ export { baixarInsumo, sincronizarRacao } from "./regras/baixas";
 export { avisarGalpaoSemSilo, avisarSaldoNegativo } from "./regras/negativo";
 export { estoqueParaIa, type EstoqueParaIa, type LocalParaIa, type ProdutoParaIa } from "./consultas/ia";
 export { aplicarEstoque, type ContextoNota } from "./regras/aplicar";
+export { conferirAvisosEstoque, resumoAvisosEstoque } from "./regras/avisos";
