@@ -1,2 +1,5 @@
-/** Módulo estoque: ainda em breve. Por enquanto só declara o menu (`./menu`). */
-export {};
+/** Módulo estoque: saldo, livro de movimentos, entradas e cadastros (o menu fica em `./menu`). */
+export { FornecedoresLista, LocaisLista, ProdutosLista } from "./componentes/cadastros";
+export { EntradasLista } from "./componentes/entradas";
+export { MovimentosLista } from "./componentes/movimentos";
+export { SaldoPainel } from "./componentes/saldo";

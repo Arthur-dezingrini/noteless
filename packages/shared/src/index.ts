@@ -12,3 +12,4 @@ export * from "./notas";
 export * from "./avisos";
 export * from "./painel";
 export * from "./aviario";
+export * from "./estoque";

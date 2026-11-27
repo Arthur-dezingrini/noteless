@@ -1,4 +1,16 @@
 import { emBreve, type ModuloMenu } from "@/lib/menu-tipos";
 
-/** Insumos, ração, vacinas e medicamentos em estoque. Ainda não construído. */
-export const menu: ModuloMenu = { id: "estoque", rotulo: "Estoque", href: emBreve("estoque"), telas: [], emBreve: true };
+/** Insumos (ração, vacinas, medicamentos, material): saldo por local, livro de movimentos e compras. */
+export const menu: ModuloMenu = {
+  id: "estoque",
+  rotulo: "Estoque",
+  telas: [
+    { id: "estoque.saldo", rotulo: "Saldo", href: "/estoque" },
+    { id: "estoque.movimentos", rotulo: "Movimentos", href: "/estoque/movimentos" },
+    { id: "estoque.entradas", rotulo: "Entradas", href: "/estoque/entradas" },
+    { id: "estoque.inventario", rotulo: "Inventário", href: emBreve("estoque.inventario"), emBreve: true },
+    { id: "estoque.produtos", rotulo: "Produtos", href: "/estoque/produtos" },
+    { id: "estoque.locais", rotulo: "Locais", href: "/estoque/locais" },
+    { id: "estoque.fornecedores", rotulo: "Fornecedores", href: "/estoque/fornecedores" },
+  ],
+};

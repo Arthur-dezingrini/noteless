@@ -14,6 +14,7 @@ import { animaisRotas } from "./modulos/animais";
 import { saudeRotas } from "./modulos/saude";
 import { adminRotas, contaRotas, gravadoresAdminRotas, gravadoresRotas, perfilRotas, protegerLogin, termosRotas } from "./modulos/conta";
 import { avisosRotas } from "./modulos/avisos";
+import { estoqueRotas } from "./modulos/estoque";
 import { painelRotas } from "./modulos/painel";
 
 export const app = new Hono();
@@ -70,6 +71,7 @@ app.route("/api/org", saudeRotas);
 app.route("/api/org", notasRotas);
 app.route("/api/org", aviarioRotas);
 app.route("/api/org", avisosRotas);
+app.route("/api/org", estoqueRotas);
 app.route("/api/org", painelRotas);
 app.route("/api/perfil", perfilRotas);
 app.route("/api/perfil/termos", termosRotas);

@@ -141,6 +141,13 @@
       "when": 1795032717880,
       "tag": "0019_firmware",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795784774617,
+      "tag": "0020_estoque",
+      "breakpoints": true
     }
   ]
 }

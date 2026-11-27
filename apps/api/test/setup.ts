@@ -20,6 +20,7 @@ vi.mock("../src/db", async () => {
     ...(await import("../src/db/tabelas/avisos")),
     ...(await import("../src/db/tabelas/aviario")),
     ...(await import("../src/db/tabelas/conta")),
+    ...(await import("../src/db/tabelas/estoque")),
   };
 
   const db = drizzle(new PGlite(), { schema });

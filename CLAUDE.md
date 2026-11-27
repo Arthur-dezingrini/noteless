@@ -31,7 +31,7 @@ aplicações separadas, com deploy independente:
 
 ## Estrutura por módulo
 
-Sete módulos: `aviario`, `notas`, `animais`, `saude`, `conta`, `avisos`,
+Oito módulos: `aviario`, `notas`, `animais`, `saude`, `conta`, `avisos`, `estoque`,
 `painel` (só lê os outros). Cada um tem pasta nos três pacotes, com o mesmo
 esqueleto:
 
